@@ -38,6 +38,7 @@ namespace TenFiftyEight
 
     private:
         void OnWindowResize(uint32_t width, uint32_t height);
+        void OnKeyDown(uint32_t virtualKey);
 
         // 破棄は宣言の逆順。Renderer(SwapChain)がウィンドウより先に破棄されるよう、この順番にする
         std::unique_ptr<Window> m_Window;

@@ -30,6 +30,8 @@ namespace TenFiftyEight
         // 呼ぶ前に、GPU がバックバッファを使い終わっていること(Flush 済み)
         void Resize(uint32_t width, uint32_t height);
 
+        uint32_t GetWidth() const { return m_Width; }
+        uint32_t GetHeight() const { return m_Height; }
         ID3D12Resource* GetCurrentBackBuffer() const;
         D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentRenderTargetView() const;
 

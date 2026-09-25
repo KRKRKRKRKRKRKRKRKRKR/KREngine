@@ -12,6 +12,9 @@ namespace TenFiftyEight
     class DX12CommandQueue;
     class DX12SwapChain;
     class DX12CommandList;
+    class DX12ShaderCompiler;
+    class DX12Pipeline;
+    class DX12UploadBuffer;
 
     // Game から使う描画の窓口。中身は DX12 だが、Game は DX12 を意識しない
     class Renderer
@@ -32,6 +35,13 @@ namespace TenFiftyEight
         void BeginFrame();
         void EndFrame();
         void Resize(uint32_t width, uint32_t height);
+        void ReloadShaders();
+
+        // シェーダーをコンパイルしてパイプラインを作り直す。失敗したら false(前のパイプラインのまま)
+        bool LoadShaders();
+
+        // 2-2 の動作確認用。2-7 で DrawMesh に置き換える
+        void DrawTestTriangle();
 
         // CPU が先行して準備できるフレーム数
         static constexpr uint32_t FramesInFlight = 2;
@@ -40,6 +50,9 @@ namespace TenFiftyEight
         std::unique_ptr<DX12CommandQueue> m_Queue;
         std::unique_ptr<DX12SwapChain> m_SwapChain;
         std::unique_ptr<DX12CommandList> m_CommandList;
+        std::unique_ptr<DX12ShaderCompiler> m_ShaderCompiler;
+        std::unique_ptr<DX12Pipeline> m_Pipeline;
+        std::unique_ptr<DX12UploadBuffer> m_TestVertexBuffer;
 
         // 各フレームの命令が GPU で終わったときに到達する Fence 値
         std::array<uint64_t, FramesInFlight> m_FrameFenceValues = {};

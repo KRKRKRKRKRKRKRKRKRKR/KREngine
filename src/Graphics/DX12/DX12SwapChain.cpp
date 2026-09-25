@@ -4,6 +4,8 @@ namespace TenFiftyEight
 {
     namespace
     {
+        // Flip Model の SwapChain は _SRGB 形式で作れないため、バッファは通常形式で作り、
+        // RTV(描画するときの見方)だけを _SRGB にする
         constexpr DXGI_FORMAT BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
         // VSync オフ時にティアリングを許可できるか(可変リフレッシュレートのモニターにも必要)
@@ -63,11 +65,15 @@ namespace TenFiftyEight
 
     void DX12SwapChain::CreateRenderTargetViews()
     {
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format = RenderTargetFormat;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RtvHeap->GetCPUDescriptorHandleForHeapStart());
         for (uint32_t i = 0; i < BackBufferCount; ++i)
         {
             TFE_DX_CHECK(m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&m_BackBuffers[i])));
-            m_Device->CreateRenderTargetView(m_BackBuffers[i].Get(), nullptr, rtvHandle);
+            m_Device->CreateRenderTargetView(m_BackBuffers[i].Get(), &rtvDesc, rtvHandle);
             rtvHandle.Offset(1, m_RtvDescriptorSize);
         }
     }

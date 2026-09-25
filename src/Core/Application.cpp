@@ -12,6 +12,7 @@ namespace TenFiftyEight
     {
         m_Window = std::make_unique<Window>(WindowDesc{ desc.title, desc.width, desc.height });
         m_Window->SetResizeCallback([this](uint32_t width, uint32_t height) { OnWindowResize(width, height); });
+        m_Window->SetKeyDownCallback([this](uint32_t virtualKey) { OnKeyDown(virtualKey); });
         m_Renderer = std::make_unique<Renderer>(*m_Window);
     }
 
@@ -56,5 +57,18 @@ namespace TenFiftyEight
         {
             m_Renderer->Resize(width, height);
         }
+    }
+
+    void Application::OnKeyDown(uint32_t virtualKey)
+    {
+#ifdef TFE_DEBUG
+        // F10: シェーダーのホットリロード(Debug のみ。Release はコピーされたファイルを読むため意味がない)
+        if (virtualKey == VK_F10)
+        {
+            m_Renderer->ReloadShaders();
+        }
+#else
+        (void)virtualKey;
+#endif
     }
 }

@@ -16,6 +16,10 @@ namespace TenFiftyEight
     using Microsoft::WRL::ComPtr;
 
     constexpr uint32_t BackBufferCount = 2;
+
+    // 描画先の形式。_SRGB にすると、シェーダーが出力した「物理的に正しい明るさ」の色を、
+    // 書き込むときにモニター用の明るさ(ガンマ補正)へ自動で変換してくれる
+    constexpr DXGI_FORMAT RenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 }
 
 // DX12 / DXGI の関数は HRESULT で成否を返す。失敗したら式と HRESULT を出して停止する

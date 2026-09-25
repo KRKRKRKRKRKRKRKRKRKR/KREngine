@@ -122,12 +122,27 @@ namespace TenFiftyEight
             return 0;
         }
         case WM_KEYDOWN:
+        case WM_SYSKEYDOWN: // F10 と、Alt を押しながらのキーはこちらで届く
         {
             // lParam の bit30 = キーが押しっぱなしで繰り返し届いたメッセージ。最初の1回だけ反応する
             const bool isRepeat = (lParam & (1 << 30)) != 0;
-            if (wParam == VK_F11 && !isRepeat)
+            if (!isRepeat)
             {
-                ToggleBorderless();
+                if (wParam == VK_F11)
+                {
+                    ToggleBorderless();
+                    return 0;
+                }
+                if (m_KeyDownCallback)
+                {
+                    m_KeyDownCallback(static_cast<uint32_t>(wParam));
+                }
+            }
+
+            // F10 は Windows では「メニューを開く」キー。既定の処理に渡すとメインループが止まるため、ここで止める
+            // (Alt+F4 などは既定の処理が必要なので、F10 以外は DefWindowProc へ流す)
+            if (wParam == VK_F10)
+            {
                 return 0;
             }
             break;
