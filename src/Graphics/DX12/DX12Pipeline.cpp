@@ -1,5 +1,7 @@
 #include "Graphics/DX12/DX12Pipeline.h"
 
+#include "Graphics/DX12/DX12DepthBuffer.h"
+
 namespace TenFiftyEight
 {
     std::unique_ptr<DX12Pipeline> DX12Pipeline::Create(ID3D12Device* device, const DX12PipelineDesc& desc)
@@ -39,7 +41,11 @@ namespace TenFiftyEight
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
         psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // 裏向きの三角形は描かない(時計回りが表)
         psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);           // 半透明なし(上書き)
-        psoDesc.DepthStencilState.DepthEnable = FALSE;                    // 深度バッファは 2-5 で追加する
+        // 深度テスト: 「これから塗る物の奥行き < 記録されている奥行き」なら塗り、記録を上書きする
+        psoDesc.DepthStencilState.DepthEnable = TRUE;
+        psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;    // Reversed-Z にするときは GREATER
+        psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL; // 半透明の物では ZERO(記録しない)にする
+        psoDesc.DSVFormat = DepthBufferFormat;
         psoDesc.SampleMask = UINT_MAX;
         psoDesc.NumRenderTargets = 1;
         psoDesc.RTVFormats[0] = RenderTargetFormat;

@@ -15,6 +15,7 @@ namespace TenFiftyEight
     class DX12ShaderCompiler;
     class DX12Pipeline;
     class DX12UploadBuffer;
+    class DX12DepthBuffer;
 
     // Game から使う描画の窓口。中身は DX12 だが、Game は DX12 を意識しない
     class Renderer
@@ -52,6 +53,7 @@ namespace TenFiftyEight
         std::unique_ptr<DX12Device> m_Device;
         std::unique_ptr<DX12CommandQueue> m_Queue;
         std::unique_ptr<DX12SwapChain> m_SwapChain;
+        std::unique_ptr<DX12DepthBuffer> m_DepthBuffer;
         std::unique_ptr<DX12CommandList> m_CommandList;
         std::unique_ptr<DX12ShaderCompiler> m_ShaderCompiler;
         std::unique_ptr<DX12Pipeline> m_Pipeline;

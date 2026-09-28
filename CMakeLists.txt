@@ -37,6 +37,8 @@ set(ENGINE_FILES
     src/Graphics/DX12/DX12Pipeline.cpp
     src/Graphics/DX12/DX12Buffer.h
     src/Graphics/DX12/DX12Buffer.cpp
+    src/Graphics/DX12/DX12DepthBuffer.h
+    src/Graphics/DX12/DX12DepthBuffer.cpp
 )
 
 # シェーダーは実行時にコンパイルする。VS が勝手に FXC でコンパイルしないよう、ビルド対象から外す

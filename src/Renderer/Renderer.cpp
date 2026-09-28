@@ -3,6 +3,7 @@
 #include "Graphics/DX12/DX12Buffer.h"
 #include "Graphics/DX12/DX12CommandList.h"
 #include "Graphics/DX12/DX12CommandQueue.h"
+#include "Graphics/DX12/DX12DepthBuffer.h"
 #include "Graphics/DX12/DX12Device.h"
 #include "Graphics/DX12/DX12Pipeline.h"
 #include "Graphics/DX12/DX12ShaderCompiler.h"
@@ -113,6 +114,9 @@ namespace TenFiftyEight
         swapChainDesc.height = window.GetHeight();
         m_SwapChain = std::make_unique<DX12SwapChain>(swapChainDesc);
 
+        // 2-5 処理2: バックバッファと同じ大きさの深度バッファ
+        m_DepthBuffer = std::make_unique<DX12DepthBuffer>(m_Device->Get(), window.GetWidth(), window.GetHeight());
+
         m_CommandList = std::make_unique<DX12CommandList>(m_Device->Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, FramesInFlight);
 
         m_ShaderCompiler = std::make_unique<DX12ShaderCompiler>();
@@ -140,6 +144,7 @@ namespace TenFiftyEight
         m_Pipeline.reset();
         m_ShaderCompiler.reset();
         m_CommandList.reset();
+        m_DepthBuffer.reset();
         m_SwapChain.reset();
         m_Queue.reset();
         m_Device.reset();
@@ -197,6 +202,7 @@ namespace TenFiftyEight
         // バックバッファを作り直すので、GPU がそれを使い終わるまで待つ
         m_Queue->Flush();
         m_SwapChain->Resize(width, height);
+        m_DepthBuffer->Resize(width, height); // 2-5 処理5: 深度バッファも同じ大きさに作り直す
     }
 
     //フレーム開始
@@ -216,7 +222,13 @@ namespace TenFiftyEight
 
         const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_SwapChain->GetCurrentRenderTargetView();
         commandList->ClearRenderTargetView(rtv, m_ClearColor.data(), 0, nullptr);
-        commandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+        // 2-5 処理3: 深度を 1.0(一番奥)で塗りつぶし、前のフレームの奥行きの記録を消す
+        const D3D12_CPU_DESCRIPTOR_HANDLE dsv = m_DepthBuffer->GetView();
+        commandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, DepthClearValue, 0, 0, nullptr);
+
+        // 描画先: 色はバックバッファへ、奥行きは深度バッファへ
+        commandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 
         // ビューポート: 描画結果をバックバッファのどの範囲に映すか / シザー: どの範囲の外を切り捨てるか
         const auto width = static_cast<float>(m_SwapChain->GetWidth());
@@ -233,20 +245,6 @@ namespace TenFiftyEight
 
         commandList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
         commandList->SetPipelineState(m_Pipeline->Get());
-
-        // 処理3: ワールド行列を作る。S(拡大)→ R(回転)→ T(移動)の順に掛ける
-        //   拡大 0.5 と 奥へ 0.5 移動は、カメラ(2-6)ができるまでの一時的な対応
-        //   (画面の奥行きは 0〜1 の範囲しか映らないため、回転しても収まる大きさ・位置にしている)
-        const XMMATRIX world =
-            XMMatrixScaling(0.5f, 0.5f, 0.5f) *
-            XMMatrixRotationY(m_TestCubeAngle) *
-            XMMatrixRotationX(m_TestCubeAngle * 0.5f) *
-            XMMatrixTranslation(0.0f, 0.0f, 0.5f);
-
-        // 処理4: 行列(数字16個)を b0 の箱に入れる。XMMATRIX は計算用の型なので、ふつうの数字の並びに書き出してから渡す
-        XMFLOAT4X4 worldData;
-        XMStoreFloat4x4(&worldData, world);
-        commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &worldData, 0);
 
         // 頂点バッファの場所・全体の大きさ・1頂点の大きさを伝える
         D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
@@ -265,8 +263,34 @@ namespace TenFiftyEight
         // 番号を3つずつ区切って三角形として扱う
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        // 番号を36個使って描く(= 三角形12個 = 6面)
-        commandList->DrawIndexedInstanced(static_cast<UINT>(std::size(TestCubeIndices)), 1, 0, 0, 0);
+        // 同じ頂点・番号のバッファを使い、b0 の箱の中身(ワールド行列)だけを入れ替えて何個でも描ける
+        auto drawCube = [&](const XMMATRIX& world)
+        {
+            // 処理4: 行列(数字16個)を b0 の箱に入れる。XMMATRIX は計算用の型なので、ふつうの数字の並びに書き出してから渡す
+            XMFLOAT4X4 worldData;
+            XMStoreFloat4x4(&worldData, world);
+            commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &worldData, 0);
+
+            // 番号を36個使って描く(= 三角形12個 = 6面)
+            commandList->DrawIndexedInstanced(static_cast<UINT>(std::size(TestCubeIndices)), 1, 0, 0, 0);
+        };
+
+        // 処理3: ワールド行列を作る。S(拡大)→ R(回転)→ T(移動)の順に掛ける
+        //   拡大と「奥へ移動」は、カメラ(2-6)ができるまでの一時的な対応
+        //   (画面の奥行きは 0〜1 の範囲しか映らないため、回転しても収まる大きさ・位置にしている)
+        // 1つ目: 手前で回転するキューブ(先に描く)
+        drawCube(
+            XMMatrixScaling(0.5f, 0.5f, 0.5f) *
+            XMMatrixRotationY(m_TestCubeAngle) *
+            XMMatrixRotationX(m_TestCubeAngle * 0.5f) *
+            XMMatrixTranslation(0.0f, 0.0f, 0.5f));
+
+        // 2-5 処理1: 2つ目: 右上の奥にあるキューブ(後から描く)
+        //   深度テストがないと、奥にあるのに1つ目の上に描かれてしまう
+        drawCube(
+            XMMatrixScaling(0.35f, 0.35f, 0.35f) *
+            XMMatrixRotationY(-m_TestCubeAngle) *
+            XMMatrixTranslation(0.3f, 0.25f, 0.65f));
     }
 
     //フレーム終了
