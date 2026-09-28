@@ -9,7 +9,11 @@
 #include "Graphics/DX12/DX12SwapChain.h"
 #include "Platform/Windows/Window.h"
 
+#include <DirectXMath.h>
+
 #include <filesystem>
+
+using namespace DirectX;
 
 namespace TenFiftyEight
 {
@@ -28,12 +32,57 @@ namespace TenFiftyEight
             { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex, color),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
 
-        // 画面の座標(中央が 0,0 / 右上が 1,1 / 左下が -1,-1)で直接指定した三角形
-        // 表から見て時計回りに並べる(反時計回りは裏向きとみなされ、描かれない)
-        constexpr Vertex TestTriangle[] = {
-            { {  0.0f,  0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 上: 赤
-            { {  0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // 右下: 緑
-            { { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // 左下: 青
+        // 処理2: 1辺1、中心が原点のキューブ(2-7 で Game から渡す形に置き換える)
+        // 面ごとに色を分けるため、面ごとに専用の頂点を4つずつ持つ(4頂点 × 6面 = 24頂点)
+        // 各面とも「その面を外側から見て 左上 → 右上 → 右下 → 左下」の順に並べる
+        constexpr float Red[4]    = { 1.0f, 0.0f, 0.0f, 1.0f };
+        constexpr float Cyan[4]   = { 0.0f, 1.0f, 1.0f, 1.0f };
+        constexpr float Green[4]  = { 0.0f, 1.0f, 0.0f, 1.0f };
+        constexpr float Purple[4] = { 0.5f, 0.0f, 1.0f, 1.0f };
+        constexpr float Blue[4]   = { 0.0f, 0.0f, 1.0f, 1.0f };
+        constexpr float Yellow[4] = { 1.0f, 1.0f, 0.0f, 1.0f };
+
+        constexpr Vertex TestCubeVertices[] = {
+            // 前(-Z): 赤
+            { { -0.5f,  0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
+            { {  0.5f,  0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
+            { {  0.5f, -0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
+            { { -0.5f, -0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
+            // 後(+Z): 水色
+            { {  0.5f,  0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
+            { { -0.5f,  0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
+            { { -0.5f, -0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
+            { {  0.5f, -0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
+            // 右(+X): 緑
+            { {  0.5f,  0.5f, -0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
+            { {  0.5f,  0.5f,  0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
+            { {  0.5f, -0.5f,  0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
+            { {  0.5f, -0.5f, -0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
+            // 左(-X): 紫
+            { { -0.5f,  0.5f,  0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
+            { { -0.5f,  0.5f, -0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
+            { { -0.5f, -0.5f, -0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
+            { { -0.5f, -0.5f,  0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
+            // 上(+Y): 青
+            { { -0.5f,  0.5f,  0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
+            { {  0.5f,  0.5f,  0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
+            { {  0.5f,  0.5f, -0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
+            { { -0.5f,  0.5f, -0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
+            // 下(-Y): 黄
+            { { -0.5f, -0.5f, -0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
+            { {  0.5f, -0.5f, -0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
+            { {  0.5f, -0.5f,  0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
+            { { -0.5f, -0.5f,  0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
+        };
+
+        // 処理1: どの頂点で三角形を作るかの番号リスト。各面 0,1,2(左上・右上・右下)と 0,2,3(左上・右下・左下)
+        constexpr uint16_t TestCubeIndices[] = {
+             0,  1,  2,    0,  2,  3, // 前
+             4,  5,  6,    4,  6,  7, // 後
+             8,  9, 10,    8, 10, 11, // 右
+            12, 13, 14,   12, 14, 15, // 左
+            16, 17, 18,   16, 18, 19, // 上
+            20, 21, 22,   20, 22, 23, // 下
         };
 
         // Debug: 編集中の元ファイル(ホットリロード用) / Release: exe の横にコピーされたもの
@@ -49,6 +98,7 @@ namespace TenFiftyEight
         }
     }
 
+    //レンダー生成
     Renderer::Renderer(const Window& window)
     {
         m_Device = std::make_unique<DX12Device>();
@@ -71,16 +121,21 @@ namespace TenFiftyEight
             TFE_LOG_FATAL("起動時のシェーダー読み込みに失敗しました");
         }
 
-        m_TestVertexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), sizeof(TestTriangle));
-        m_TestVertexBuffer->Write(TestTriangle, sizeof(TestTriangle));
+        // 頂点リストと番号リストを、それぞれ Upload ヒープのバッファに入れる
+        m_TestVertexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), sizeof(TestCubeVertices));
+        m_TestVertexBuffer->Write(TestCubeVertices, sizeof(TestCubeVertices));
+        m_TestIndexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), sizeof(TestCubeIndices));
+        m_TestIndexBuffer->Write(TestCubeIndices, sizeof(TestCubeIndices));
     }
 
+    //レンダー削除
     Renderer::~Renderer()
     {
         // GPU が使用中のリソースを解放しないよう、すべての処理の完了を待つ
         m_Queue->Flush();
 
         // 作成と逆の順番で解放してから、解放漏れを調べる
+        m_TestIndexBuffer.reset();
         m_TestVertexBuffer.reset();
         m_Pipeline.reset();
         m_ShaderCompiler.reset();
@@ -136,6 +191,7 @@ namespace TenFiftyEight
         }
     }
 
+    //画面変化時の調整
     void Renderer::Resize(uint32_t width, uint32_t height)
     {
         // バックバッファを作り直すので、GPU がそれを使い終わるまで待つ
@@ -143,6 +199,7 @@ namespace TenFiftyEight
         m_SwapChain->Resize(width, height);
     }
 
+    //フレーム開始
     void Renderer::BeginFrame()
     {
         // このフレーム番号の Allocator を前回使ったフレーム(2フレーム前)が、GPU で終わるまで待つ
@@ -170,12 +227,26 @@ namespace TenFiftyEight
         commandList->RSSetScissorRects(1, &scissor);
     }
 
-    void Renderer::DrawTestTriangle()
+    void Renderer::DrawTestCube()
     {
         ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
 
         commandList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
         commandList->SetPipelineState(m_Pipeline->Get());
+
+        // 処理3: ワールド行列を作る。S(拡大)→ R(回転)→ T(移動)の順に掛ける
+        //   拡大 0.5 と 奥へ 0.5 移動は、カメラ(2-6)ができるまでの一時的な対応
+        //   (画面の奥行きは 0〜1 の範囲しか映らないため、回転しても収まる大きさ・位置にしている)
+        const XMMATRIX world =
+            XMMatrixScaling(0.5f, 0.5f, 0.5f) *
+            XMMatrixRotationY(m_TestCubeAngle) *
+            XMMatrixRotationX(m_TestCubeAngle * 0.5f) *
+            XMMatrixTranslation(0.0f, 0.0f, 0.5f);
+
+        // 処理4: 行列(数字16個)を b0 の箱に入れる。XMMATRIX は計算用の型なので、ふつうの数字の並びに書き出してから渡す
+        XMFLOAT4X4 worldData;
+        XMStoreFloat4x4(&worldData, world);
+        commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &worldData, 0);
 
         // 頂点バッファの場所・全体の大きさ・1頂点の大きさを伝える
         D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
@@ -184,15 +255,24 @@ namespace TenFiftyEight
         vertexBufferView.StrideInBytes = sizeof(Vertex);
         commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 
-        // 頂点を3つずつ区切って三角形として扱う
+        // 処理1: 番号リストの場所・全体の大きさ・番号の型(uint16_t)を伝える
+        D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
+        indexBufferView.BufferLocation = m_TestIndexBuffer->GetGpuAddress();
+        indexBufferView.SizeInBytes = static_cast<UINT>(m_TestIndexBuffer->GetSize());
+        indexBufferView.Format = DXGI_FORMAT_R16_UINT;
+        commandList->IASetIndexBuffer(&indexBufferView);
+
+        // 番号を3つずつ区切って三角形として扱う
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        commandList->DrawInstanced(3, 1, 0, 0);
+        // 番号を36個使って描く(= 三角形12個 = 6面)
+        commandList->DrawIndexedInstanced(static_cast<UINT>(std::size(TestCubeIndices)), 1, 0, 0, 0);
     }
 
+    //フレーム終了
     void Renderer::EndFrame()
     {
-        DrawTestTriangle();
+        DrawTestCube();
 
         ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
 

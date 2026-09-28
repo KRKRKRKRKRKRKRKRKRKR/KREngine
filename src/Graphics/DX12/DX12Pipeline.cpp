@@ -6,9 +6,14 @@ namespace TenFiftyEight
     {
         std::unique_ptr<DX12Pipeline> pipeline(new DX12Pipeline());
 
-        // Root Signature: 今はシェーダーに渡すデータがないので空。頂点バッファを使う宣言だけする
+        // Root Signature(シェーダーへの受け渡し棚の設計図)
+        //   0番: b0 の箱に、4バイトの数字を16個(= 4x4 のワールド行列)。頂点シェーダーだけが使う
+        CD3DX12_ROOT_PARAMETER rootParameters[1];
+        rootParameters[ObjectConstantsRootIndex].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
+
         CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 0, nullptr,
+                               D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
         // 構造体 → バイナリに変換(シリアライズ)してから作成する決まりになっている
         ComPtr<ID3DBlob> serialized;

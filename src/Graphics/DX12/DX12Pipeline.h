@@ -7,6 +7,9 @@
 
 namespace TenFiftyEight
 {
+    // Root Signature の何番目の項目か(SetGraphicsRoot32BitConstants の第1引数に使う)
+    constexpr UINT ObjectConstantsRootIndex = 0;
+
     struct DX12PipelineDesc
     {
         D3D12_SHADER_BYTECODE vertexShader = {};

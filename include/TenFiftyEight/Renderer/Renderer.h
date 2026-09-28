@@ -29,6 +29,9 @@ namespace TenFiftyEight
         void SetClearColor(float r, float g, float b) { m_ClearColor = { r, g, b, 1.0f }; }
         void SetVSync(bool enabled) { m_VSync = enabled; }
 
+        // 2-4 の動作確認用(ラジアン)。2-7 で DrawMesh に置き換える
+        void SetTestCubeAngle(float angle) { m_TestCubeAngle = angle; }
+
     private:
         // フレームの開始・終了は Application だけが呼ぶ(Game からは呼べない)
         friend class Application;
@@ -40,8 +43,8 @@ namespace TenFiftyEight
         // シェーダーをコンパイルしてパイプラインを作り直す。失敗したら false(前のパイプラインのまま)
         bool LoadShaders();
 
-        // 2-2 の動作確認用。2-7 で DrawMesh に置き換える
-        void DrawTestTriangle();
+        // 2-4 の動作確認用。2-7 で DrawMesh に置き換える
+        void DrawTestCube();
 
         // CPU が先行して準備できるフレーム数
         static constexpr uint32_t FramesInFlight = 2;
@@ -53,6 +56,8 @@ namespace TenFiftyEight
         std::unique_ptr<DX12ShaderCompiler> m_ShaderCompiler;
         std::unique_ptr<DX12Pipeline> m_Pipeline;
         std::unique_ptr<DX12UploadBuffer> m_TestVertexBuffer;
+        std::unique_ptr<DX12UploadBuffer> m_TestIndexBuffer;
+        float m_TestCubeAngle = 0.0f;
 
         // 各フレームの命令が GPU で終わったときに到達する Fence 値
         std::array<uint64_t, FramesInFlight> m_FrameFenceValues = {};
