@@ -18,15 +18,16 @@ using namespace DirectX;
 
 namespace TenFiftyEight
 {
+    // 2-7 処理2: 形の実体。一覧表(m_Meshes)に番号札と対応づけて保存する
+    struct Renderer::GpuMesh
+    {
+        std::unique_ptr<DX12UploadBuffer> vertexBuffer;
+        std::unique_ptr<DX12UploadBuffer> indexBuffer;
+        uint32_t indexCount = 0;
+    };
+
     namespace
     {
-        // 頂点1つ分のデータ。シェーダーの VSInput と形を合わせる
-        struct Vertex
-        {
-            float position[3];
-            float color[4];
-        };
-
         // b1 の別紙(定数バッファ)の中身。シェーダーの cbuffer FrameConstants と形を合わせる
         struct FrameConstants
         {
@@ -36,63 +37,10 @@ namespace TenFiftyEight
         // 定数バッファの大きさは 256 バイト単位にする決まり(中身が 64 バイトでも 256 バイト確保する)
         constexpr uint64_t FrameConstantBufferSize = (sizeof(FrameConstants) + 255) & ~uint64_t(255);
 
-        // 頂点データのどこに何が入っているかを GPU に教える(名前はシェーダーの「: POSITION」などと対応)
+        // 頂点データ(Mesh.h の Vertex)のどこに何が入っているかを GPU に教える(名前はシェーダーの「: POSITION」などと対応)
         constexpr D3D12_INPUT_ELEMENT_DESC VertexInputLayout[] = {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
             { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex, color),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        };
-
-        // 処理2: 1辺1、中心が原点のキューブ(2-7 で Game から渡す形に置き換える)
-        // 面ごとに色を分けるため、面ごとに専用の頂点を4つずつ持つ(4頂点 × 6面 = 24頂点)
-        // 各面とも「その面を外側から見て 左上 → 右上 → 右下 → 左下」の順に並べる
-        constexpr float Red[4]    = { 1.0f, 0.0f, 0.0f, 1.0f };
-        constexpr float Cyan[4]   = { 0.0f, 1.0f, 1.0f, 1.0f };
-        constexpr float Green[4]  = { 0.0f, 1.0f, 0.0f, 1.0f };
-        constexpr float Purple[4] = { 0.5f, 0.0f, 1.0f, 1.0f };
-        constexpr float Blue[4]   = { 0.0f, 0.0f, 1.0f, 1.0f };
-        constexpr float Yellow[4] = { 1.0f, 1.0f, 0.0f, 1.0f };
-
-        constexpr Vertex TestCubeVertices[] = {
-            // 前(-Z): 赤
-            { { -0.5f,  0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
-            { {  0.5f,  0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
-            { {  0.5f, -0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
-            { { -0.5f, -0.5f, -0.5f }, { Red[0], Red[1], Red[2], Red[3] } },
-            // 後(+Z): 水色
-            { {  0.5f,  0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
-            { { -0.5f,  0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
-            { { -0.5f, -0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
-            { {  0.5f, -0.5f,  0.5f }, { Cyan[0], Cyan[1], Cyan[2], Cyan[3] } },
-            // 右(+X): 緑
-            { {  0.5f,  0.5f, -0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
-            { {  0.5f,  0.5f,  0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
-            { {  0.5f, -0.5f,  0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
-            { {  0.5f, -0.5f, -0.5f }, { Green[0], Green[1], Green[2], Green[3] } },
-            // 左(-X): 紫
-            { { -0.5f,  0.5f,  0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
-            { { -0.5f,  0.5f, -0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
-            { { -0.5f, -0.5f, -0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
-            { { -0.5f, -0.5f,  0.5f }, { Purple[0], Purple[1], Purple[2], Purple[3] } },
-            // 上(+Y): 青
-            { { -0.5f,  0.5f,  0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
-            { {  0.5f,  0.5f,  0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
-            { {  0.5f,  0.5f, -0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
-            { { -0.5f,  0.5f, -0.5f }, { Blue[0], Blue[1], Blue[2], Blue[3] } },
-            // 下(-Y): 黄
-            { { -0.5f, -0.5f, -0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
-            { {  0.5f, -0.5f, -0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
-            { {  0.5f, -0.5f,  0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
-            { { -0.5f, -0.5f,  0.5f }, { Yellow[0], Yellow[1], Yellow[2], Yellow[3] } },
-        };
-
-        // 処理1: どの頂点で三角形を作るかの番号リスト。各面 0,1,2(左上・右上・右下)と 0,2,3(左上・右下・左下)
-        constexpr uint16_t TestCubeIndices[] = {
-             0,  1,  2,    0,  2,  3, // 前
-             4,  5,  6,    4,  6,  7, // 後
-             8,  9, 10,    8, 10, 11, // 右
-            12, 13, 14,   12, 14, 15, // 左
-            16, 17, 18,   16, 18, 19, // 上
-            20, 21, 22,   20, 22, 23, // 下
         };
 
         // Debug: 編集中の元ファイル(ホットリロード用) / Release: exe の横にコピーされたもの
@@ -134,12 +82,6 @@ namespace TenFiftyEight
             TFE_LOG_FATAL("起動時のシェーダー読み込みに失敗しました");
         }
 
-        // 頂点リストと番号リストを、それぞれ Upload ヒープのバッファに入れる
-        m_TestVertexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), sizeof(TestCubeVertices));
-        m_TestVertexBuffer->Write(TestCubeVertices, sizeof(TestCubeVertices));
-        m_TestIndexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), sizeof(TestCubeIndices));
-        m_TestIndexBuffer->Write(TestCubeIndices, sizeof(TestCubeIndices));
-
         // 2-6 処理4: カメラの行列用の定数バッファ(フレームごとに1枚、計2枚)
         for (std::unique_ptr<DX12UploadBuffer>& buffer : m_FrameConstantBuffers)
         {
@@ -154,12 +96,13 @@ namespace TenFiftyEight
         m_Queue->Flush();
 
         // 作成と逆の順番で解放してから、解放漏れを調べる
+        // (Game が DestroyMesh し忘れた形も、ここでまとめて解放する)
+        m_PendingReleases.clear();
+        m_Meshes.clear();
         for (std::unique_ptr<DX12UploadBuffer>& buffer : m_FrameConstantBuffers)
         {
             buffer.reset();
         }
-        m_TestIndexBuffer.reset();
-        m_TestVertexBuffer.reset();
         m_Pipeline.reset();
         m_ShaderCompiler.reset();
         m_CommandList.reset();
@@ -230,6 +173,9 @@ namespace TenFiftyEight
         // このフレーム番号の Allocator を前回使ったフレーム(2フレーム前)が、GPU で終わるまで待つ
         m_Queue->WaitForValue(m_FrameFenceValues[m_FrameIndex]);
 
+        // 2-7 処理3: GPU が使い終わった形を捨てる
+        ReleaseFinishedMeshes();
+
         ID3D12GraphicsCommandList* commandList = m_CommandList->Begin(m_FrameIndex);
 
         // バックバッファを「表示用」から「描画用」に切り替える
@@ -273,61 +219,124 @@ namespace TenFiftyEight
         commandList->SetGraphicsRootConstantBufferView(FrameConstantsRootIndex, frameConstantBuffer.GetGpuAddress());
     }
 
-    void Renderer::DrawTestCube()
+    // 2-7 処理2: 形のデータを GPU のバッファに入れて一覧表に登録し、番号札を返す
+    MeshHandle Renderer::CreateMesh(const MeshData& data)
+    {
+        if (data.vertices.empty() || data.indices.empty())
+        {
+            TFE_LOG_ERROR("CreateMesh: 頂点または番号が空です");
+            return {};
+        }
+        if (data.vertices.size() > UINT16_MAX + 1)
+        {
+            TFE_LOG_ERROR("CreateMesh: 頂点が多すぎます({} 個。uint16_t の番号で扱えるのは 65536 個まで)", data.vertices.size());
+            return {};
+        }
+
+        const uint64_t vertexBytes = data.vertices.size() * sizeof(Vertex);
+        const uint64_t indexBytes = data.indices.size() * sizeof(uint16_t);
+
+        auto mesh = std::make_unique<GpuMesh>();
+        mesh->vertexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), vertexBytes);
+        mesh->vertexBuffer->Write(data.vertices.data(), vertexBytes);
+        mesh->indexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), indexBytes);
+        mesh->indexBuffer->Write(data.indices.data(), indexBytes);
+        mesh->indexCount = static_cast<uint32_t>(data.indices.size());
+
+        // 番号は 1 から順に発行し、使い回さない(捨てた番号札で別の形が描かれる事故を防ぐ)
+        const MeshHandle handle{ m_NextMeshId++ };
+        m_Meshes.emplace(handle.id, std::move(mesh));
+        return handle;
+    }
+
+    // 2-7 処理3: 番号札はすぐ無効にし、実体は「捨てる予定リスト」へ(GPU が使い終わってから捨てる)
+    void Renderer::DestroyMesh(MeshHandle mesh)
+    {
+        auto it = m_Meshes.find(mesh.id);
+        if (it == m_Meshes.end())
+        {
+            TFE_LOG_WARN("DestroyMesh: 無効な番号札です (id {})", mesh.id);
+            return;
+        }
+
+        // 引換券の番号(fenceValue)は、このフレームの EndFrame で Signal したときに決まる
+        m_PendingReleases.push_back({ std::move(it->second), 0 });
+        m_Meshes.erase(it);
+    }
+
+    void Renderer::ReleaseFinishedMeshes()
+    {
+        std::erase_if(m_PendingReleases, [this](const PendingRelease& pending)
+        {
+            return pending.fenceValue != 0 && m_Queue->IsComplete(pending.fenceValue);
+        });
+    }
+
+    // 2-7 処理4: その場では描かず、依頼メモを描画リストに積むだけ
+    void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world)
+    {
+        DrawCommand command;
+        command.mesh = mesh;
+        XMStoreFloat4x4(&command.world, world); // 計算用の XMMATRIX を、保存用の XMFLOAT4X4 に書き出す
+        m_DrawList.push_back(command);
+    }
+
+    // 2-7 処理5: 描画リストの依頼を1つずつ GPU への命令にする
+    void Renderer::ExecuteDrawList()
     {
         ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
 
-        // Root Signature は BeginFrame で設定済み
+        // リスト全体で1回だけ: パイプラインと「番号を3つずつ区切って三角形にする」設定(Root Signature は BeginFrame で設定済み)
         commandList->SetPipelineState(m_Pipeline->Get());
-
-        // 頂点バッファの場所・全体の大きさ・1頂点の大きさを伝える
-        D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
-        vertexBufferView.BufferLocation = m_TestVertexBuffer->GetGpuAddress();
-        vertexBufferView.SizeInBytes = static_cast<UINT>(m_TestVertexBuffer->GetSize());
-        vertexBufferView.StrideInBytes = sizeof(Vertex);
-        commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
-
-        // 処理1: 番号リストの場所・全体の大きさ・番号の型(uint16_t)を伝える
-        D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
-        indexBufferView.BufferLocation = m_TestIndexBuffer->GetGpuAddress();
-        indexBufferView.SizeInBytes = static_cast<UINT>(m_TestIndexBuffer->GetSize());
-        indexBufferView.Format = DXGI_FORMAT_R16_UINT;
-        commandList->IASetIndexBuffer(&indexBufferView);
-
-        // 番号を3つずつ区切って三角形として扱う
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        // 同じ頂点・番号のバッファを使い、b0 の箱の中身(ワールド行列)だけを入れ替えて何個でも描ける
-        auto drawCube = [&](const XMMATRIX& world)
+        uint32_t boundMeshId = 0; // 今、頂点バッファと番号バッファに設定している形
+        for (const DrawCommand& command : m_DrawList)
         {
-            // 処理4: 行列(数字16個)を b0 の箱に入れる。XMMATRIX は計算用の型なので、ふつうの数字の並びに書き出してから渡す
-            XMFLOAT4X4 worldData;
-            XMStoreFloat4x4(&worldData, world);
-            commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &worldData, 0);
+            // 番号札から形を探す。無効・捨てた後の番号札なら飛ばす(エラーは番号ごとに最初の1回だけ)
+            auto it = m_Meshes.find(command.mesh.id);
+            if (it == m_Meshes.end())
+            {
+                if (m_ReportedInvalidMeshes.insert(command.mesh.id).second)
+                {
+                    TFE_LOG_ERROR("DrawMesh: 無効な番号札です (id {})。この描画を飛ばします", command.mesh.id);
+                }
+                continue;
+            }
+            const GpuMesh& mesh = *it->second;
 
-            // 番号を36個使って描く(= 三角形12個 = 6面)
-            commandList->DrawIndexedInstanced(static_cast<UINT>(std::size(TestCubeIndices)), 1, 0, 0, 0);
-        };
+            // 直前と同じ形なら、頂点バッファと番号バッファの設定を省く
+            if (command.mesh.id != boundMeshId)
+            {
+                // 頂点バッファの場所・全体の大きさ・1頂点の大きさを伝える
+                D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
+                vertexBufferView.BufferLocation = mesh.vertexBuffer->GetGpuAddress();
+                vertexBufferView.SizeInBytes = static_cast<UINT>(mesh.vertexBuffer->GetSize());
+                vertexBufferView.StrideInBytes = sizeof(Vertex);
+                commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 
-        // 処理3: ワールド行列を作る。S(拡大)→ R(回転)→ T(移動)の順に掛ける
-        // 2-6 処理7: カメラができたので、メートル単位の世界にそのままの大きさで置く
-        // 1つ目: 原点で回転する 1辺1メートルのキューブ(先に描く)
-        drawCube(
-            XMMatrixRotationY(m_TestCubeAngle) *
-            XMMatrixRotationX(m_TestCubeAngle * 0.5f));
+                // 番号リストの場所・全体の大きさ・番号の型(uint16_t)を伝える
+                D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
+                indexBufferView.BufferLocation = mesh.indexBuffer->GetGpuAddress();
+                indexBufferView.SizeInBytes = static_cast<UINT>(mesh.indexBuffer->GetSize());
+                indexBufferView.Format = DXGI_FORMAT_R16_UINT;
+                commandList->IASetIndexBuffer(&indexBufferView);
 
-        // 2-5 処理1: 2つ目: 右上の奥にある 1辺0.7メートルのキューブ(後から描く)
-        //   深度テストがないと、奥にあるのに1つ目の上に描かれてしまう
-        drawCube(
-            XMMatrixScaling(0.7f, 0.7f, 0.7f) *
-            XMMatrixRotationY(-m_TestCubeAngle) *
-            XMMatrixTranslation(1.5f, 0.5f, 2.0f));
+                boundMeshId = command.mesh.id;
+            }
+
+            // ワールド行列(数字16個)を b0 の箱に入れて、描く
+            commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &command.world, 0);
+            commandList->DrawIndexedInstanced(mesh.indexCount, 1, 0, 0, 0);
+        }
+
+        m_DrawList.clear();
     }
 
     //フレーム終了
     void Renderer::EndFrame()
     {
-        DrawTestCube();
+        ExecuteDrawList();
 
         ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
 
@@ -345,6 +354,17 @@ namespace TenFiftyEight
 
         // このフレームの命令が GPU で終わったら到達する値を記録しておく
         m_FrameFenceValues[m_FrameIndex] = m_Queue->Signal();
+
+        // 2-7 処理3: このフレームまでに捨てる予定になった形に、引換券の番号を書く
+        // (このフレームの命令が GPU で終われば、それより前のフレームも終わっているので安全に捨てられる)
+        for (PendingRelease& pending : m_PendingReleases)
+        {
+            if (pending.fenceValue == 0)
+            {
+                pending.fenceValue = m_FrameFenceValues[m_FrameIndex];
+            }
+        }
+
         m_FrameIndex = (m_FrameIndex + 1) % FramesInFlight;
     }
 }
