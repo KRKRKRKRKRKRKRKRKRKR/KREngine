@@ -10,8 +10,10 @@ namespace TenFiftyEight
 
         // Root Signature(シェーダーへの受け渡し棚の設計図)
         //   0番: b0 の箱に、4バイトの数字を16個(= 4x4 のワールド行列)。頂点シェーダーだけが使う
-        CD3DX12_ROOT_PARAMETER rootParameters[1];
+        //   1番: b1 の箱に、定数バッファ(別紙)の住所。頂点シェーダーだけが使う
+        CD3DX12_ROOT_PARAMETER rootParameters[2];
         rootParameters[ObjectConstantsRootIndex].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[FrameConstantsRootIndex].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_VERTEX);
 
         CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
         rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 0, nullptr,

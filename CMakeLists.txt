@@ -15,6 +15,7 @@ set(ENGINE_FILES
     include/TenFiftyEight/Core/Application.h
     include/TenFiftyEight/Core/Log.h
     include/TenFiftyEight/Renderer/Renderer.h
+    include/TenFiftyEight/Renderer/Camera.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -22,6 +23,7 @@ set(ENGINE_FILES
     src/Platform/Windows/Window.h
     src/Platform/Windows/Window.cpp
     src/Renderer/Renderer.cpp
+    src/Renderer/Camera.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp

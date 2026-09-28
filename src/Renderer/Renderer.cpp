@@ -27,6 +27,15 @@ namespace TenFiftyEight
             float color[4];
         };
 
+        // b1 の別紙(定数バッファ)の中身。シェーダーの cbuffer FrameConstants と形を合わせる
+        struct FrameConstants
+        {
+            XMFLOAT4X4 viewProjection;
+        };
+
+        // 定数バッファの大きさは 256 バイト単位にする決まり(中身が 64 バイトでも 256 バイト確保する)
+        constexpr uint64_t FrameConstantBufferSize = (sizeof(FrameConstants) + 255) & ~uint64_t(255);
+
         // 頂点データのどこに何が入っているかを GPU に教える(名前はシェーダーの「: POSITION」などと対応)
         constexpr D3D12_INPUT_ELEMENT_DESC VertexInputLayout[] = {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -130,6 +139,12 @@ namespace TenFiftyEight
         m_TestVertexBuffer->Write(TestCubeVertices, sizeof(TestCubeVertices));
         m_TestIndexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), sizeof(TestCubeIndices));
         m_TestIndexBuffer->Write(TestCubeIndices, sizeof(TestCubeIndices));
+
+        // 2-6 処理4: カメラの行列用の定数バッファ(フレームごとに1枚、計2枚)
+        for (std::unique_ptr<DX12UploadBuffer>& buffer : m_FrameConstantBuffers)
+        {
+            buffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), FrameConstantBufferSize);
+        }
     }
 
     //レンダー削除
@@ -139,6 +154,10 @@ namespace TenFiftyEight
         m_Queue->Flush();
 
         // 作成と逆の順番で解放してから、解放漏れを調べる
+        for (std::unique_ptr<DX12UploadBuffer>& buffer : m_FrameConstantBuffers)
+        {
+            buffer.reset();
+        }
         m_TestIndexBuffer.reset();
         m_TestVertexBuffer.reset();
         m_Pipeline.reset();
@@ -237,13 +256,28 @@ namespace TenFiftyEight
         const D3D12_RECT scissor = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
         commandList->RSSetViewports(1, &viewport);
         commandList->RSSetScissorRects(1, &scissor);
+
+        // 2-6 処理6: 縦横比を今のバックバッファの大きさから計算する(リサイズしても毎フレーム正しい値になる)
+        const float aspectRatio = width / height;
+
+        // 2-6 処理4: ビュー行列 × プロジェクション行列を CPU で1つにまとめ、このフレーム用の別紙に書く
+        FrameConstants frameConstants;
+        XMStoreFloat4x4(&frameConstants.viewProjection,
+                        m_Camera.GetViewMatrix() * m_Camera.GetProjectionMatrix(aspectRatio));
+        DX12UploadBuffer& frameConstantBuffer = *m_FrameConstantBuffers[m_FrameIndex];
+        frameConstantBuffer.Write(&frameConstants, sizeof(frameConstants));
+
+        // 受け渡し棚の設計図を設定してから、b1 の箱に別紙の住所を入れる
+        // (設計図を設定し直すと箱の中身は消えるため、設計図の設定もフレームの最初に1回だけ行う)
+        commandList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
+        commandList->SetGraphicsRootConstantBufferView(FrameConstantsRootIndex, frameConstantBuffer.GetGpuAddress());
     }
 
     void Renderer::DrawTestCube()
     {
         ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
 
-        commandList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
+        // Root Signature は BeginFrame で設定済み
         commandList->SetPipelineState(m_Pipeline->Get());
 
         // 頂点バッファの場所・全体の大きさ・1頂点の大きさを伝える
@@ -276,21 +310,18 @@ namespace TenFiftyEight
         };
 
         // 処理3: ワールド行列を作る。S(拡大)→ R(回転)→ T(移動)の順に掛ける
-        //   拡大と「奥へ移動」は、カメラ(2-6)ができるまでの一時的な対応
-        //   (画面の奥行きは 0〜1 の範囲しか映らないため、回転しても収まる大きさ・位置にしている)
-        // 1つ目: 手前で回転するキューブ(先に描く)
+        // 2-6 処理7: カメラができたので、メートル単位の世界にそのままの大きさで置く
+        // 1つ目: 原点で回転する 1辺1メートルのキューブ(先に描く)
         drawCube(
-            XMMatrixScaling(0.5f, 0.5f, 0.5f) *
             XMMatrixRotationY(m_TestCubeAngle) *
-            XMMatrixRotationX(m_TestCubeAngle * 0.5f) *
-            XMMatrixTranslation(0.0f, 0.0f, 0.5f));
+            XMMatrixRotationX(m_TestCubeAngle * 0.5f));
 
-        // 2-5 処理1: 2つ目: 右上の奥にあるキューブ(後から描く)
+        // 2-5 処理1: 2つ目: 右上の奥にある 1辺0.7メートルのキューブ(後から描く)
         //   深度テストがないと、奥にあるのに1つ目の上に描かれてしまう
         drawCube(
-            XMMatrixScaling(0.35f, 0.35f, 0.35f) *
+            XMMatrixScaling(0.7f, 0.7f, 0.7f) *
             XMMatrixRotationY(-m_TestCubeAngle) *
-            XMMatrixTranslation(0.3f, 0.25f, 0.65f));
+            XMMatrixTranslation(1.5f, 0.5f, 2.0f));
     }
 
     //フレーム終了

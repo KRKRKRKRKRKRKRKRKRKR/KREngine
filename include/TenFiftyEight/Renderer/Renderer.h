@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TenFiftyEight/Renderer/Camera.h"
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -29,6 +31,9 @@ namespace TenFiftyEight
 
         void SetClearColor(float r, float g, float b) { m_ClearColor = { r, g, b, 1.0f }; }
         void SetVSync(bool enabled) { m_VSync = enabled; }
+
+        // このフレームで使うカメラ(コピーして保持する)。呼ばなければ Camera の初期値で描く
+        void SetCamera(const Camera& camera) { m_Camera = camera; }
 
         // 2-4 の動作確認用(ラジアン)。2-7 で DrawMesh に置き換える
         void SetTestCubeAngle(float angle) { m_TestCubeAngle = angle; }
@@ -60,6 +65,10 @@ namespace TenFiftyEight
         std::unique_ptr<DX12UploadBuffer> m_TestVertexBuffer;
         std::unique_ptr<DX12UploadBuffer> m_TestIndexBuffer;
         float m_TestCubeAngle = 0.0f;
+
+        // カメラの行列を入れる定数バッファ(別紙)。GPU が読んでいる途中で書き換えないよう、フレームインフライトの数だけ持つ
+        std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_FrameConstantBuffers;
+        Camera m_Camera;
 
         // 各フレームの命令が GPU で終わったときに到達する Fence 値
         std::array<uint64_t, FramesInFlight> m_FrameFenceValues = {};

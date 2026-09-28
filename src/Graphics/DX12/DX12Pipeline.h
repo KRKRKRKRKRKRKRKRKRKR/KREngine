@@ -7,8 +7,9 @@
 
 namespace TenFiftyEight
 {
-    // Root Signature の何番目の項目か(SetGraphicsRoot32BitConstants の第1引数に使う)
-    constexpr UINT ObjectConstantsRootIndex = 0;
+    // Root Signature の何番目の項目か(SetGraphicsRoot... 系の関数の第1引数に使う)
+    constexpr UINT ObjectConstantsRootIndex = 0; // b0: 物体ごとのデータ(ワールド行列)を直接入れる
+    constexpr UINT FrameConstantsRootIndex = 1;  // b1: フレームごとのデータ(定数バッファ)の住所を入れる
 
     struct DX12PipelineDesc
     {
