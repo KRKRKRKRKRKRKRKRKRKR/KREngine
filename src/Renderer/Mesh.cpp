@@ -26,17 +26,17 @@ namespace TenFiftyEight
             MeshData data;
             for (size_t face = 0; face < FaceCount; ++face)
             {
-                const auto base = static_cast<uint16_t>(data.vertices.size());
+                const auto base = static_cast<uint32_t>(data.vertices.size());
                 for (const XMFLOAT3& corner : CubeCorners[face])
                 {
                     data.vertices.push_back({ corner, faceColors[face] });
                 }
 
                 // 左上・右上・右下 / 左上・右下・左下 の2つの三角形(どちらも時計回り)
-                const uint16_t faceIndices[] = { 0, 1, 2, 0, 2, 3 };
-                for (uint16_t index : faceIndices)
+                const uint32_t faceIndices[] = { 0, 1, 2, 0, 2, 3 };
+                for (uint32_t index : faceIndices)
                 {
-                    data.indices.push_back(static_cast<uint16_t>(base + index));
+                    data.indices.push_back(base + index);
                 }
             }
             return data;

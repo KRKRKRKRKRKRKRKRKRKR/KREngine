@@ -227,14 +227,14 @@ namespace TenFiftyEight
             TFE_LOG_ERROR("CreateMesh: 頂点または番号が空です");
             return {};
         }
-        if (data.vertices.size() > UINT16_MAX + 1)
+        if (data.vertices.size() > UINT32_MAX)
         {
-            TFE_LOG_ERROR("CreateMesh: 頂点が多すぎます({} 個。uint16_t の番号で扱えるのは 65536 個まで)", data.vertices.size());
+            TFE_LOG_ERROR("CreateMesh: 頂点が多すぎます({} 個。uint32_t の番号で扱えるのは 約42億個まで)", data.vertices.size());
             return {};
         }
 
         const uint64_t vertexBytes = data.vertices.size() * sizeof(Vertex);
-        const uint64_t indexBytes = data.indices.size() * sizeof(uint16_t);
+        const uint64_t indexBytes = data.indices.size() * sizeof(uint32_t);
 
         auto mesh = std::make_unique<GpuMesh>();
         mesh->vertexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), vertexBytes);
@@ -315,11 +315,11 @@ namespace TenFiftyEight
                 vertexBufferView.StrideInBytes = sizeof(Vertex);
                 commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 
-                // 番号リストの場所・全体の大きさ・番号の型(uint16_t)を伝える
+                // 番号リストの場所・全体の大きさ・番号の型(uint32_t)を伝える
                 D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
                 indexBufferView.BufferLocation = mesh.indexBuffer->GetGpuAddress();
                 indexBufferView.SizeInBytes = static_cast<UINT>(mesh.indexBuffer->GetSize());
-                indexBufferView.Format = DXGI_FORMAT_R16_UINT;
+                indexBufferView.Format = DXGI_FORMAT_R32_UINT;
                 commandList->IASetIndexBuffer(&indexBufferView);
 
                 boundMeshId = command.mesh.id;

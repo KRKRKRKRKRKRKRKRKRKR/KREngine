@@ -18,7 +18,7 @@ namespace TenFiftyEight
     struct MeshData
     {
         std::vector<Vertex> vertices;  // 頂点リスト
-        std::vector<uint16_t> indices; // 番号リスト(3つで三角形1つ。外側から見て時計回り)
+        std::vector<uint32_t> indices; // 番号リスト(3つで三角形1つ。外側から見て時計回り)
     };
 
     // 形の番号札。実体(GPU のバッファ)は Renderer が預かっている
