@@ -128,11 +128,6 @@ namespace TenFiftyEight
         std::map<std::string, size_t> materialIndexByName; // 材質の名前 → materialPalette の何番か
         size_t currentMaterial = 0;                        // 今の材質の番号(usemtl で切り替わる)
 
-        size_t normalLines = 0;   // vn
-        size_t faceLines = 0;     // f
-        size_t materialUses = 0;  // usemtl
-        size_t otherLines = 0;    // 上記以外(コメント・空行・vt・o・g など。今は使わない)
-
         std::string line;
         while (std::getline(file, line))
         {
@@ -155,14 +150,8 @@ namespace TenFiftyEight
                 // (面の向きが逆になる分は、f の処理で三角形の番号の順を入れ替えて直す)
                 positions.push_back({ x, y, -z });
             }
-            else if (keyword == "vn")
-            {
-                ++normalLines;
-            }
             else if (keyword == "f")
             {
-                ++faceLines;
-
                 // 面の要素を1つずつ読んで、棚の番号にする。先に全部確かめてから頂点を作る
                 // (途中で不良に気づいたときに、使われない頂点が残らないようにするため)
                 std::vector<size_t> facePositionIndices;
@@ -223,8 +212,6 @@ namespace TenFiftyEight
             }
             else if (keyword == "usemtl")
             {
-                ++materialUses;
-
                 // 3-5-2: これ以降に作る頂点の材質を切り替える。色見本帳にない名前は 0 番(白)にする
                 std::string materialName;
                 stream >> materialName;
@@ -239,16 +226,10 @@ namespace TenFiftyEight
                     currentMaterial = 0;
                 }
             }
-            else
-            {
-                ++otherLines;
-            }
+            // 上記以外(コメント・空行・vn・vt・o・g など)は今は使わないので読み飛ばす
         }
 
-        TFE_LOG_INFO("LoadObj: {} v={} vn={} f={} usemtl={} その他={}",
-            relativePath.string(), positions.size(), normalLines, faceLines, materialUses, otherLines);
-        // 3-4-3 動作確認用(確認が終わったら消す)
-        TFE_LOG_INFO("LoadObj: 頂点 = {} 番号 = {}", mesh.vertices.size(), mesh.indices.size());
+        TFE_LOG_INFO("LoadObj: {} 頂点 {} 三角形 {}", relativePath.string(), mesh.vertices.size(), mesh.indices.size() / 3);
 
         return mesh;
     }

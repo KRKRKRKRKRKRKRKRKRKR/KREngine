@@ -89,11 +89,12 @@ set(WINDOWS_SDK_BIN_DIR "$ENV{${PROGRAM_FILES_X86}}/Windows Kits/10/bin/${CMAKE_
 find_file(TFE_DXCOMPILER_DLL dxcompiler.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
 find_file(TFE_DXIL_DLL dxil.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
 
-# exe のビルド後に、DLL とシェーダーを exe と同じフォルダーへコピーする(Game の CMakeLists.txt から呼ぶ)
+# exe のビルド後に、DLL・シェーダー・モデルを exe と同じフォルダーへコピーする(Game の CMakeLists.txt から呼ぶ)
 function(tfe_copy_runtime_files target)
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TFE_DXCOMPILER_DLL} ${TFE_DXIL_DLL} $<TARGET_FILE_DIR:${target}>
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Shaders $<TARGET_FILE_DIR:${target}>/Shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Models $<TARGET_FILE_DIR:${target}>/Models
         VERBATIM
     )
 endfunction()
