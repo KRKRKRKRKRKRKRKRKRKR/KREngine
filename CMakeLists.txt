@@ -14,6 +14,7 @@ set(ENGINE_FILES
     include/TenFiftyEight/TenFiftyEight.h
     include/TenFiftyEight/Core/Application.h
     include/TenFiftyEight/Core/Log.h
+    include/TenFiftyEight/Core/Input.h
     include/TenFiftyEight/Renderer/Renderer.h
     include/TenFiftyEight/Renderer/Camera.h
     include/TenFiftyEight/Renderer/Mesh.h
@@ -22,6 +23,8 @@ set(ENGINE_FILES
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
     src/Core/Log.cpp
+    src/Core/Input.cpp
+    src/Core/InputState.h
     src/Platform/Windows/Window.h
     src/Platform/Windows/Window.cpp
     src/Renderer/Renderer.cpp
