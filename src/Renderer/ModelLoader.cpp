@@ -65,6 +65,7 @@ namespace TenFiftyEight
     // 3-3: v の行を読んで、位置を部品棚(positions)に並べる
     // 3-4-1: f の各要素から棚の部品を取り出す
     // 3-4-2: 同じ頂点を使い回して、頂点リストを作る
+    // 3-4-3: 三角形に分けて、番号リストを作る(表裏も直す)
     MeshData LoadObj(const std::filesystem::path& relativePath)
     {
         const std::filesystem::path fullPath = GetModelDirectory() / relativePath;
@@ -151,6 +152,15 @@ namespace TenFiftyEight
                     }
                     faceVertexIndices.push_back(entry->second);
                 }
+
+                // 3-4-3: ファン分割。頂点0を軸に、扇のように三角形へ切る(N角形 → N-2 枚)
+                // Z を反転して表裏が入れ替わっているので、2番目と3番目の順を逆にして直す(i, i+1 ではなく i+1, i)
+                for (size_t i = 1; i + 1 < faceVertexIndices.size(); ++i)
+                {
+                    mesh.indices.push_back(faceVertexIndices[0]);
+                    mesh.indices.push_back(faceVertexIndices[i + 1]);
+                    mesh.indices.push_back(faceVertexIndices[i]);
+                }
             }
             else if (keyword == "usemtl")
             {
@@ -164,8 +174,8 @@ namespace TenFiftyEight
 
         TFE_LOG_INFO("LoadObj: {} v={} vn={} f={} usemtl={} その他={}",
             relativePath.string(), positions.size(), normalLines, faceLines, materialUses, otherLines);
-        // 3-4-2 動作確認用(確認が終わったら消す)
-        TFE_LOG_INFO("LoadObj: 作った頂点の数 = {}", mesh.vertices.size());
+        // 3-4-3 動作確認用(確認が終わったら消す)
+        TFE_LOG_INFO("LoadObj: 頂点 = {} 番号 = {}", mesh.vertices.size(), mesh.indices.size());
 
         return mesh;
     }
