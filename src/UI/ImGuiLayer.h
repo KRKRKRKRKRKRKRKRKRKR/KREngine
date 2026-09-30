@@ -17,5 +17,17 @@ namespace TenFiftyEight
 
         ImGuiLayer(const ImGuiLayer&) = delete;
         ImGuiLayer& operator=(const ImGuiLayer&) = delete;
+
+        // 毎フレームの最初(Renderer::BeginFrame の最後)に呼ぶ。この後 ImGui:: の関数で窓を書ける
+        void BeginFrame();
+
+        // 毎フレームの最後(ゲームの絵を描いた後)に呼ぶ。書かれた窓を、命令リストに積んで画面に貼る
+        void Render(ID3D12GraphicsCommandList* commandList);
+
+        // OS のメッセージ(マウス・キー・文字入力)を ImGui に教える。ImGui が処理したら true
+        static bool HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
+
+    private:
+        ID3D12DescriptorHeap* m_SrvHeap = nullptr; // 描画の前に、命令リストへ設定する(所有しない)
     };
 }

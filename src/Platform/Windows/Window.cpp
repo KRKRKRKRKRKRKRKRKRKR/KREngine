@@ -108,6 +108,12 @@ namespace TenFiftyEight
 
     LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
+        // ImGui I-4: 先に窓口に見せる(マウス・キー・文字入力を ImGui に教えるため)。処理済みならここで終わり
+        if (m_MessageHook && m_MessageHook(hwnd, message, wParam, lParam))
+        {
+            return true;
+        }
+
         switch (message)
         {
         case WM_SIZE:

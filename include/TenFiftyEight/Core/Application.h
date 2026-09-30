@@ -32,6 +32,9 @@ namespace TenFiftyEight
         virtual void OnInit() {}
         virtual void OnUpdate(float deltaTime) { (void)deltaTime; }
         virtual void OnRender() {}
+
+        // ImGui の窓を書く場所(ImGui:: の関数を呼ぶ)。OnRender の後に呼ばれるので、ゲームの絵より手前に乗る
+        virtual void OnImGui() {}
         virtual void OnShutdown() {}
 
         Renderer& GetRenderer() { return *m_Renderer; }

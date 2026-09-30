@@ -6,6 +6,9 @@
 #include <imgui_impl_dx12.h>
 #include <imgui_impl_win32.h>
 
+// imgui_impl_win32.h には宣言だけ(#if 0 の中)なので、ここで宣言する
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 namespace TenFiftyEight
 {
     namespace
@@ -27,6 +30,7 @@ namespace TenFiftyEight
 
     ImGuiLayer::ImGuiLayer(HWND window, ID3D12Device* device, ID3D12CommandQueue* queue, DX12DescriptorHeap* srvHeap,
                            uint32_t framesInFlight, DXGI_FORMAT renderTargetFormat, DXGI_FORMAT depthFormat)
+        : m_SrvHeap(srvHeap->Get())
     {
         // ① ImGui の作業場を作る
         IMGUI_CHECKVERSION();
@@ -59,6 +63,30 @@ namespace TenFiftyEight
         }
 
         TFE_LOG_INFO("ImGui 初期化 (v{})", IMGUI_VERSION);
+    }
+
+    void ImGuiLayer::BeginFrame()
+    {
+        // DX12 → Win32 → ImGui の順(この順番で呼ぶ決まり)。この後、ImGui:: の関数で窓を書ける
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+    }
+
+    void ImGuiLayer::Render(ID3D12GraphicsCommandList* commandList)
+    {
+        // 書かれた窓を、描画用のデータ(三角形の集まり)にまとめる
+        ImGui::Render();
+
+        // ImGui のフォント画像を読むため、命令リストに SRV ヒープ(札掛け)を設定してから描く
+        ID3D12DescriptorHeap* heaps[] = { m_SrvHeap };
+        commandList->SetDescriptorHeaps(1, heaps);
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
+    }
+
+    bool ImGuiLayer::HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+    {
+        return ImGui_ImplWin32_WndProcHandler(window, message, wParam, lParam) != 0;
     }
 
     ImGuiLayer::~ImGuiLayer()

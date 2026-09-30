@@ -172,6 +172,11 @@ namespace TenFiftyEight
         }
     }
 
+    bool Renderer::HandleWindowMessage(void* window, unsigned int message, uintptr_t wParam, intptr_t lParam)
+    {
+        return ImGuiLayer::HandleMessage(static_cast<HWND>(window), message, static_cast<WPARAM>(wParam), static_cast<LPARAM>(lParam));
+    }
+
     //画面変化時の調整
     void Renderer::Resize(uint32_t width, uint32_t height)
     {
@@ -231,6 +236,9 @@ namespace TenFiftyEight
         // (設計図を設定し直すと箱の中身は消えるため、設計図の設定もフレームの最初に1回だけ行う)
         commandList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
         commandList->SetGraphicsRootConstantBufferView(FrameConstantsRootIndex, frameConstantBuffer.GetGpuAddress());
+
+        // ImGui I-5: このフレームの ImGui を始める。この後 OnImGui() で、Game が窓を書く
+        m_ImGui->BeginFrame();
     }
 
     // 2-7 処理2: 形のデータを GPU のバッファに入れて一覧表に登録し、番号札を返す
@@ -353,6 +361,9 @@ namespace TenFiftyEight
         ExecuteDrawList();
 
         ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
+
+        // ImGui I-5: ゲームの絵の上に、Game が OnImGui() で書いた窓を貼る(バックバッファを表示用に戻す前)
+        m_ImGui->Render(commandList);
 
         // バックバッファを「描画用」から「表示用」に戻す
         const CD3DX12_RESOURCE_BARRIER toPresent = CD3DX12_RESOURCE_BARRIER::Transition(

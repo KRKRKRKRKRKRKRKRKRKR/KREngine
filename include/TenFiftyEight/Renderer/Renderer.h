@@ -59,6 +59,10 @@ namespace TenFiftyEight
         void Resize(uint32_t width, uint32_t height);
         void ReloadShaders();
 
+        // OS のメッセージを ImGui に渡す。処理されたら true
+        // (Windows.h の型を、この公開ヘッダーに出さないため、型は素の整数・ポインタにしてある)
+        bool HandleWindowMessage(void* window, unsigned int message, uintptr_t wParam, intptr_t lParam);
+
         // シェーダーをコンパイルしてパイプラインを作り直す。失敗したら false(前のパイプラインのまま)
         bool LoadShaders();
 

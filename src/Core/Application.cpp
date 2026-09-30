@@ -18,10 +18,23 @@ namespace TenFiftyEight
         m_Window->SetKeyUpCallback([](uint32_t virtualKey) { InputState::OnKeyUp(virtualKey); });
         m_Window->SetFocusLostCallback([]() { InputState::ReleaseAll(); });
         m_Renderer = std::make_unique<Renderer>(*m_Window);
+
+        // ImGui I-4: メッセージを、Window が処理する前に ImGui に見せる(Window は ImGui を知らない。つなぐのは Application)
+        m_Window->SetMessageHook([this](HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+        {
+            return m_Renderer && m_Renderer->HandleWindowMessage(window, message, wParam, lParam);
+        });
     }
 
     // unique_ptr<Window> の破棄には Window の完全な定義が必要なため、ヘッダーではなくここで定義する
-    Application::~Application() = default;
+    Application::~Application()
+    {
+        // Renderer が先に破棄されるので、その後にウィンドウが受けるメッセージを、Renderer に渡さないようにする
+        if (m_Window)
+        {
+            m_Window->SetMessageHook(nullptr);
+        }
+    }
 
     //アプリケーションの更新処理
     void Application::Run()
@@ -44,6 +57,7 @@ namespace TenFiftyEight
             {
                 m_Renderer->BeginFrame();
                 OnRender();
+                OnImGui();
                 m_Renderer->EndFrame();
             }
 

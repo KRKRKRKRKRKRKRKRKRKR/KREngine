@@ -23,6 +23,9 @@ namespace TenFiftyEight
         using KeyUpCallback = std::function<void(uint32_t virtualKey)>;
         using FocusLostCallback = std::function<void()>; // 別のウィンドウに切り替わるなどで、非アクティブになった
 
+        // OS のメッセージを、Window 自身が処理する前に見せる窓口。処理した(以降は Window が触らない)なら true を返す
+        using MessageHook = std::function<bool(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)>;
+
         explicit Window(const WindowDesc& desc);
         ~Window();
 
@@ -36,6 +39,7 @@ namespace TenFiftyEight
         void SetKeyDownCallback(KeyDownCallback callback) { m_KeyDownCallback = std::move(callback); }
         void SetKeyUpCallback(KeyUpCallback callback) { m_KeyUpCallback = std::move(callback); }
         void SetFocusLostCallback(FocusLostCallback callback) { m_FocusLostCallback = std::move(callback); }
+        void SetMessageHook(MessageHook hook) { m_MessageHook = std::move(hook); }
 
         HWND GetHandle() const { return m_Handle; }
         uint32_t GetWidth() const { return m_Width; }
@@ -57,6 +61,7 @@ namespace TenFiftyEight
         KeyDownCallback m_KeyDownCallback;
         KeyUpCallback m_KeyUpCallback;
         FocusLostCallback m_FocusLostCallback;
+        MessageHook m_MessageHook;
 
         bool m_Borderless = false;
         WINDOWPLACEMENT m_WindowedPlacement = { sizeof(WINDOWPLACEMENT) }; // ウィンドウ表示に戻すときの位置・サイズ
