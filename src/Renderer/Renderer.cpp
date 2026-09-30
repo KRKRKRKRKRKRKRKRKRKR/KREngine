@@ -4,6 +4,7 @@
 #include "Graphics/DX12/DX12CommandList.h"
 #include "Graphics/DX12/DX12CommandQueue.h"
 #include "Graphics/DX12/DX12DepthBuffer.h"
+#include "Graphics/DX12/DX12DescriptorHeap.h"
 #include "Graphics/DX12/DX12Device.h"
 #include "Graphics/DX12/DX12Pipeline.h"
 #include "Graphics/DX12/DX12ShaderCompiler.h"
@@ -33,6 +34,9 @@ namespace TenFiftyEight
         {
             XMFLOAT4X4 viewProjection;
         };
+
+        // シェーダーから見える札掛け(SRV ヒープ)の枠の数。ImGui のフォント画像など、画像の札を掛ける
+        constexpr uint32_t SrvHeapSize = 64;
 
         // 定数バッファの大きさは 256 バイト単位にする決まり(中身が 64 バイトでも 256 バイト確保する)
         constexpr uint64_t FrameConstantBufferSize = (sizeof(FrameConstants) + 255) & ~uint64_t(255);
@@ -76,6 +80,9 @@ namespace TenFiftyEight
 
         m_CommandList = std::make_unique<DX12CommandList>(m_Device->Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, FramesInFlight);
 
+        // ImGui I-2: シェーダーから見える札掛け(SRV 用)。命令リストに設定できる SRV ヒープは1つだけなので、これが唯一のもの
+        m_SrvHeap = std::make_unique<DX12DescriptorHeap>(m_Device->Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, SrvHeapSize, true);
+
         m_ShaderCompiler = std::make_unique<DX12ShaderCompiler>();
         if (!LoadShaders())
         {
@@ -105,6 +112,7 @@ namespace TenFiftyEight
         }
         m_Pipeline.reset();
         m_ShaderCompiler.reset();
+        m_SrvHeap.reset();
         m_CommandList.reset();
         m_DepthBuffer.reset();
         m_SwapChain.reset();
