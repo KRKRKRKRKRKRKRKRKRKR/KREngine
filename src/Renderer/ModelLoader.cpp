@@ -8,6 +8,7 @@
 
 #include <charconv>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -30,6 +31,9 @@ namespace TenFiftyEight
             return std::filesystem::path(exePath).parent_path() / L"Models";
 #endif
         }
+
+        // 台帳のキー: 「位置の番号」と「材質の番号」の組。両方同じなら同じ頂点とみなす
+        using VertexKey = std::pair<size_t, size_t>;
 
         // 3-4-1: 面の1要素("5" "5/2" "5//1" "5/2/1" など)から、位置の番号だけを取り出して、棚の番号(0 始まり)にする
         // 成功したら true。数字でない・0・棚の範囲外なら false(設計図の不良)
@@ -59,7 +63,8 @@ namespace TenFiftyEight
 
     // 3-2: ファイルを開いて1行ずつ読み、行の種類ごとに振り分ける
     // 3-3: v の行を読んで、位置を部品棚(positions)に並べる
-    // 3-4-1: f の各要素から棚の部品を取り出して、頂点を作る
+    // 3-4-1: f の各要素から棚の部品を取り出す
+    // 3-4-2: 同じ頂点を使い回して、頂点リストを作る
     MeshData LoadObj(const std::filesystem::path& relativePath)
     {
         const std::filesystem::path fullPath = GetModelDirectory() / relativePath;
@@ -72,6 +77,10 @@ namespace TenFiftyEight
         }
 
         std::vector<XMFLOAT3> positions; // 部品棚: v の位置。OBJ の番号は 1 始まりだが、ここは 0 始まり
+
+        MeshData mesh;                                     // 完成品(頂点リストと番号リスト)
+        std::map<VertexKey, uint32_t> vertexLookup;        // 台帳: 作った頂点のキー → mesh.vertices の何番目か
+        const size_t currentMaterial = 0;                  // 今の材質の番号(3-5 で usemtl に合わせて変える)
 
         size_t normalLines = 0;   // vn
         size_t faceLines = 0;     // f
@@ -108,8 +117,9 @@ namespace TenFiftyEight
             {
                 ++faceLines;
 
-                // 面の要素を1つずつ読んで、頂点にする。色は今は仮の白(材質の色は 3-5 で付ける)
-                std::vector<Vertex> faceVertices;
+                // 面の要素を1つずつ読んで、棚の番号にする。先に全部確かめてから頂点を作る
+                // (途中で不良に気づいたときに、使われない頂点が残らないようにするため)
+                std::vector<size_t> facePositionIndices;
                 bool valid = true;
                 std::string element;
                 while (stream >> element)
@@ -121,20 +131,25 @@ namespace TenFiftyEight
                         valid = false;
                         break;
                     }
-                    faceVertices.push_back({ positions[index], { 1.0f, 1.0f, 1.0f, 1.0f } });
+                    facePositionIndices.push_back(index);
                 }
-                if (!valid || faceVertices.size() < 3)
+                if (!valid || facePositionIndices.size() < 3)
                 {
                     continue; // 不良品の面は飛ばす(頂点が3つ未満では三角形にならない)
                 }
 
-                // 3-4-1 動作確認用(確認が終わったら消す): 最初の面の頂点を表示
-                if (faceLines == 1)
+                // 3-4-2: 台帳で「もう作った頂点か」を調べ、あればその番号を使い回す
+                // 色は今は仮の白(材質は 3-5 で読む。それまで材質の番号は 0 で固定)
+                std::vector<uint32_t> faceVertexIndices; // この面の頂点の番号(3-4-3 で三角形にする)
+                for (const size_t positionIndex : facePositionIndices)
                 {
-                    for (const Vertex& vertex : faceVertices)
+                    const VertexKey key = { positionIndex, currentMaterial };
+                    const auto [entry, isNew] = vertexLookup.try_emplace(key, static_cast<uint32_t>(mesh.vertices.size()));
+                    if (isNew)
                     {
-                        TFE_LOG_INFO("LoadObj: 最初の面の頂点 ({}, {}, {})", vertex.position.x, vertex.position.y, vertex.position.z);
+                        mesh.vertices.push_back({ positions[positionIndex], { 1.0f, 1.0f, 1.0f, 1.0f } });
                     }
+                    faceVertexIndices.push_back(entry->second);
                 }
             }
             else if (keyword == "usemtl")
@@ -149,7 +164,9 @@ namespace TenFiftyEight
 
         TFE_LOG_INFO("LoadObj: {} v={} vn={} f={} usemtl={} その他={}",
             relativePath.string(), positions.size(), normalLines, faceLines, materialUses, otherLines);
+        // 3-4-2 動作確認用(確認が終わったら消す)
+        TFE_LOG_INFO("LoadObj: 作った頂点の数 = {}", mesh.vertices.size());
 
-        return {};
+        return mesh;
     }
 }
