@@ -17,6 +17,7 @@ set(ENGINE_FILES
     include/TenFiftyEight/Renderer/Renderer.h
     include/TenFiftyEight/Renderer/Camera.h
     include/TenFiftyEight/Renderer/Mesh.h
+    include/TenFiftyEight/Renderer/ModelLoader.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -26,6 +27,7 @@ set(ENGINE_FILES
     src/Renderer/Renderer.cpp
     src/Renderer/Camera.cpp
     src/Renderer/Mesh.cpp
+    src/Renderer/ModelLoader.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
@@ -64,6 +66,7 @@ target_compile_definitions(TenFiftyEight
     PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             # Debug ではホットリロードのため、編集中の元ファイルを直接読む
             TFE_SHADER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets/Shaders"
+            TFE_MODEL_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets/Models"
 )
 
 # DX12 は PRIVATE でリンクする → Game からは DX12 のヘッダーが見えない
