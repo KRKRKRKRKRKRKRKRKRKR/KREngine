@@ -7,6 +7,7 @@ namespace TenFiftyEight
     {
         W, A, S, D,
         Left, Right, Up, Down,
+        F3, // デバッグ用の画面(ImGui)の表示切り替え
     };
 
     // キーの状態を「読む」ための入口。書き込み(押した・離した)はエンジン内部だけが行う
