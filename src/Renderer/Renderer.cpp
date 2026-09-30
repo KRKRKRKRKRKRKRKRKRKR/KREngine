@@ -10,6 +10,7 @@
 #include "Graphics/DX12/DX12ShaderCompiler.h"
 #include "Graphics/DX12/DX12SwapChain.h"
 #include "Platform/Windows/Window.h"
+#include "UI/ImGuiLayer.h"
 
 #include <DirectXMath.h>
 
@@ -83,6 +84,10 @@ namespace TenFiftyEight
         // ImGui I-2: シェーダーから見える札掛け(SRV 用)。命令リストに設定できる SRV ヒープは1つだけなので、これが唯一のもの
         m_SrvHeap = std::make_unique<DX12DescriptorHeap>(m_Device->Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, SrvHeapSize, true);
 
+        // ImGui I-3: デバッグ用の画面の準備。SRV ヒープの枠を借りるので、ヒープの後に作る
+        m_ImGui = std::make_unique<ImGuiLayer>(window.GetHandle(), m_Device->Get(), m_Queue->Get(), m_SrvHeap.get(),
+                                               FramesInFlight, RenderTargetFormat, DepthBufferFormat);
+
         m_ShaderCompiler = std::make_unique<DX12ShaderCompiler>();
         if (!LoadShaders())
         {
@@ -112,6 +117,7 @@ namespace TenFiftyEight
         }
         m_Pipeline.reset();
         m_ShaderCompiler.reset();
+        m_ImGui.reset(); // SRV ヒープの枠を返しに行くので、ヒープより先に捨てる
         m_SrvHeap.reset();
         m_CommandList.reset();
         m_DepthBuffer.reset();

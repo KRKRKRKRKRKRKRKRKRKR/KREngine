@@ -23,6 +23,7 @@ namespace TenFiftyEight
     class DX12UploadBuffer;
     class DX12DepthBuffer;
     class DX12DescriptorHeap;
+    class ImGuiLayer;
 
     // Game から使う描画の窓口。中身は DX12 だが、Game は DX12 を意識しない
     class Renderer
@@ -91,6 +92,7 @@ namespace TenFiftyEight
         std::unique_ptr<DX12DepthBuffer> m_DepthBuffer;
         std::unique_ptr<DX12CommandList> m_CommandList;
         std::unique_ptr<DX12DescriptorHeap> m_SrvHeap; // シェーダーが読む画像の札掛け(ImGui のフォント画像など)
+        std::unique_ptr<ImGuiLayer> m_ImGui;           // デバッグ用の画面(SrvHeap の枠を借りるので、SrvHeap の後に作り、前に捨てる)
         std::unique_ptr<DX12ShaderCompiler> m_ShaderCompiler;
         std::unique_ptr<DX12Pipeline> m_Pipeline;
 

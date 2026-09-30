@@ -73,6 +73,8 @@ set(ENGINE_FILES
     src/Graphics/DX12/DX12DepthBuffer.cpp
     src/Graphics/DX12/DX12DescriptorHeap.h
     src/Graphics/DX12/DX12DescriptorHeap.cpp
+    src/UI/ImGuiLayer.h
+    src/UI/ImGuiLayer.cpp
 )
 
 # シェーダーは実行時にコンパイルする。VS が勝手に FXC でコンパイルしないよう、ビルド対象から外す
