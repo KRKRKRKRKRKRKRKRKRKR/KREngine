@@ -6,9 +6,11 @@
 
 #include <DirectXMath.h>
 
+#include <charconv>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace DirectX;
@@ -28,10 +30,36 @@ namespace TenFiftyEight
             return std::filesystem::path(exePath).parent_path() / L"Models";
 #endif
         }
+
+        // 3-4-1: 面の1要素("5" "5/2" "5//1" "5/2/1" など)から、位置の番号だけを取り出して、棚の番号(0 始まり)にする
+        // 成功したら true。数字でない・0・棚の範囲外なら false(設計図の不良)
+        bool ParseFacePositionIndex(const std::string& element, size_t positionCount, size_t& outIndex)
+        {
+            // 最初の「/」の手前までが位置の番号(「/」がなければ全体)
+            const std::string_view number = std::string_view(element).substr(0, element.find('/'));
+
+            int value = 0;
+            const auto [end, error] = std::from_chars(number.data(), number.data() + number.size(), value);
+            if (error != std::errc() || end != number.data() + number.size() || value == 0)
+            {
+                return false;
+            }
+
+            // 正の数は 1 始まりなので 1 を引く。負の数は「棚の最後から数える」(-1 = 最後の部品)
+            const long long index = value > 0 ? value - 1 : static_cast<long long>(positionCount) + value;
+            if (index < 0 || index >= static_cast<long long>(positionCount))
+            {
+                return false;
+            }
+
+            outIndex = static_cast<size_t>(index);
+            return true;
+        }
     }
 
     // 3-2: ファイルを開いて1行ずつ読み、行の種類ごとに振り分ける
     // 3-3: v の行を読んで、位置を部品棚(positions)に並べる
+    // 3-4-1: f の各要素から棚の部品を取り出して、頂点を作る
     MeshData LoadObj(const std::filesystem::path& relativePath)
     {
         const std::filesystem::path fullPath = GetModelDirectory() / relativePath;
@@ -79,6 +107,35 @@ namespace TenFiftyEight
             else if (keyword == "f")
             {
                 ++faceLines;
+
+                // 面の要素を1つずつ読んで、頂点にする。色は今は仮の白(材質の色は 3-5 で付ける)
+                std::vector<Vertex> faceVertices;
+                bool valid = true;
+                std::string element;
+                while (stream >> element)
+                {
+                    size_t index = 0;
+                    if (!ParseFacePositionIndex(element, positions.size(), index))
+                    {
+                        TFE_LOG_WARN("LoadObj: {} の f の要素を読めません({}): {}", relativePath.string(), element, line);
+                        valid = false;
+                        break;
+                    }
+                    faceVertices.push_back({ positions[index], { 1.0f, 1.0f, 1.0f, 1.0f } });
+                }
+                if (!valid || faceVertices.size() < 3)
+                {
+                    continue; // 不良品の面は飛ばす(頂点が3つ未満では三角形にならない)
+                }
+
+                // 3-4-1 動作確認用(確認が終わったら消す): 最初の面の頂点を表示
+                if (faceLines == 1)
+                {
+                    for (const Vertex& vertex : faceVertices)
+                    {
+                        TFE_LOG_INFO("LoadObj: 最初の面の頂点 ({}, {}, {})", vertex.position.x, vertex.position.y, vertex.position.z);
+                    }
+                }
             }
             else if (keyword == "usemtl")
             {
@@ -92,11 +149,6 @@ namespace TenFiftyEight
 
         TFE_LOG_INFO("LoadObj: {} v={} vn={} f={} usemtl={} その他={}",
             relativePath.string(), positions.size(), normalLines, faceLines, materialUses, otherLines);
-        if (!positions.empty())
-        {
-            // 3-3 動作確認用(確認が終わったら消す)
-            TFE_LOG_INFO("LoadObj: 最初の位置 ({}, {}, {})", positions[0].x, positions[0].y, positions[0].z);
-        }
 
         return {};
     }
