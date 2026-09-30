@@ -63,6 +63,9 @@ namespace TenFiftyEight
         // (Windows.h の型を、この公開ヘッダーに出さないため、型は素の整数・ポインタにしてある)
         bool HandleWindowMessage(void* window, unsigned int message, uintptr_t wParam, intptr_t lParam);
 
+        // ImGui が今、キーボードを使っているか(使っている間は、ゲームにキーを渡さない)
+        bool ImGuiWantsKeyboard() const;
+
         // シェーダーをコンパイルしてパイプラインを作り直す。失敗したら false(前のパイプラインのまま)
         bool LoadShaders();
 

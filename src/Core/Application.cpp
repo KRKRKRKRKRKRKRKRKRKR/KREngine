@@ -83,6 +83,13 @@ namespace TenFiftyEight
 
     void Application::OnKeyDown(uint32_t virtualKey)
     {
+        // ImGui I-6a: ImGui が文字入力などでキーボードを使っている間は、ゲームにキーを渡さない(F10 なども含む)
+        // 「離した」(OnKeyUp)は、押しっぱなしのまま固まらないよう、いつも状態表に伝える(コンストラクタの登録を参照)
+        if (m_Renderer && m_Renderer->ImGuiWantsKeyboard())
+        {
+            return;
+        }
+
         // 3-7-2: 入力の状態表へ「押された」を書く(押しっぱなしの繰り返しは Window 側で除かれている)
         InputState::OnKeyDown(virtualKey);
 

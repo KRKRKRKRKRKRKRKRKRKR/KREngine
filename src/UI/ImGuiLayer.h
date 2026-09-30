@@ -24,6 +24,10 @@ namespace TenFiftyEight
         // 毎フレームの最後(ゲームの絵を描いた後)に呼ぶ。書かれた窓を、命令リストに積んで画面に貼る
         void Render(ID3D12GraphicsCommandList* commandList);
 
+        // ImGui が今、キーボードを使っているか(文字入力欄に打っているときなど)。true の間は、ゲームにキーを渡さない
+        // (値は NewFrame のたびに更新されるので、キーを押した時点では、1フレーム前の状態)
+        bool WantsKeyboard() const;
+
         // OS のメッセージ(マウス・キー・文字入力)を ImGui に教える。ImGui が処理したら true
         static bool HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 

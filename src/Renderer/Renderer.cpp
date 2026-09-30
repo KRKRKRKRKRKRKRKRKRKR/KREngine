@@ -177,6 +177,11 @@ namespace TenFiftyEight
         return ImGuiLayer::HandleMessage(static_cast<HWND>(window), message, static_cast<WPARAM>(wParam), static_cast<LPARAM>(lParam));
     }
 
+    bool Renderer::ImGuiWantsKeyboard() const
+    {
+        return m_ImGui && m_ImGui->WantsKeyboard();
+    }
+
     //画面変化時の調整
     void Renderer::Resize(uint32_t width, uint32_t height)
     {

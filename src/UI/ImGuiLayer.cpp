@@ -84,6 +84,11 @@ namespace TenFiftyEight
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
     }
 
+    bool ImGuiLayer::WantsKeyboard() const
+    {
+        return ImGui::GetIO().WantCaptureKeyboard;
+    }
+
     bool ImGuiLayer::HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
     {
         return ImGui_ImplWin32_WndProcHandler(window, message, wParam, lParam) != 0;
