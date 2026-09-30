@@ -107,6 +107,7 @@ namespace TenFiftyEight
     // 3-4-2: 同じ頂点を使い回して、頂点リストを作る
     // 3-4-3: 三角形に分けて、番号リストを作る(表裏も直す)
     // 3-5-1: mtllib の .mtl を読んで、色見本帳を作る
+    // 3-5-2: usemtl で材質を切り替えて、頂点に色を付ける
     MeshData LoadObj(const std::filesystem::path& relativePath)
     {
         const std::filesystem::path fullPath = GetModelDirectory() / relativePath;
@@ -122,8 +123,10 @@ namespace TenFiftyEight
 
         MeshData mesh;                                     // 完成品(頂点リストと番号リスト)
         std::map<VertexKey, uint32_t> vertexLookup;        // 台帳: 作った頂点のキー → mesh.vertices の何番目か
-        const size_t currentMaterial = 0;                  // 今の材質の番号(3-5-2 で usemtl に合わせて変える)
-        std::map<std::string, XMFLOAT4> materialColors;    // 色見本帳: mtllib で読んだ「材質の名前 → 色」
+        // 色の一覧: 0 番は白(材質がないときの色)、1 番以降は mtllib で読んだ材質
+        std::vector<XMFLOAT4> materialPalette = { { 1.0f, 1.0f, 1.0f, 1.0f } };
+        std::map<std::string, size_t> materialIndexByName; // 材質の名前 → materialPalette の何番か
+        size_t currentMaterial = 0;                        // 今の材質の番号(usemtl で切り替わる)
 
         size_t normalLines = 0;   // vn
         size_t faceLines = 0;     // f
@@ -182,7 +185,7 @@ namespace TenFiftyEight
                 }
 
                 // 3-4-2: 台帳で「もう作った頂点か」を調べ、あればその番号を使い回す
-                // 色は今は仮の白(材質は 3-5 で読む。それまで材質の番号は 0 で固定)
+                // 頂点の色は、今の材質(currentMaterial)の色。材質が違えば、同じ位置でも別の頂点になる
                 std::vector<uint32_t> faceVertexIndices; // この面の頂点の番号(3-4-3 で三角形にする)
                 for (const size_t positionIndex : facePositionIndices)
                 {
@@ -190,7 +193,7 @@ namespace TenFiftyEight
                     const auto [entry, isNew] = vertexLookup.try_emplace(key, static_cast<uint32_t>(mesh.vertices.size()));
                     if (isNew)
                     {
-                        mesh.vertices.push_back({ positions[positionIndex], { 1.0f, 1.0f, 1.0f, 1.0f } });
+                        mesh.vertices.push_back({ positions[positionIndex], materialPalette[currentMaterial] });
                     }
                     faceVertexIndices.push_back(entry->second);
                 }
@@ -210,18 +213,31 @@ namespace TenFiftyEight
                 std::string mtlName;
                 if (stream >> mtlName)
                 {
-                    materialColors = LoadMtl(fullPath.parent_path() / mtlName);
-
-                    // 3-5-1 動作確認用(確認が終わったら消す)
-                    for (const auto& [name, color] : materialColors)
+                    // 色見本帳の材質を、色の一覧(materialPalette)に番号付きで並べる(0 番は白なので 1 番から)
+                    for (const auto& [name, color] : LoadMtl(fullPath.parent_path() / mtlName))
                     {
-                        TFE_LOG_INFO("LoadObj: 材質 {} = ({}, {}, {})", name, color.x, color.y, color.z);
+                        materialIndexByName[name] = materialPalette.size();
+                        materialPalette.push_back(color);
                     }
                 }
             }
             else if (keyword == "usemtl")
             {
                 ++materialUses;
+
+                // 3-5-2: これ以降に作る頂点の材質を切り替える。色見本帳にない名前は 0 番(白)にする
+                std::string materialName;
+                stream >> materialName;
+                const auto found = materialIndexByName.find(materialName);
+                if (found != materialIndexByName.end())
+                {
+                    currentMaterial = found->second;
+                }
+                else
+                {
+                    TFE_LOG_WARN("LoadObj: {} に未知の材質があります: {}", relativePath.string(), materialName);
+                    currentMaterial = 0;
+                }
             }
             else
             {
