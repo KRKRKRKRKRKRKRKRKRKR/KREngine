@@ -4,9 +4,14 @@
 
 #include <Windows.h>
 
+#include <DirectXMath.h>
+
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
+
+using namespace DirectX;
 
 namespace TenFiftyEight
 {
@@ -25,7 +30,8 @@ namespace TenFiftyEight
         }
     }
 
-    // 3-2: ファイルを開いて1行ずつ読み、行の種類ごとに振り分ける(今は数えるだけ)
+    // 3-2: ファイルを開いて1行ずつ読み、行の種類ごとに振り分ける
+    // 3-3: v の行を読んで、位置を部品棚(positions)に並べる
     MeshData LoadObj(const std::filesystem::path& relativePath)
     {
         const std::filesystem::path fullPath = GetModelDirectory() / relativePath;
@@ -37,7 +43,8 @@ namespace TenFiftyEight
             return {};
         }
 
-        size_t positionLines = 0; // v
+        std::vector<XMFLOAT3> positions; // 部品棚: v の位置。OBJ の番号は 1 始まりだが、ここは 0 始まり
+
         size_t normalLines = 0;   // vn
         size_t faceLines = 0;     // f
         size_t materialUses = 0;  // usemtl
@@ -53,7 +60,17 @@ namespace TenFiftyEight
 
             if (keyword == "v")
             {
-                ++positionLines;
+                float x, y, z;
+                if (!(stream >> x >> y >> z))
+                {
+                    // 数字が3つ読めない行は不良品。棚に並べずに飛ばす
+                    TFE_LOG_WARN("LoadObj: {} の v の行を読めません: {}", relativePath.string(), line);
+                    continue;
+                }
+
+                // OBJ は右手系、このエンジンは左手系。Z の符号を反転して、このエンジンの向きに直す
+                // (面の向きが逆になる分は、f の処理で三角形の番号の順を入れ替えて直す)
+                positions.push_back({ x, y, -z });
             }
             else if (keyword == "vn")
             {
@@ -74,7 +91,12 @@ namespace TenFiftyEight
         }
 
         TFE_LOG_INFO("LoadObj: {} v={} vn={} f={} usemtl={} その他={}",
-            relativePath.string(), positionLines, normalLines, faceLines, materialUses, otherLines);
+            relativePath.string(), positions.size(), normalLines, faceLines, materialUses, otherLines);
+        if (!positions.empty())
+        {
+            // 3-3 動作確認用(確認が終わったら消す)
+            TFE_LOG_INFO("LoadObj: 最初の位置 ({}, {}, {})", positions[0].x, positions[0].y, positions[0].z);
+        }
 
         return {};
     }
