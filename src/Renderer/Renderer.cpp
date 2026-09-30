@@ -86,7 +86,8 @@ namespace TenFiftyEight
 
         // ImGui I-3: デバッグ用の画面の準備。SRV ヒープの枠を借りるので、ヒープの後に作る
         m_ImGui = std::make_unique<ImGuiLayer>(window.GetHandle(), m_Device->Get(), m_Queue->Get(), m_SrvHeap.get(),
-                                               FramesInFlight, RenderTargetFormat, DepthBufferFormat);
+                                               FramesInFlight, LinearRenderTargetFormat, DXGI_FORMAT_UNKNOWN);
+        // ↑ I-6c: ImGui は、変換なしの見方(UNORM)で、深度なしで描く(色が最初からモニター用の値で、常に手前に描くため)
 
         m_ShaderCompiler = std::make_unique<DX12ShaderCompiler>();
         if (!LoadShaders())
@@ -368,6 +369,9 @@ namespace TenFiftyEight
         ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
 
         // ImGui I-5: ゲームの絵の上に、Game が OnImGui() で書いた窓を貼る(バックバッファを表示用に戻す前)
+        // I-6c: 描画先を、同じバックバッファの「変換なし」の見方(UNORM)・深度なしに切り替える(ImGui の色が明るくなりすぎないように)
+        const D3D12_CPU_DESCRIPTOR_HANDLE linearRtv = m_SwapChain->GetCurrentLinearRenderTargetView();
+        commandList->OMSetRenderTargets(1, &linearRtv, FALSE, nullptr);
         m_ImGui->Render(commandList);
 
         // バックバッファを「描画用」から「表示用」に戻す

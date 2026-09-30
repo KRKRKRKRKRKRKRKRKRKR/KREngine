@@ -33,7 +33,10 @@ namespace TenFiftyEight
         uint32_t GetWidth() const { return m_Width; }
         uint32_t GetHeight() const { return m_Height; }
         ID3D12Resource* GetCurrentBackBuffer() const;
-        D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentRenderTargetView() const;
+        D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentRenderTargetView() const; // sRGB(書き込むとき色を変換する。ゲームの絵用)
+
+        // 同じバックバッファの、UNORM の見方(変換しない。ImGui 用)
+        D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentLinearRenderTargetView() const;
 
     private:
         void CreateRenderTargetViews();

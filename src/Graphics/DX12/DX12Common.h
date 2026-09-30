@@ -20,6 +20,9 @@ namespace TenFiftyEight
     // 描画先の形式。_SRGB にすると、シェーダーが出力した「物理的に正しい明るさ」の色を、
     // 書き込むときにモニター用の明るさ(ガンマ補正)へ自動で変換してくれる
     constexpr DXGI_FORMAT RenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+
+    // 同じバックバッファを、変換なしで書き込む見方(UNORM)。ImGui のように、色が最初からモニター用の値になっているものに使う
+    constexpr DXGI_FORMAT LinearRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 }
 
 // DX12 / DXGI の関数は HRESULT で成否を返す。失敗したら式と HRESULT を出して停止する

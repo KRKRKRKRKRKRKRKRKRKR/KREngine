@@ -48,10 +48,11 @@ namespace TenFiftyEight
         // DXGI による Alt+Enter の自動フルスクリーン切り替えを止める
         TFE_DX_CHECK(desc.factory->MakeWindowAssociation(desc.window, DXGI_MWA_NO_ALT_ENTER));
 
-        // RTV(Render Target View)を置くためのヒープ。バックバッファの枚数分の枠を確保する
+        // RTV(Render Target View)を置くためのヒープ。バックバッファの枚数 × 2 の枠を確保する
+        // (前半 = sRGB の見方、後半 = UNORM の見方。同じバックバッファを 2 通りの見方で描けるようにする)
         D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
         heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        heapDesc.NumDescriptors = BackBufferCount;
+        heapDesc.NumDescriptors = BackBufferCount * 2;
         heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         TFE_DX_CHECK(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_RtvHeap)));
 
@@ -65,16 +66,25 @@ namespace TenFiftyEight
 
     void DX12SwapChain::CreateRenderTargetViews()
     {
-        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-        rtvDesc.Format = RenderTargetFormat;
-        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        // 同じバックバッファに対して、2 通りの見方を作る: sRGB(色を変換して書く)と UNORM(そのまま書く)
+        D3D12_RENDER_TARGET_VIEW_DESC srgbDesc = {};
+        srgbDesc.Format = RenderTargetFormat;
+        srgbDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RtvHeap->GetCPUDescriptorHandleForHeapStart());
+        D3D12_RENDER_TARGET_VIEW_DESC linearDesc = {};
+        linearDesc.Format = LinearRenderTargetFormat;
+        linearDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
+        const D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_RtvHeap->GetCPUDescriptorHandleForHeapStart();
         for (uint32_t i = 0; i < BackBufferCount; ++i)
         {
             TFE_DX_CHECK(m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&m_BackBuffers[i])));
-            m_Device->CreateRenderTargetView(m_BackBuffers[i].Get(), &rtvDesc, rtvHandle);
-            rtvHandle.Offset(1, m_RtvDescriptorSize);
+
+            // 枠 0 〜 (枚数-1) が sRGB、枚数 〜 (枚数×2-1) が UNORM
+            const CD3DX12_CPU_DESCRIPTOR_HANDLE srgbHandle(heapStart, static_cast<INT>(i), m_RtvDescriptorSize);
+            const CD3DX12_CPU_DESCRIPTOR_HANDLE linearHandle(heapStart, static_cast<INT>(BackBufferCount + i), m_RtvDescriptorSize);
+            m_Device->CreateRenderTargetView(m_BackBuffers[i].Get(), &srgbDesc, srgbHandle);
+            m_Device->CreateRenderTargetView(m_BackBuffers[i].Get(), &linearDesc, linearHandle);
         }
     }
 
@@ -125,6 +135,14 @@ namespace TenFiftyEight
         return CD3DX12_CPU_DESCRIPTOR_HANDLE(
             m_RtvHeap->GetCPUDescriptorHandleForHeapStart(),
             static_cast<INT>(m_SwapChain->GetCurrentBackBufferIndex()),
+            m_RtvDescriptorSize);
+    }
+
+    D3D12_CPU_DESCRIPTOR_HANDLE DX12SwapChain::GetCurrentLinearRenderTargetView() const
+    {
+        return CD3DX12_CPU_DESCRIPTOR_HANDLE(
+            m_RtvHeap->GetCPUDescriptorHandleForHeapStart(),
+            static_cast<INT>(BackBufferCount + m_SwapChain->GetCurrentBackBufferIndex()),
             m_RtvDescriptorSize);
     }
 }
