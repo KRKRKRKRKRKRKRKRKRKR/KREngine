@@ -147,6 +147,30 @@ namespace TenFiftyEight
             }
             break;
         }
+        case WM_KEYUP:
+        case WM_SYSKEYUP: // WM_SYSKEYDOWN と対になる
+        {
+            if (m_KeyUpCallback)
+            {
+                m_KeyUpCallback(static_cast<uint32_t>(wParam));
+            }
+
+            // F10 は離したときもメニューを開く動きにつながるため、KEYDOWN と同じく既定の処理に渡さない
+            if (wParam == VK_F10)
+            {
+                return 0;
+            }
+            break;
+        }
+        case WM_KILLFOCUS:
+        {
+            // 別のウィンドウに切り替わると、キーを離したメッセージがこちらに届かない。押しっぱなしのまま固まらないよう知らせる
+            if (m_FocusLostCallback)
+            {
+                m_FocusLostCallback();
+            }
+            return 0;
+        }
         case WM_DPICHANGED:
         {
             // ボーダーレス中はモニター全体を覆うサイズのままにする

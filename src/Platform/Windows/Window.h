@@ -20,6 +20,8 @@ namespace TenFiftyEight
     public:
         using ResizeCallback = std::function<void(uint32_t width, uint32_t height)>;
         using KeyDownCallback = std::function<void(uint32_t virtualKey)>; // virtualKey は VK_F10 などの Windows のキーコード
+        using KeyUpCallback = std::function<void(uint32_t virtualKey)>;
+        using FocusLostCallback = std::function<void()>; // 別のウィンドウに切り替わるなどで、非アクティブになった
 
         explicit Window(const WindowDesc& desc);
         ~Window();
@@ -32,6 +34,8 @@ namespace TenFiftyEight
 
         void SetResizeCallback(ResizeCallback callback) { m_ResizeCallback = std::move(callback); }
         void SetKeyDownCallback(KeyDownCallback callback) { m_KeyDownCallback = std::move(callback); }
+        void SetKeyUpCallback(KeyUpCallback callback) { m_KeyUpCallback = std::move(callback); }
+        void SetFocusLostCallback(FocusLostCallback callback) { m_FocusLostCallback = std::move(callback); }
 
         HWND GetHandle() const { return m_Handle; }
         uint32_t GetWidth() const { return m_Width; }
@@ -51,6 +55,8 @@ namespace TenFiftyEight
         uint32_t m_Height = 0;
         ResizeCallback m_ResizeCallback;
         KeyDownCallback m_KeyDownCallback;
+        KeyUpCallback m_KeyUpCallback;
+        FocusLostCallback m_FocusLostCallback;
 
         bool m_Borderless = false;
         WINDOWPLACEMENT m_WindowedPlacement = { sizeof(WINDOWPLACEMENT) }; // ウィンドウ表示に戻すときの位置・サイズ

@@ -2,6 +2,7 @@
 
 #include "TenFiftyEight/Core/Log.h"
 #include "TenFiftyEight/Renderer/Renderer.h"
+#include "Core/InputState.h"
 #include "Platform/Windows/Window.h"
 
 #include <chrono>
@@ -13,6 +14,9 @@ namespace TenFiftyEight
         m_Window = std::make_unique<Window>(WindowDesc{ desc.title, desc.width, desc.height });
         m_Window->SetResizeCallback([this](uint32_t width, uint32_t height) { OnWindowResize(width, height); });
         m_Window->SetKeyDownCallback([this](uint32_t virtualKey) { OnKeyDown(virtualKey); });
+        // 3-7-2: キーを離した・非アクティブになった、を入力の状態表へ書く(Window は InputState を知らない)
+        m_Window->SetKeyUpCallback([](uint32_t virtualKey) { InputState::OnKeyUp(virtualKey); });
+        m_Window->SetFocusLostCallback([]() { InputState::ReleaseAll(); });
         m_Renderer = std::make_unique<Renderer>(*m_Window);
     }
 
@@ -42,6 +46,10 @@ namespace TenFiftyEight
                 OnRender();
                 m_Renderer->EndFrame();
             }
+
+            // 「このフレームで押された・離された」の付箋を剥がす。OnUpdate も OnRender も読み終わった後
+            // 最小化中(描画しないとき)も剥がし忘れないよう、描画の有無に関係なく毎回呼ぶ
+            InputState::EndFrame();
         }
 
         OnShutdown();
@@ -61,14 +69,15 @@ namespace TenFiftyEight
 
     void Application::OnKeyDown(uint32_t virtualKey)
     {
+        // 3-7-2: 入力の状態表へ「押された」を書く(押しっぱなしの繰り返しは Window 側で除かれている)
+        InputState::OnKeyDown(virtualKey);
+
 #ifdef TFE_DEBUG
         // F10: シェーダーのホットリロード(Debug のみ。Release はコピーされたファイルを読むため意味がない)
         if (virtualKey == VK_F10)
         {
             m_Renderer->ReloadShaders();
         }
-#else
-        (void)virtualKey;
 #endif
     }
 }
