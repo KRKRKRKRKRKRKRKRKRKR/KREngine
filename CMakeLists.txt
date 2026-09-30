@@ -10,6 +10,29 @@ set(DXHEADERS_BUILD_GOOGLE_TEST OFF CACHE BOOL "" FORCE)
 set(DXHEADERS_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(DirectX-Headers)
 
+# Dear ImGui(デバッグ用の画面)。docking 版(窓をタブでまとめたり、端にくっつけたりできる)
+# ImGui は CMakeLists.txt を持たないので、取得だけして、下でライブラリを自分で定義する
+FetchContent_Declare(imgui
+    URL      https://github.com/ocornut/imgui/archive/refs/tags/v1.92.9b-docking.zip
+    URL_HASH SHA256=0434445157a575f452ff0f2d1681fdd90ea8939e0c6983e6f8e47c51fba1bccd
+)
+FetchContent_MakeAvailable(imgui)
+
+# ImGui 本体 + Win32(ウィンドウ・入力)と DX12(描画)のバックエンド
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp
+)
+# PUBLIC = リンクした側(Engine と Game)からも imgui.h などが見える
+target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(imgui PUBLIC d3d12 dxgi)
+# /utf-8 = ImGui のソースは UTF-8 / /W0 = 他人のコードの警告は出さない(Release で assert が消えたときの未使用変数の警告など)
+target_compile_options(imgui PRIVATE /utf-8 /W0)
+
 set(ENGINE_FILES
     include/TenFiftyEight/TenFiftyEight.h
     include/TenFiftyEight/Core/Application.h
@@ -72,6 +95,9 @@ target_compile_definitions(TenFiftyEight
             TFE_MODEL_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets/Models"
 )
 
+# ImGui は PUBLIC でリンクする → Game も #include <imgui.h> で直接使える
+target_link_libraries(TenFiftyEight PUBLIC imgui)
+
 # DX12 は PRIVATE でリンクする → Game からは DX12 のヘッダーが見えない
 target_link_libraries(TenFiftyEight PRIVATE
     Microsoft::DirectX-Headers
@@ -84,7 +110,7 @@ target_link_libraries(TenFiftyEight PRIVATE
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ENGINE_FILES})
 source_group(Shaders FILES ${SHADER_FILES})
-set_target_properties(DirectX-Headers DirectX-Guids PROPERTIES FOLDER ThirdParty)
+set_target_properties(DirectX-Headers DirectX-Guids imgui PROPERTIES FOLDER ThirdParty)
 
 # 実行時に必要なファイル: DXC 本体(dxcompiler.dll)とシェーダー署名用(dxil.dll)は Windows SDK のものを使う
 set(PROGRAM_FILES_X86 "ProgramFiles(x86)")
