@@ -273,7 +273,13 @@ namespace TenFiftyEight
         XMStoreFloat4x4(&frameConstants.viewProjection, viewProjection);
 
         // 4-7b: 空は、画面の座標から視線の向きを求めるので、逆行列も渡す
-        XMStoreFloat4x4(&frameConstants.inverseViewProjection, XMMatrixInverse(nullptr, viewProjection));
+        // 4-7c: 逆行列は、ビュー行列の「移動」の成分を 0 にして(カメラの向きだけにして)作る。カメラの位置が入っていると、
+        //       一番奥の点(桁落ちで、誤差が大きい)の誤差が、猫の位置に比例して、視線の向きに乗り、地平線の幅を狭めたとき、ちらつく。
+        //       位置が無ければ、誤差は、xyz と w で同じ割合になり、シェーダーの normalize で消える
+        XMMATRIX viewRotationOnly = m_Camera.GetViewMatrix();
+        viewRotationOnly.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+        const XMMATRIX skyViewProjection = viewRotationOnly * m_Camera.GetProjectionMatrix(aspectRatio);
+        XMStoreFloat4x4(&frameConstants.inverseViewProjection, XMMatrixInverse(nullptr, skyViewProjection));
         frameConstants.skyHorizon = { m_Sky.horizonColor.x, m_Sky.horizonColor.y, m_Sky.horizonColor.z, 1.0f };
         frameConstants.skyZenith = { m_Sky.zenithColor.x, m_Sky.zenithColor.y, m_Sky.zenithColor.z, m_Sky.horizonWidth };
         frameConstants.skyNadir = { m_Sky.nadirColor.x, m_Sky.nadirColor.y, m_Sky.nadirColor.z, 1.0f };
