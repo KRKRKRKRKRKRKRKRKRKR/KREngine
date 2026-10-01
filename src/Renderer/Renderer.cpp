@@ -43,7 +43,8 @@ namespace TenFiftyEight
             XMFLOAT4 fogParams;      // x = 濃さ(フォグなしのときは 0)
             XMFLOAT4X4 inverseViewProjection; // viewProjection の逆(空: 画面の座標 → 世界の座標。視線の向きを求める)
             XMFLOAT4 skyHorizon;     // rgb = 地平線の色
-            XMFLOAT4 skyZenith;      // rgb = 天頂の色 / w = グラデーションの傾き
+            XMFLOAT4 skyZenith;      // rgb = 天頂の色 / w = 地平線の光の幅
+            XMFLOAT4 skyNadir;       // rgb = 下の色(視線が地平線より下のとき)
         };
 
         // シェーダーから見える札掛け(SRV ヒープ)の枠の数。ImGui のフォント画像など、画像の札を掛ける
@@ -279,7 +280,8 @@ namespace TenFiftyEight
         // 4-7b: 空は、画面の座標から視線の向きを求めるので、逆行列も渡す
         XMStoreFloat4x4(&frameConstants.inverseViewProjection, XMMatrixInverse(nullptr, viewProjection));
         frameConstants.skyHorizon = { m_Sky.horizonColor.x, m_Sky.horizonColor.y, m_Sky.horizonColor.z, 1.0f };
-        frameConstants.skyZenith = { m_Sky.zenithColor.x, m_Sky.zenithColor.y, m_Sky.zenithColor.z, m_Sky.gradientPower };
+        frameConstants.skyZenith = { m_Sky.zenithColor.x, m_Sky.zenithColor.y, m_Sky.zenithColor.z, m_Sky.horizonWidth };
+        frameConstants.skyNadir = { m_Sky.nadirColor.x, m_Sky.nadirColor.y, m_Sky.nadirColor.z, 1.0f };
 
         // 4-3: 光も同じ別紙に書く。光の向きは、陰影の計算(内積)のため、長さ 1 にそろえる
         XMStoreFloat4(&frameConstants.toLight, XMVector3Normalize(XMLoadFloat3(&m_Lighting.toLight)));

@@ -22,9 +22,10 @@ namespace TenFiftyEight
     // 色は「物理的な明るさ」の値(ガンマ補正の前)。フォグの色は、地平線の色に自動で合わせる(遠くが空に溶けるように)
     struct Sky
     {
-        DirectX::XMFLOAT3 horizonColor = { 0.85f, 0.55f, 0.50f }; // 地平線(視線が水平)の色
+        DirectX::XMFLOAT3 horizonColor = { 0.85f, 0.55f, 0.50f }; // 地平線(視線が水平)の色。フォグの色も、これに合わせる
         DirectX::XMFLOAT3 zenithColor = { 0.15f, 0.15f, 0.40f };  // 天頂(真上)の色
-        float gradientPower = 0.7f; // グラデーションの傾き。小さいほど地平線の近くですぐ天頂の色になる(地平線の光が細い)
+        DirectX::XMFLOAT3 nadirColor = { 0.47f, 0.30f, 0.28f };   // 下の色(視線が真下に近いとき。地面が描かれない所に見える)
+        float horizonWidth = 0.45f; // 地平線の光の幅(視線の高さの単位。0 〜 1)。小さいほど細い帯、大きいほど天頂の近くまで地平線の色が広がる
     };
 
     // フォグ(遠くが霧の色に溶けて見える)の設定。Game が持ち、毎フレーム Renderer::SetFog で渡す
