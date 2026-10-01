@@ -1,5 +1,6 @@
 #include "TenFiftyEight/Renderer/ModelLoader.h"
 
+#include "TenFiftyEight/Core/Assets.h"
 #include "TenFiftyEight/Core/Log.h"
 
 #include <Windows.h>
@@ -21,16 +22,10 @@ namespace TenFiftyEight
 {
     namespace
     {
-        // Debug: 編集中の元フォルダー / Release: exe の横にコピーされたもの(シェーダーと同じ方式)
+        // Debug: 編集中の元フォルダー / Release: exe の横にコピーされたもの(場所の決まりは GetAssetDirectory にある)
         std::filesystem::path GetModelDirectory()
         {
-#ifdef TFE_DEBUG
-            return std::filesystem::path(TFE_MODEL_SOURCE_DIR);
-#else
-            wchar_t exePath[MAX_PATH] = {};
-            GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-            return std::filesystem::path(exePath).parent_path() / L"Models";
-#endif
+            return GetAssetDirectory("Models");
         }
 
         // 台帳のキー: 「位置の番号」「法線の番号」「材質の番号」の組。3つとも同じなら同じ頂点とみなす

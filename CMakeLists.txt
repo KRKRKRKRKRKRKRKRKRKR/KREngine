@@ -39,6 +39,7 @@ set(ENGINE_FILES
     include/TenFiftyEight/Core/Application.h
     include/TenFiftyEight/Core/Log.h
     include/TenFiftyEight/Core/Input.h
+    include/TenFiftyEight/Core/Assets.h
     include/TenFiftyEight/Renderer/Renderer.h
     include/TenFiftyEight/Renderer/Camera.h
     include/TenFiftyEight/Renderer/Lighting.h
@@ -49,6 +50,7 @@ set(ENGINE_FILES
     src/Core/EntryPoint.cpp
     src/Core/Log.cpp
     src/Core/Input.cpp
+    src/Core/Assets.cpp
     src/Core/InputState.h
     src/Platform/Windows/Window.h
     src/Platform/Windows/Window.cpp
@@ -99,8 +101,7 @@ target_compile_definitions(TenFiftyEight
     PUBLIC  $<$<CONFIG:Debug>:TFE_DEBUG>
     PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             # Debug ではホットリロードのため、編集中の元ファイルを直接読む
-            TFE_SHADER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets/Shaders"
-            TFE_MODEL_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets/Models"
+            TFE_ASSETS_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets"
 )
 
 # ImGui は PUBLIC でリンクする → Game も #include <imgui.h> で直接使える
@@ -132,6 +133,7 @@ function(tfe_copy_runtime_files target)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TFE_DXCOMPILER_DLL} ${TFE_DXIL_DLL} $<TARGET_FILE_DIR:${target}>
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Shaders $<TARGET_FILE_DIR:${target}>/Shaders
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Models $<TARGET_FILE_DIR:${target}>/Models
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Courses $<TARGET_FILE_DIR:${target}>/Courses
         VERBATIM
     )
 endfunction()

@@ -10,6 +10,7 @@
 #include "Graphics/DX12/DX12ShaderCompiler.h"
 #include "Graphics/DX12/DX12SwapChain.h"
 #include "Platform/Windows/Window.h"
+#include "TenFiftyEight/Core/Assets.h"
 #include "UI/ImGuiLayer.h"
 
 #include <DirectXMath.h>
@@ -60,16 +61,10 @@ namespace TenFiftyEight
             { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex, color),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
 
-        // Debug: 編集中の元ファイル(ホットリロード用) / Release: exe の横にコピーされたもの
+        // Debug: 編集中の元ファイル(ホットリロード用) / Release: exe の横にコピーされたもの(場所の決まりは GetAssetDirectory にある)
         std::filesystem::path GetShaderDirectory()
         {
-#ifdef TFE_DEBUG
-            return std::filesystem::path(TFE_SHADER_SOURCE_DIR);
-#else
-            wchar_t exePath[MAX_PATH] = {};
-            GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-            return std::filesystem::path(exePath).parent_path() / L"Shaders";
-#endif
+            return GetAssetDirectory("Shaders");
         }
     }
 
