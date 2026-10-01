@@ -69,4 +69,43 @@ namespace TenFiftyEight
     {
         return BuildCube({ color, color, color, color, color, color });
     }
+
+    MeshData CreateCheckerPlaneMeshData(uint32_t tilesX, uint32_t tilesZ, float tileSize, const XMFLOAT3& origin,
+                                        const XMFLOAT4& colorA, const XMFLOAT4& colorB)
+    {
+        MeshData data;
+        data.vertices.reserve(static_cast<size_t>(tilesX) * tilesZ * 4);
+        data.indices.reserve(static_cast<size_t>(tilesX) * tilesZ * 6);
+
+        constexpr XMFLOAT3 Up = { 0.0f, 1.0f, 0.0f };
+
+        for (uint32_t tz = 0; tz < tilesZ; ++tz)
+        {
+            for (uint32_t tx = 0; tx < tilesX; ++tx)
+            {
+                // タイルの4つの角(X・Z が小さい側 = 0、大きい側 = 1)
+                const float x0 = origin.x + static_cast<float>(tx) * tileSize;
+                const float x1 = x0 + tileSize;
+                const float z0 = origin.z + static_cast<float>(tz) * tileSize;
+                const float z1 = z0 + tileSize;
+
+                // 隣り合うタイルで、色が交互になる
+                const XMFLOAT4& color = ((tx + tz) % 2 == 0) ? colorA : colorB;
+
+                // 真上から見て 左上(X 小・Z 大)→ 右上 → 右下 → 左下 の順(キューブの上の面と同じ。時計回りが表)
+                const auto base = static_cast<uint32_t>(data.vertices.size());
+                data.vertices.push_back({ { x0, origin.y, z1 }, Up, color });
+                data.vertices.push_back({ { x1, origin.y, z1 }, Up, color });
+                data.vertices.push_back({ { x1, origin.y, z0 }, Up, color });
+                data.vertices.push_back({ { x0, origin.y, z0 }, Up, color });
+
+                const uint32_t tileIndices[] = { 0, 1, 2, 0, 2, 3 };
+                for (uint32_t index : tileIndices)
+                {
+                    data.indices.push_back(base + index);
+                }
+            }
+        }
+        return data;
+    }
 }

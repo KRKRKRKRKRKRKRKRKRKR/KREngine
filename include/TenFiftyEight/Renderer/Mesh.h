@@ -35,4 +35,11 @@ namespace TenFiftyEight
 
     // 1辺1メートル、中心が原点のキューブ。全部の面が同じ色
     MeshData CreateCubeMeshData(const DirectX::XMFLOAT4& color);
+
+    // 市松模様の平らな板(上向き)。tileSize メートル四方のタイルを、X 方向に tilesX 枚、Z 方向に tilesZ 枚並べ、
+    // colorA と colorB を交互に塗る。origin は、板の「X・Z が最小の角」の位置(Y が板の高さ)
+    // 頂点の法線は、すべて上向き (0, 1, 0)
+    MeshData CreateCheckerPlaneMeshData(uint32_t tilesX, uint32_t tilesZ, float tileSize,
+                                        const DirectX::XMFLOAT3& origin,
+                                        const DirectX::XMFLOAT4& colorA, const DirectX::XMFLOAT4& colorB);
 }
