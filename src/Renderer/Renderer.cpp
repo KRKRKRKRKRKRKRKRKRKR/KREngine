@@ -9,6 +9,7 @@
 #include "Graphics/DX12/DX12Pipeline.h"
 #include "Graphics/DX12/DX12ShaderCompiler.h"
 #include "Graphics/DX12/DX12SwapChain.h"
+#include "Graphics/DX12/DX12Texture.h"
 #include "Platform/Windows/Window.h"
 #include "Renderer/Image.h"
 #include "TenFiftyEight/Core/Assets.h"
@@ -90,6 +91,9 @@ namespace TenFiftyEight
 
         m_CommandList = std::make_unique<DX12CommandList>(m_Device->Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, FramesInFlight);
 
+        // 6-3: 画像のコピー専用の命令リスト(Allocator は 1 つ。コピーのたびに、GPU の完了を待つので、使い回してよい)
+        m_UploadCommandList = std::make_unique<DX12CommandList>(m_Device->Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, 1);
+
         // ImGui I-2: シェーダーから見える札掛け(SRV 用)。命令リストに設定できる SRV ヒープは1つだけなので、これが唯一のもの
         m_SrvHeap = std::make_unique<DX12DescriptorHeap>(m_Device->Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, SrvHeapSize, true);
 
@@ -110,8 +114,9 @@ namespace TenFiftyEight
             buffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), FrameConstantBufferSize);
         }
 
-        // 6-1 【一時的。6-3 で消す】PNG が読めることの確認(幅・高さが、ログに出る)
-        LoadImageRgba8(GetAssetDirectory("Models") / "Player" / "player.png");
+        // 6-3: 白の 1×1 の画像(R, G, B, A = 255)。画像を貼らない物に使う(白を掛けても、色は変わらない)
+        constexpr uint8_t whitePixel[4] = { 255, 255, 255, 255 };
+        m_WhiteTexture = CreateTextureFromPixels(1, 1, whitePixel);
     }
 
     //レンダー削除
@@ -124,6 +129,8 @@ namespace TenFiftyEight
         // (Game が DestroyMesh し忘れた形も、ここでまとめて解放する)
         m_PendingReleases.clear();
         m_Meshes.clear();
+        m_PendingTextureReleases.clear(); // 画像は、SRV の枠を返しに行くので、ヒープ(m_SrvHeap)より先に捨てる
+        m_Textures.clear();
         for (std::unique_ptr<DX12UploadBuffer>& buffer : m_FrameConstantBuffers)
         {
             buffer.reset();
@@ -133,6 +140,7 @@ namespace TenFiftyEight
         m_ShaderCompiler.reset();
         m_ImGui.reset(); // SRV ヒープの枠を返しに行くので、ヒープより先に捨てる
         m_SrvHeap.reset();
+        m_UploadCommandList.reset();
         m_CommandList.reset();
         m_DepthBuffer.reset();
         m_SwapChain.reset();
@@ -369,6 +377,57 @@ namespace TenFiftyEight
         {
             return pending.fenceValue != 0 && m_Queue->IsComplete(pending.fenceValue);
         });
+        std::erase_if(m_PendingTextureReleases, [this](const PendingTextureRelease& pending)
+        {
+            return pending.fenceValue != 0 && m_Queue->IsComplete(pending.fenceValue);
+        });
+    }
+
+    // 6-3 画像のピクセルを GPU のメモリに置いて、一覧表に登録し、番号札を返す
+    TextureHandle Renderer::CreateTextureFromPixels(uint32_t width, uint32_t height, const uint8_t* rgbaPixels)
+    {
+        std::unique_ptr<DX12Texture> texture = DX12Texture::Create(m_Device->Get(), *m_UploadCommandList, *m_Queue, *m_SrvHeap,
+                                                                    width, height, rgbaPixels);
+        if (!texture)
+        {
+            return {};
+        }
+
+        // 番号は 1 から順に発行し、使い回さない(形の番号札と同じ)
+        const TextureHandle handle{ m_NextTextureId++ };
+        m_Textures.emplace(handle.id, std::move(texture));
+        return handle;
+    }
+
+    // 6-3 画像ファイルを読んで(stb_image)、GPU のメモリに置く
+    TextureHandle Renderer::CreateTexture(const std::filesystem::path& file)
+    {
+        const ImageData image = LoadImageRgba8(file);
+        if (!image.IsValid())
+        {
+            return {}; // エラーは LoadImageRgba8 が出している
+        }
+
+        const TextureHandle handle = CreateTextureFromPixels(image.width, image.height, image.pixels.data());
+        if (handle.IsValid())
+        {
+            TFE_LOG_INFO("Texture: {} を GPU に置きました(番号札 {})", file.filename().string(), handle.id);
+        }
+        return handle;
+    }
+
+    // 6-3 番号札はすぐ無効にし、実体は「捨てる予定リスト」へ(DestroyMesh と同じ遅延削除)
+    void Renderer::DestroyTexture(TextureHandle texture)
+    {
+        auto it = m_Textures.find(texture.id);
+        if (it == m_Textures.end())
+        {
+            TFE_LOG_WARN("DestroyTexture: 無効な番号札です (id {})", texture.id);
+            return;
+        }
+
+        m_PendingTextureReleases.push_back({ std::move(it->second), 0 });
+        m_Textures.erase(it);
     }
 
     // 2-7 処理4: その場では描かず、依頼メモを描画リストに積むだけ
@@ -463,6 +522,13 @@ namespace TenFiftyEight
         // 2-7 処理3: このフレームまでに捨てる予定になった形に、引換券の番号を書く
         // (このフレームの命令が GPU で終われば、それより前のフレームも終わっているので安全に捨てられる)
         for (PendingRelease& pending : m_PendingReleases)
+        {
+            if (pending.fenceValue == 0)
+            {
+                pending.fenceValue = m_FrameFenceValues[m_FrameIndex];
+            }
+        }
+        for (PendingTextureRelease& pending : m_PendingTextureReleases)
         {
             if (pending.fenceValue == 0)
             {

@@ -52,6 +52,7 @@ set(ENGINE_FILES
     include/TenFiftyEight/Renderer/Camera.h
     include/TenFiftyEight/Renderer/Lighting.h
     include/TenFiftyEight/Renderer/Mesh.h
+    include/TenFiftyEight/Renderer/Texture.h
     include/TenFiftyEight/Renderer/ModelLoader.h
 
     src/Core/Application.cpp
@@ -87,6 +88,8 @@ set(ENGINE_FILES
     src/Graphics/DX12/DX12DepthBuffer.cpp
     src/Graphics/DX12/DX12DescriptorHeap.h
     src/Graphics/DX12/DX12DescriptorHeap.cpp
+    src/Graphics/DX12/DX12Texture.h
+    src/Graphics/DX12/DX12Texture.cpp
     src/UI/ImGuiLayer.h
     src/UI/ImGuiLayer.cpp
 )

@@ -19,6 +19,7 @@ namespace TenFiftyEight
         void Write(const void* data, uint64_t size, uint64_t offset = 0);
 
         D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return m_Resource->GetGPUVirtualAddress(); }
+        ID3D12Resource* GetResource() const { return m_Resource.Get(); } // 画像のコピー元に指す(DX12Texture)
         uint64_t GetSize() const { return m_Size; }
 
     private:
