@@ -10,6 +10,7 @@
 #include "Graphics/DX12/DX12ShaderCompiler.h"
 #include "Graphics/DX12/DX12SwapChain.h"
 #include "Platform/Windows/Window.h"
+#include "Renderer/Image.h"
 #include "TenFiftyEight/Core/Assets.h"
 #include "UI/ImGuiLayer.h"
 
@@ -107,6 +108,9 @@ namespace TenFiftyEight
         {
             buffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), FrameConstantBufferSize);
         }
+
+        // 6-1 【一時的。6-3 で消す】PNG が読めることの確認(幅・高さが、ログに出る)
+        LoadImageRgba8(GetAssetDirectory("Models") / "Player" / "player.png");
     }
 
     //レンダー削除

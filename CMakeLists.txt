@@ -34,6 +34,14 @@ target_link_libraries(imgui PUBLIC d3d12 dxgi)
 # /utf-8 = ImGui のソースは UTF-8 / /W0 = 他人のコードの警告は出さない(Release で assert が消えたときの未使用変数の警告など)
 target_compile_options(imgui PRIVATE /utf-8 /W0)
 
+# stb_image(PNG などの画像を、ピクセルの並びに、ほどく。ヘッダー 1 つのライブラリ)
+# stb は CMakeLists.txt を持たないので、取得だけして、下で、インクルードの場所を指定する。コミットを固定(ハッシュで改ざんを検出)
+FetchContent_Declare(stb
+    URL      https://github.com/nothings/stb/archive/2c980bb59875b0d32144a71867fbdebb2f77cd20.zip
+    URL_HASH SHA256=8e59f72b0780690cda64726804269f638a3be77b9d1506ea95f443f7964bccf0
+)
+FetchContent_MakeAvailable(stb)
+
 set(ENGINE_FILES
     include/TenFiftyEight/TenFiftyEight.h
     include/TenFiftyEight/Core/Application.h
@@ -58,6 +66,8 @@ set(ENGINE_FILES
     src/Renderer/Camera.cpp
     src/Renderer/Mesh.cpp
     src/Renderer/ModelLoader.cpp
+    src/Renderer/Image.h
+    src/Renderer/Image.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
@@ -96,6 +106,9 @@ target_include_directories(TenFiftyEight
     PUBLIC  include
     PRIVATE src
 )
+
+# stb_image は、Engine の中だけで使う(PRIVATE)。SYSTEM = 他人のコードの警告は出さない
+target_include_directories(TenFiftyEight SYSTEM PRIVATE ${stb_SOURCE_DIR})
 
 target_compile_definitions(TenFiftyEight
     PUBLIC  $<$<CONFIG:Debug>:TFE_DEBUG>
