@@ -182,7 +182,8 @@ namespace TenFiftyEight
                     const auto [entry, isNew] = vertexLookup.try_emplace(key, static_cast<uint32_t>(mesh.vertices.size()));
                     if (isNew)
                     {
-                        mesh.vertices.push_back({ positions[positionIndex], materialPalette[currentMaterial] });
+                        // 法線は、4-2 で本物にする(今は仮の (0,0,0))
+                        mesh.vertices.push_back({ positions[positionIndex], { 0.0f, 0.0f, 0.0f }, materialPalette[currentMaterial] });
                     }
                     faceVertexIndices.push_back(entry->second);
                 }

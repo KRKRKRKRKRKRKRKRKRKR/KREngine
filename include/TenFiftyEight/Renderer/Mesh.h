@@ -11,6 +11,7 @@ namespace TenFiftyEight
     struct Vertex
     {
         DirectX::XMFLOAT3 position; // 位置(メートル)
+        DirectX::XMFLOAT3 normal;   // 法線(面が向いている方向。長さ 1 の矢印。陰影の計算に使う)
         DirectX::XMFLOAT4 color;    // 色(r, g, b, a)
     };
 
