@@ -38,6 +38,9 @@ namespace TenFiftyEight
             XMFLOAT4 toLight;      // xyz = 物から太陽へ向かう向き(長さ 1)
             XMFLOAT4 lightColor;   // rgb = 太陽の光の色
             XMFLOAT4 ambientColor; // rgb = 環境光
+            XMFLOAT4 cameraPosition; // xyz = カメラの世界での位置(フォグの距離の計算に使う)
+            XMFLOAT4 fogColor;       // rgb = 霧の色(背景色と同じ)
+            XMFLOAT4 fogParams;      // x = 濃さ(フォグなしのときは 0)
         };
 
         // シェーダーから見える札掛け(SRV ヒープ)の枠の数。ImGui のフォント画像など、画像の札を掛ける
@@ -245,6 +248,12 @@ namespace TenFiftyEight
         XMStoreFloat4(&frameConstants.toLight, XMVector3Normalize(XMLoadFloat3(&m_Lighting.toLight)));
         frameConstants.lightColor = { m_Lighting.color.x, m_Lighting.color.y, m_Lighting.color.z, 0.0f };
         frameConstants.ambientColor = { m_Lighting.ambient.x, m_Lighting.ambient.y, m_Lighting.ambient.z, 0.0f };
+
+        // 4-4: フォグも同じ別紙に書く。霧の色は背景色と同じにする(遠くが空に溶けるように)。フォグなしは、濃さ 0(見える割合が常に 1)
+        const XMFLOAT3& cameraPosition = m_Camera.GetPosition();
+        frameConstants.cameraPosition = { cameraPosition.x, cameraPosition.y, cameraPosition.z, 1.0f };
+        frameConstants.fogColor = { m_ClearColor[0], m_ClearColor[1], m_ClearColor[2], 1.0f };
+        frameConstants.fogParams = { m_Fog.enabled ? m_Fog.density : 0.0f, 0.0f, 0.0f, 0.0f };
 
         DX12UploadBuffer& frameConstantBuffer = *m_FrameConstantBuffers[m_FrameIndex];
         frameConstantBuffer.Write(&frameConstants, sizeof(frameConstants));

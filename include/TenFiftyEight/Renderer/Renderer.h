@@ -45,6 +45,9 @@ namespace TenFiftyEight
         // このフレームで使う光(コピーして保持する)。呼ばなければ Lighting の初期値で描く
         void SetLighting(const Lighting& lighting) { m_Lighting = lighting; }
 
+        // このフレームで使うフォグ(コピーして保持する)。霧の色は、背景色(SetClearColor)に自動で合わせる
+        void SetFog(const Fog& fog) { m_Fog = fog; }
+
         // 形のデータを GPU のバッファに入れ、番号札を返す(失敗したら無効な番号札)
         MeshHandle CreateMesh(const MeshData& data);
 
@@ -117,6 +120,7 @@ namespace TenFiftyEight
         std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_FrameConstantBuffers;
         Camera m_Camera;
         Lighting m_Lighting;
+        Fog m_Fog;
 
         // 各フレームの命令が GPU で終わったときに到達する Fence 値
         std::array<uint64_t, FramesInFlight> m_FrameFenceValues = {};
