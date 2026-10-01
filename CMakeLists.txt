@@ -82,6 +82,7 @@ set(ENGINE_FILES
 # シェーダーは実行時にコンパイルする。VS が勝手に FXC でコンパイルしないよう、ビルド対象から外す
 set(SHADER_FILES
     ${CMAKE_SOURCE_DIR}/Assets/Shaders/Basic.hlsl
+    ${CMAKE_SOURCE_DIR}/Assets/Shaders/Common.hlsli
 )
 set_source_files_properties(${SHADER_FILES} PROPERTIES VS_TOOL_OVERRIDE "None")
 

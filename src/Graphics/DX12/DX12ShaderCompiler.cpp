@@ -37,10 +37,12 @@ namespace TenFiftyEight
 
         // dxc.exe に渡すコマンドライン引数と同じもの
         const std::wstring fileName = file.wstring();
+        const std::wstring includeDirectory = file.parent_path().wstring(); // #include "Common.hlsli" を探す場所(シェーダーと同じフォルダー)
         std::vector<const wchar_t*> arguments = {
             fileName.c_str(),        // エラーメッセージに表示されるファイル名
             L"-E", entryPoint,
             L"-T", target,
+            L"-I", includeDirectory.c_str(),
 #ifdef TFE_DEBUG
             L"-Zi", L"-Qembed_debug", // デバッグ情報を埋め込む(PIX でシェーダーをデバッグできる)
             L"-Od",                   // 最適化しない
