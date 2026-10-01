@@ -18,8 +18,17 @@ namespace TenFiftyEight
         DirectX::XMFLOAT3 ambient = { 0.30f, 0.33f, 0.40f };
     };
 
+    // 空(地平線が明るく、真上が暗いグラデーション)の設定。Game が持ち、毎フレーム Renderer::SetSky で渡す
+    // 色は「物理的な明るさ」の値(ガンマ補正の前)。フォグの色は、地平線の色に自動で合わせる(遠くが空に溶けるように)
+    struct Sky
+    {
+        DirectX::XMFLOAT3 horizonColor = { 0.85f, 0.55f, 0.50f }; // 地平線(視線が水平)の色
+        DirectX::XMFLOAT3 zenithColor = { 0.15f, 0.15f, 0.40f };  // 天頂(真上)の色
+        float gradientPower = 0.7f; // グラデーションの傾き。小さいほど地平線の近くですぐ天頂の色になる(地平線の光が細い)
+    };
+
     // フォグ(遠くが霧の色に溶けて見える)の設定。Game が持ち、毎フレーム Renderer::SetFog で渡す
-    // 霧の色は、背景色(SetClearColor)に自動で合わせる(遠くが空に溶けるように)
+    // 霧の色は、空の地平線の色(Sky::horizonColor)に自動で合わせる(遠くが空に溶けるように)
     struct Fog
     {
         bool enabled = true;

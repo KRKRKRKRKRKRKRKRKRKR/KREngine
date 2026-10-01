@@ -41,6 +41,9 @@ namespace TenFiftyEight
             XMFLOAT4 cameraPosition; // xyz = カメラの世界での位置(フォグの距離の計算に使う)
             XMFLOAT4 fogColor;       // rgb = 霧の色(背景色と同じ)
             XMFLOAT4 fogParams;      // x = 濃さ(フォグなしのときは 0)
+            XMFLOAT4X4 inverseViewProjection; // viewProjection の逆(空: 画面の座標 → 世界の座標。視線の向きを求める)
+            XMFLOAT4 skyHorizon;     // rgb = 地平線の色
+            XMFLOAT4 skyZenith;      // rgb = 天頂の色 / w = グラデーションの傾き
         };
 
         // シェーダーから見える札掛け(SRV ヒープ)の枠の数。ImGui のフォント画像など、画像の札を掛ける
@@ -124,6 +127,7 @@ namespace TenFiftyEight
         {
             buffer.reset();
         }
+        m_SkyPipeline.reset();
         m_Pipeline.reset();
         m_ShaderCompiler.reset();
         m_ImGui.reset(); // SRV ヒープの枠を返しに行くので、ヒープより先に捨てる
@@ -163,9 +167,37 @@ namespace TenFiftyEight
             return false;
         }
 
-        // 古いパイプラインを GPU が使い終わってから差し替える
+        // 4-7b: 空のシェーダー(Sky.hlsl)もコンパイルして、空のパイプラインを作る
+        const std::filesystem::path skyShaderPath = GetShaderDirectory() / L"Sky.hlsl";
+        ComPtr<IDxcBlob> skyVertexShader = m_ShaderCompiler->Compile(skyShaderPath, L"VSMain", L"vs_6_0");
+        if (!skyVertexShader)
+        {
+            return false;
+        }
+        ComPtr<IDxcBlob> skyPixelShader = m_ShaderCompiler->Compile(skyShaderPath, L"PSMain", L"ps_6_0");
+        if (!skyPixelShader)
+        {
+            return false;
+        }
+
+        DX12PipelineDesc skyDesc;
+        skyDesc.vertexShader = { skyVertexShader->GetBufferPointer(), skyVertexShader->GetBufferSize() };
+        skyDesc.pixelShader = { skyPixelShader->GetBufferPointer(), skyPixelShader->GetBufferSize() };
+        // 頂点バッファなし(入力レイアウトは空)。深度テストなし・カリングなし。Root Signature は、物のパイプラインと共有する
+        skyDesc.sharedRootSignature = pipeline->GetRootSignature();
+        skyDesc.depthEnabled = false;
+        skyDesc.cullBackFaces = false;
+
+        std::unique_ptr<DX12Pipeline> skyPipeline = DX12Pipeline::Create(m_Device->Get(), skyDesc);
+        if (!skyPipeline)
+        {
+            return false;
+        }
+
+        // 古いパイプラインを GPU が使い終わってから差し替える(物と空は、同時に差し替える)
         m_Queue->Flush();
         m_Pipeline = std::move(pipeline);
+        m_SkyPipeline = std::move(skyPipeline);
         return true;
     }
 
@@ -241,18 +273,23 @@ namespace TenFiftyEight
 
         // 2-6 処理4: ビュー行列 × プロジェクション行列を CPU で1つにまとめ、このフレーム用の別紙に書く
         FrameConstants frameConstants;
-        XMStoreFloat4x4(&frameConstants.viewProjection,
-                        m_Camera.GetViewMatrix() * m_Camera.GetProjectionMatrix(aspectRatio));
+        const XMMATRIX viewProjection = m_Camera.GetViewMatrix() * m_Camera.GetProjectionMatrix(aspectRatio);
+        XMStoreFloat4x4(&frameConstants.viewProjection, viewProjection);
+
+        // 4-7b: 空は、画面の座標から視線の向きを求めるので、逆行列も渡す
+        XMStoreFloat4x4(&frameConstants.inverseViewProjection, XMMatrixInverse(nullptr, viewProjection));
+        frameConstants.skyHorizon = { m_Sky.horizonColor.x, m_Sky.horizonColor.y, m_Sky.horizonColor.z, 1.0f };
+        frameConstants.skyZenith = { m_Sky.zenithColor.x, m_Sky.zenithColor.y, m_Sky.zenithColor.z, m_Sky.gradientPower };
 
         // 4-3: 光も同じ別紙に書く。光の向きは、陰影の計算(内積)のため、長さ 1 にそろえる
         XMStoreFloat4(&frameConstants.toLight, XMVector3Normalize(XMLoadFloat3(&m_Lighting.toLight)));
         frameConstants.lightColor = { m_Lighting.color.x, m_Lighting.color.y, m_Lighting.color.z, 0.0f };
         frameConstants.ambientColor = { m_Lighting.ambient.x, m_Lighting.ambient.y, m_Lighting.ambient.z, 0.0f };
 
-        // 4-4: フォグも同じ別紙に書く。霧の色は背景色と同じにする(遠くが空に溶けるように)。フォグなしは、濃さ 0(見える割合が常に 1)
+        // 4-4: フォグも同じ別紙に書く。霧の色は、空の地平線の色と同じにする(遠くが空に溶けるように)。フォグなしは、濃さ 0(見える割合が常に 1)
         const XMFLOAT3& cameraPosition = m_Camera.GetPosition();
         frameConstants.cameraPosition = { cameraPosition.x, cameraPosition.y, cameraPosition.z, 1.0f };
-        frameConstants.fogColor = { m_ClearColor[0], m_ClearColor[1], m_ClearColor[2], 1.0f };
+        frameConstants.fogColor = { m_Sky.horizonColor.x, m_Sky.horizonColor.y, m_Sky.horizonColor.z, 1.0f };
         frameConstants.fogParams = { m_Fog.enabled ? m_Fog.density : 0.0f, 0.0f, 0.0f, 0.0f };
 
         DX12UploadBuffer& frameConstantBuffer = *m_FrameConstantBuffers[m_FrameIndex];
@@ -262,6 +299,12 @@ namespace TenFiftyEight
         // (設計図を設定し直すと箱の中身は消えるため、設計図の設定もフレームの最初に1回だけ行う)
         commandList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
         commandList->SetGraphicsRootConstantBufferView(FrameConstantsRootIndex, frameConstantBuffer.GetGpuAddress());
+
+        // 4-7b: 空を、最初に、画面全体に描く(頂点バッファなし。三角形 1 つ = 頂点 3 つ)
+        // 深度には何も書かないので、深度バッファは「一番奥」のまま。あとから描く地面や物が、空の上に上書きする
+        commandList->SetPipelineState(m_SkyPipeline->Get());
+        commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        commandList->DrawInstanced(3, 1, 0, 0);
 
         // ImGui I-5: このフレームの ImGui を始める。この後 OnImGui() で、Game が窓を書く
         m_ImGui->BeginFrame();

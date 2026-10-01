@@ -15,7 +15,14 @@ namespace TenFiftyEight
     {
         D3D12_SHADER_BYTECODE vertexShader = {};
         D3D12_SHADER_BYTECODE pixelShader = {};
-        std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout; // 頂点データの形式
+        std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout; // 頂点データの形式(空なら、頂点バッファなし)
+
+        // 指定したら、Root Signature を新しく作らず、これを使う
+        // (命令リストに設定した Root Signature と、PSO の Root Signature は、同じ物である必要があるため。空と物で共有する)
+        ID3D12RootSignature* sharedRootSignature = nullptr;
+
+        bool depthEnabled = true;  // false: 深度テスト・深度書き込みをしない(空など、最初に描いて、あとから上書きされるもの)
+        bool cullBackFaces = true; // false: 裏向きの三角形も描く(画面全体を覆う三角形の向きを、気にしなくて済む)
     };
 
     // 描画の設定一式

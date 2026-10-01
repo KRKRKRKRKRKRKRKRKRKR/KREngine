@@ -45,8 +45,11 @@ namespace TenFiftyEight
         // このフレームで使う光(コピーして保持する)。呼ばなければ Lighting の初期値で描く
         void SetLighting(const Lighting& lighting) { m_Lighting = lighting; }
 
-        // このフレームで使うフォグ(コピーして保持する)。霧の色は、背景色(SetClearColor)に自動で合わせる
+        // このフレームで使うフォグ(コピーして保持する)。霧の色は、空の地平線の色(SetSky)に自動で合わせる
         void SetFog(const Fog& fog) { m_Fog = fog; }
+
+        // このフレームで使う空(コピーして保持する)。画面全体に、地平線から天頂へのグラデーションを、最初に描く
+        void SetSky(const Sky& sky) { m_Sky = sky; }
 
         // 形のデータを GPU のバッファに入れ、番号札を返す(失敗したら無効な番号札)
         MeshHandle CreateMesh(const MeshData& data);
@@ -109,6 +112,7 @@ namespace TenFiftyEight
         std::unique_ptr<ImGuiLayer> m_ImGui;           // デバッグ用の画面(SrvHeap の枠を借りるので、SrvHeap の後に作り、前に捨てる)
         std::unique_ptr<DX12ShaderCompiler> m_ShaderCompiler;
         std::unique_ptr<DX12Pipeline> m_Pipeline;
+        std::unique_ptr<DX12Pipeline> m_SkyPipeline; // 空専用(画面全体を覆う三角形を、深度なしで描く)。Root Signature は m_Pipeline と共有
 
         std::unordered_map<uint32_t, std::unique_ptr<GpuMesh>> m_Meshes; // 一覧表(番号札 → 形の実体)
         uint32_t m_NextMeshId = 1;                                       // 次に発行する番号(使い回さない)
@@ -121,6 +125,7 @@ namespace TenFiftyEight
         Camera m_Camera;
         Lighting m_Lighting;
         Fog m_Fog;
+        Sky m_Sky;
 
         // 各フレームの命令が GPU で終わったときに到達する Fence 値
         std::array<uint64_t, FramesInFlight> m_FrameFenceValues = {};
