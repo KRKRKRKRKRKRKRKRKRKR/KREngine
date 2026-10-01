@@ -3,6 +3,7 @@
 #include <DirectXMath.h>
 
 #include <cstdint>
+#include <filesystem>
 #include <vector>
 
 namespace TenFiftyEight
@@ -13,6 +14,7 @@ namespace TenFiftyEight
         DirectX::XMFLOAT3 position; // 位置(メートル)
         DirectX::XMFLOAT3 normal;   // 法線(面が向いている方向。長さ 1 の矢印。陰影の計算に使う)
         DirectX::XMFLOAT4 color;    // 色(r, g, b, a)
+        DirectX::XMFLOAT2 uv = { 0.0f, 0.0f }; // 画像の、どこの色を使うか(u = 横、v = 縦。0 〜 1。左上が (0, 0))。画像を使わない形は (0, 0)
     };
 
     // 形のデータ(CPU 側)。CreateMesh に渡したら、Game 側では捨ててよい
@@ -20,6 +22,9 @@ namespace TenFiftyEight
     {
         std::vector<Vertex> vertices;  // 頂点リスト
         std::vector<uint32_t> indices; // 番号リスト(3つで三角形1つ。外側から見て時計回り)
+
+        // 貼る画像のファイル(.mtl の map_Kd。フルパス)。無ければ空。LoadObj が入れる
+        std::filesystem::path diffuseTexturePath;
     };
 
     // 形の番号札。実体(GPU のバッファ)は Renderer が預かっている

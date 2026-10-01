@@ -28,21 +28,33 @@ namespace TenFiftyEight
             return GetAssetDirectory("Models");
         }
 
-        // 台帳のキー: 「位置の番号」「法線の番号」「材質の番号」の組。3つとも同じなら同じ頂点とみなす
-        // (同じ位置でも、法線や材質が違えば、別の頂点にする。頂点には法線も色も1つしか入らないため)
-        using VertexKey = std::tuple<size_t, size_t, size_t>;
+        // 台帳のキー: 「位置の番号」「法線の番号」「UV の番号」「材質の番号」の組。4つとも同じなら同じ頂点とみなす
+        // (同じ位置でも、法線・UV・材質が違えば、別の頂点にする。頂点には、法線も UV も色も、1つしか入らないため)
+        // UV の書いていない要素は、UV の番号を NoUv にする
+        constexpr size_t NoUv = static_cast<size_t>(-1);
+        using VertexKey = std::tuple<size_t, size_t, size_t, size_t>;
 
-        // 面の1要素("5" "5/2" "5//1" "5/2/1" など)から取り出した、位置と法線の番号(どちらも棚の番号。0 始まり)
+        // 面の1要素("5" "5/2" "5//1" "5/2/1" など)から取り出した、位置・UV・法線の番号(どれも棚の番号。0 始まり)
         struct FaceElement
         {
             size_t position = 0;
+            bool hasUv = false;     // UV の番号が書いてあったか
+            size_t uv = 0;
             bool hasNormal = false; // 法線の番号が書いてあったか(猫のように、書いていないこともある)
             size_t normal = 0;
         };
 
-        // 3-5-1: .mtl(色見本帳)を読んで、「材質の名前 → 色」の表を作る。今使うのは newmtl と Kd だけ
+        // 材質 1 つ分の情報(.mtl の newmtl 1 つ)
+        struct Material
+        {
+            XMFLOAT4 color = { 1.0f, 1.0f, 1.0f, 1.0f }; // Kd(基本の色)。書いていなければ白
+            std::string diffuseMap;                      // map_Kd(貼る画像のファイル名)。書いていなければ空
+        };
+
+        // 3-5-1 / 6-2: .mtl(色見本帳)を読んで、「材質の名前 → 色と画像」の表を作る。今使うのは newmtl と Kd と map_Kd だけ
+        // newmtl が出たら、その材質を、白で登録する(Kd が無く、map_Kd だけの材質でも、「未知の材質」にならない)
         // 開けなければ警告を出して空の表を返す(その場合は全部白で表示される)
-        std::map<std::string, XMFLOAT4> LoadMtl(const std::filesystem::path& mtlPath)
+        std::map<std::string, Material> LoadMtl(const std::filesystem::path& mtlPath)
         {
             std::ifstream file(mtlPath);
             if (!file.is_open())
@@ -51,7 +63,7 @@ namespace TenFiftyEight
                 return {};
             }
 
-            std::map<std::string, XMFLOAT4> colors;
+            std::map<std::string, Material> materials;
             std::string currentName; // 今書いている塗料の名前(newmtl で更新)
 
             std::string line;
@@ -64,6 +76,7 @@ namespace TenFiftyEight
                 if (keyword == "newmtl")
                 {
                     stream >> currentName;
+                    materials[currentName]; // 白で登録(同じ名前が、すでにあれば、そのまま)
                 }
                 else if (keyword == "Kd")
                 {
@@ -74,10 +87,21 @@ namespace TenFiftyEight
                         TFE_LOG_WARN("LoadObj: {} の Kd の行を読めません: {}", mtlPath.string(), line);
                         continue;
                     }
-                    colors[currentName] = { r, g, b, 1.0f };
+                    materials[currentName].color = { r, g, b, 1.0f };
+                }
+                else if (keyword == "map_Kd")
+                {
+                    // 画像のファイル名(.mtl と同じフォルダーにあるものとして読む。空白の入った名前は、今は読めない)
+                    std::string fileName;
+                    if (currentName.empty() || !(stream >> fileName))
+                    {
+                        TFE_LOG_WARN("LoadObj: {} の map_Kd の行を読めません: {}", mtlPath.string(), line);
+                        continue;
+                    }
+                    materials[currentName].diffuseMap = fileName;
                 }
             }
-            return colors;
+            return materials;
         }
 
         // OBJ の番号の文字("5" や "-1")を、棚の番号(0 始まり)にする
@@ -102,10 +126,10 @@ namespace TenFiftyEight
             return true;
         }
 
-        // 3-4-1 / 4-2: 面の1要素を「位置 / UV / 法線」に分けて、位置と法線の番号を取り出す(UV は今は使わない)
+        // 3-4-1 / 4-2 / 6-2: 面の1要素を「位置 / UV / 法線」に分けて、それぞれの番号を取り出す
         // 書き方は4通り: "5"(位置だけ) "5/2"(位置 + UV) "5//1"(位置 + 法線) "5/2/1"(全部)
-        // 失敗したら false(設計図の不良)。法線が書いていなければ hasNormal = false で成功
-        bool ParseFaceElement(const std::string& element, size_t positionCount, size_t normalCount, FaceElement& out)
+        // 失敗したら false(設計図の不良)。UV・法線が書いていなければ、hasUv・hasNormal = false で成功
+        bool ParseFaceElement(const std::string& element, size_t positionCount, size_t uvCount, size_t normalCount, FaceElement& out)
         {
             const std::string_view text = element;
 
@@ -116,19 +140,35 @@ namespace TenFiftyEight
                 return false;
             }
 
-            // 2つ目の「/」の後ろが法線の番号。無い、または空("5//" の後ろが空)なら、法線なし
+            out.hasUv = false;
             out.hasNormal = false;
-            if (firstSlash != std::string_view::npos)
+            if (firstSlash == std::string_view::npos)
             {
-                const size_t secondSlash = text.find('/', firstSlash + 1);
-                if (secondSlash != std::string_view::npos && secondSlash + 1 < text.size())
+                return true; // "5"(位置だけ)
+            }
+
+            // 1つ目と2つ目の「/」の間が UV の番号。2つ目が無ければ、最後まで("5/2")。空("5//1")なら、UV なし
+            const size_t secondSlash = text.find('/', firstSlash + 1);
+            const std::string_view uvText = text.substr(firstSlash + 1, secondSlash == std::string_view::npos
+                                                                            ? std::string_view::npos
+                                                                            : secondSlash - firstSlash - 1);
+            if (!uvText.empty())
+            {
+                if (!ResolveIndex(uvText, uvCount, out.uv))
                 {
-                    if (!ResolveIndex(text.substr(secondSlash + 1), normalCount, out.normal))
-                    {
-                        return false;
-                    }
-                    out.hasNormal = true;
+                    return false;
                 }
+                out.hasUv = true;
+            }
+
+            // 2つ目の「/」の後ろが法線の番号。無い、または空("5/2/" の後ろが空)なら、法線なし
+            if (secondSlash != std::string_view::npos && secondSlash + 1 < text.size())
+            {
+                if (!ResolveIndex(text.substr(secondSlash + 1), normalCount, out.normal))
+                {
+                    return false;
+                }
+                out.hasNormal = true;
             }
             return true;
         }
@@ -154,6 +194,7 @@ namespace TenFiftyEight
 
         std::vector<XMFLOAT3> positions; // 部品棚: v の位置。OBJ の番号は 1 始まりだが、ここは 0 始まり
         std::vector<XMFLOAT3> normals;   // 向き札の棚: vn の法線 + 法線の無い面に計算で作った法線(末尾に足していく)
+        std::vector<XMFLOAT2> uvs;       // UV の棚: vt の UV(画像のどこか)。v は、D3D の向き(上が 0)に直してある
         size_t computedNormalCount = 0;  // そのうち、計算で作った数(ログ用)
 
         MeshData mesh;                                     // 完成品(頂点リストと番号リスト)
@@ -199,6 +240,18 @@ namespace TenFiftyEight
                 XMStoreFloat3(&normal, XMVector3Normalize(XMVectorSet(x, y, -z, 0.0f)));
                 normals.push_back(normal);
             }
+            else if (keyword == "vt")
+            {
+                float u, v;
+                if (!(stream >> u >> v))
+                {
+                    TFE_LOG_WARN("LoadObj: {} の vt の行を読めません: {}", relativePath.string(), line);
+                    continue;
+                }
+
+                // OBJ の v は、画像の「下」が 0。D3D(このエンジン)の v は、画像の「上」が 0。向きが逆なので、1 から引く
+                uvs.push_back({ u, 1.0f - v });
+            }
             else if (keyword == "f")
             {
                 // 面の要素を1つずつ読んで、位置と法線の番号にする。先に全部確かめてから頂点を作る
@@ -209,7 +262,7 @@ namespace TenFiftyEight
                 while (stream >> text)
                 {
                     FaceElement element;
-                    if (!ParseFaceElement(text, positions.size(), normals.size(), element))
+                    if (!ParseFaceElement(text, positions.size(), uvs.size(), normals.size(), element))
                     {
                         TFE_LOG_WARN("LoadObj: {} の f の要素を読めません({}): {}", relativePath.string(), text, line);
                         valid = false;
@@ -258,15 +311,20 @@ namespace TenFiftyEight
                 }
 
                 // 3-4-2: 台帳で「もう作った頂点か」を調べ、あればその番号を使い回す
-                // 頂点の色は、今の材質(currentMaterial)の色。位置・法線・材質のどれかが違えば、別の頂点になる
+                // 頂点の色は、今の材質(currentMaterial)の色。位置・法線・UV・材質のどれかが違えば、別の頂点になる
                 std::vector<uint32_t> faceVertexIndices; // この面の頂点の番号(3-4-3 で三角形にする)
                 for (const FaceElement& element : faceElements)
                 {
-                    const VertexKey key = { element.position, element.normal, currentMaterial };
+                    const VertexKey key = { element.position, element.normal, element.hasUv ? element.uv : NoUv, currentMaterial };
                     const auto [entry, isNew] = vertexLookup.try_emplace(key, static_cast<uint32_t>(mesh.vertices.size()));
                     if (isNew)
                     {
-                        mesh.vertices.push_back({ positions[element.position], normals[element.normal], materialPalette[currentMaterial] });
+                        Vertex vertex;
+                        vertex.position = positions[element.position];
+                        vertex.normal = normals[element.normal];
+                        vertex.color = materialPalette[currentMaterial];
+                        vertex.uv = element.hasUv ? uvs[element.uv] : XMFLOAT2{ 0.0f, 0.0f };
+                        mesh.vertices.push_back(vertex);
                     }
                     faceVertexIndices.push_back(entry->second);
                 }
@@ -287,10 +345,25 @@ namespace TenFiftyEight
                 if (stream >> mtlName)
                 {
                     // 色見本帳の材質を、色の一覧(materialPalette)に番号付きで並べる(0 番は白なので 1 番から)
-                    for (const auto& [name, color] : LoadMtl(fullPath.parent_path() / mtlName))
+                    for (const auto& [name, material] : LoadMtl(fullPath.parent_path() / mtlName))
                     {
                         materialIndexByName[name] = materialPalette.size();
-                        materialPalette.push_back(color);
+                        materialPalette.push_back(material.color);
+
+                        // 6-2 貼る画像。今は、形ごとに 1 枚だけ(材質ごとに別の画像は、まだ扱えない)。最初に見つかったものを使う
+                        if (!material.diffuseMap.empty())
+                        {
+                            const std::filesystem::path texturePath = fullPath.parent_path() / material.diffuseMap;
+                            if (mesh.diffuseTexturePath.empty())
+                            {
+                                mesh.diffuseTexturePath = texturePath;
+                            }
+                            else if (mesh.diffuseTexturePath != texturePath)
+                            {
+                                TFE_LOG_WARN("LoadObj: {} の材質 {} の画像({})は、使えません(今は、形ごとに 1 枚だけ)",
+                                    relativePath.string(), name, material.diffuseMap);
+                            }
+                        }
                     }
                 }
             }
@@ -313,8 +386,12 @@ namespace TenFiftyEight
             // 上記以外(コメント・空行・vt・o・g など)は今は使わないので読み飛ばす
         }
 
-        TFE_LOG_INFO("LoadObj: {} 頂点 {} 三角形 {} 法線(ファイル {} / 計算 {})", relativePath.string(),
-            mesh.vertices.size(), mesh.indices.size() / 3, normals.size() - computedNormalCount, computedNormalCount);
+        TFE_LOG_INFO("LoadObj: {} 頂点 {} 三角形 {} 法線(ファイル {} / 計算 {}) UV {}", relativePath.string(),
+            mesh.vertices.size(), mesh.indices.size() / 3, normals.size() - computedNormalCount, computedNormalCount, uvs.size());
+        if (!mesh.diffuseTexturePath.empty())
+        {
+            TFE_LOG_INFO("LoadObj: {} の画像: {}", relativePath.string(), mesh.diffuseTexturePath.filename().string());
+        }
 
         return mesh;
     }
