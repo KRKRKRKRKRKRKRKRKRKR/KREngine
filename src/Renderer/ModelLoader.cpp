@@ -12,6 +12,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 using namespace DirectX;
@@ -32,8 +33,17 @@ namespace TenFiftyEight
 #endif
         }
 
-        // 台帳のキー: 「位置の番号」と「材質の番号」の組。両方同じなら同じ頂点とみなす
-        using VertexKey = std::pair<size_t, size_t>;
+        // 台帳のキー: 「位置の番号」「法線の番号」「材質の番号」の組。3つとも同じなら同じ頂点とみなす
+        // (同じ位置でも、法線や材質が違えば、別の頂点にする。頂点には法線も色も1つしか入らないため)
+        using VertexKey = std::tuple<size_t, size_t, size_t>;
+
+        // 面の1要素("5" "5/2" "5//1" "5/2/1" など)から取り出した、位置と法線の番号(どちらも棚の番号。0 始まり)
+        struct FaceElement
+        {
+            size_t position = 0;
+            bool hasNormal = false; // 法線の番号が書いてあったか(猫のように、書いていないこともある)
+            size_t normal = 0;
+        };
 
         // 3-5-1: .mtl(色見本帳)を読んで、「材質の名前 → 色」の表を作る。今使うのは newmtl と Kd だけ
         // 開けなければ警告を出して空の表を返す(その場合は全部白で表示される)
@@ -75,13 +85,10 @@ namespace TenFiftyEight
             return colors;
         }
 
-        // 3-4-1: 面の1要素("5" "5/2" "5//1" "5/2/1" など)から、位置の番号だけを取り出して、棚の番号(0 始まり)にする
+        // OBJ の番号の文字("5" や "-1")を、棚の番号(0 始まり)にする
         // 成功したら true。数字でない・0・棚の範囲外なら false(設計図の不良)
-        bool ParseFacePositionIndex(const std::string& element, size_t positionCount, size_t& outIndex)
+        bool ResolveIndex(std::string_view number, size_t count, size_t& outIndex)
         {
-            // 最初の「/」の手前までが位置の番号(「/」がなければ全体)
-            const std::string_view number = std::string_view(element).substr(0, element.find('/'));
-
             int value = 0;
             const auto [end, error] = std::from_chars(number.data(), number.data() + number.size(), value);
             if (error != std::errc() || end != number.data() + number.size() || value == 0)
@@ -90,13 +97,44 @@ namespace TenFiftyEight
             }
 
             // 正の数は 1 始まりなので 1 を引く。負の数は「棚の最後から数える」(-1 = 最後の部品)
-            const long long index = value > 0 ? value - 1 : static_cast<long long>(positionCount) + value;
-            if (index < 0 || index >= static_cast<long long>(positionCount))
+            const long long index = value > 0 ? value - 1 : static_cast<long long>(count) + value;
+            if (index < 0 || index >= static_cast<long long>(count))
             {
                 return false;
             }
 
             outIndex = static_cast<size_t>(index);
+            return true;
+        }
+
+        // 3-4-1 / 4-2: 面の1要素を「位置 / UV / 法線」に分けて、位置と法線の番号を取り出す(UV は今は使わない)
+        // 書き方は4通り: "5"(位置だけ) "5/2"(位置 + UV) "5//1"(位置 + 法線) "5/2/1"(全部)
+        // 失敗したら false(設計図の不良)。法線が書いていなければ hasNormal = false で成功
+        bool ParseFaceElement(const std::string& element, size_t positionCount, size_t normalCount, FaceElement& out)
+        {
+            const std::string_view text = element;
+
+            // 最初の「/」の手前までが位置の番号(「/」がなければ全体)
+            const size_t firstSlash = text.find('/');
+            if (!ResolveIndex(text.substr(0, firstSlash), positionCount, out.position))
+            {
+                return false;
+            }
+
+            // 2つ目の「/」の後ろが法線の番号。無い、または空("5//" の後ろが空)なら、法線なし
+            out.hasNormal = false;
+            if (firstSlash != std::string_view::npos)
+            {
+                const size_t secondSlash = text.find('/', firstSlash + 1);
+                if (secondSlash != std::string_view::npos && secondSlash + 1 < text.size())
+                {
+                    if (!ResolveIndex(text.substr(secondSlash + 1), normalCount, out.normal))
+                    {
+                        return false;
+                    }
+                    out.hasNormal = true;
+                }
+            }
             return true;
         }
     }
@@ -120,6 +158,8 @@ namespace TenFiftyEight
         }
 
         std::vector<XMFLOAT3> positions; // 部品棚: v の位置。OBJ の番号は 1 始まりだが、ここは 0 始まり
+        std::vector<XMFLOAT3> normals;   // 向き札の棚: vn の法線 + 法線の無い面に計算で作った法線(末尾に足していく)
+        size_t computedNormalCount = 0;  // そのうち、計算で作った数(ログ用)
 
         MeshData mesh;                                     // 完成品(頂点リストと番号リスト)
         std::map<VertexKey, uint32_t> vertexLookup;        // 台帳: 作った頂点のキー → mesh.vertices の何番目か
@@ -150,40 +190,88 @@ namespace TenFiftyEight
                 // (面の向きが逆になる分は、f の処理で三角形の番号の順を入れ替えて直す)
                 positions.push_back({ x, y, -z });
             }
+            else if (keyword == "vn")
+            {
+                float x, y, z;
+                if (!(stream >> x >> y >> z))
+                {
+                    TFE_LOG_WARN("LoadObj: {} の vn の行を読めません: {}", relativePath.string(), line);
+                    continue;
+                }
+
+                // 位置と同じ理由で Z を反転する。長さを 1 にそろえておく(陰影の計算は、長さ 1 の矢印を前提にしている)
+                XMFLOAT3 normal;
+                XMStoreFloat3(&normal, XMVector3Normalize(XMVectorSet(x, y, -z, 0.0f)));
+                normals.push_back(normal);
+            }
             else if (keyword == "f")
             {
-                // 面の要素を1つずつ読んで、棚の番号にする。先に全部確かめてから頂点を作る
+                // 面の要素を1つずつ読んで、位置と法線の番号にする。先に全部確かめてから頂点を作る
                 // (途中で不良に気づいたときに、使われない頂点が残らないようにするため)
-                std::vector<size_t> facePositionIndices;
+                std::vector<FaceElement> faceElements;
                 bool valid = true;
-                std::string element;
-                while (stream >> element)
+                std::string text;
+                while (stream >> text)
                 {
-                    size_t index = 0;
-                    if (!ParseFacePositionIndex(element, positions.size(), index))
+                    FaceElement element;
+                    if (!ParseFaceElement(text, positions.size(), normals.size(), element))
                     {
-                        TFE_LOG_WARN("LoadObj: {} の f の要素を読めません({}): {}", relativePath.string(), element, line);
+                        TFE_LOG_WARN("LoadObj: {} の f の要素を読めません({}): {}", relativePath.string(), text, line);
                         valid = false;
                         break;
                     }
-                    facePositionIndices.push_back(index);
+                    faceElements.push_back(element);
                 }
-                if (!valid || facePositionIndices.size() < 3)
+                if (!valid || faceElements.size() < 3)
                 {
                     continue; // 不良品の面は飛ばす(頂点が3つ未満では三角形にならない)
                 }
 
-                // 3-4-2: 台帳で「もう作った頂点か」を調べ、あればその番号を使い回す
-                // 頂点の色は、今の材質(currentMaterial)の色。材質が違えば、同じ位置でも別の頂点になる
-                std::vector<uint32_t> faceVertexIndices; // この面の頂点の番号(3-4-3 で三角形にする)
-                for (const size_t positionIndex : facePositionIndices)
+                // 4-2: 法線の書いていない要素があるときは、面の形から法線を計算して、向き札の棚の末尾に足す
+                // (面ごとに別の番号になるので、法線の無い面は、頂点を共有しない = 面ごとのカクカクした陰影になる)
+                bool needsComputedNormal = false;
+                for (const FaceElement& element : faceElements)
                 {
-                    const VertexKey key = { positionIndex, currentMaterial };
+                    needsComputedNormal = needsComputedNormal || !element.hasNormal;
+                }
+                if (needsComputedNormal)
+                {
+                    // 面の最初の3頂点の、2辺の外積(2辺に垂直な矢印)。このエンジンは「時計回りが表」なので、
+                    // 最終的な三角形の順(f0, f2, f1)に合わせて cross(p2 - p0, p1 - p0) にすると、外向きの法線になる
+                    const XMVECTOR p0 = XMLoadFloat3(&positions[faceElements[0].position]);
+                    const XMVECTOR p1 = XMLoadFloat3(&positions[faceElements[1].position]);
+                    const XMVECTOR p2 = XMLoadFloat3(&positions[faceElements[2].position]);
+                    const XMVECTOR cross = XMVector3Cross(XMVectorSubtract(p2, p0), XMVectorSubtract(p1, p0));
+
+                    // 面積が 0 の三角形は、向きが決まらないので、上向きの仮の法線にする
+                    XMFLOAT3 computed = { 0.0f, 1.0f, 0.0f };
+                    if (XMVectorGetX(XMVector3LengthSq(cross)) > 1e-12f)
+                    {
+                        XMStoreFloat3(&computed, XMVector3Normalize(cross));
+                    }
+                    normals.push_back(computed);
+                    ++computedNormalCount;
+
+                    for (FaceElement& element : faceElements)
+                    {
+                        if (!element.hasNormal)
+                        {
+                            element.hasNormal = true;
+                            element.normal = normals.size() - 1;
+                        }
+                    }
+                }
+
+                // 3-4-2: 台帳で「もう作った頂点か」を調べ、あればその番号を使い回す
+                // 頂点の色は、今の材質(currentMaterial)の色。位置・法線・材質のどれかが違えば、別の頂点になる
+                std::vector<uint32_t> faceVertexIndices; // この面の頂点の番号(3-4-3 で三角形にする)
+                for (const FaceElement& element : faceElements)
+                {
+                    const VertexKey key = { element.position, element.normal, currentMaterial };
                     const auto [entry, isNew] = vertexLookup.try_emplace(key, static_cast<uint32_t>(mesh.vertices.size()));
                     if (isNew)
                     {
-                        // 法線は、4-2 で本物にする(今は仮の (0,0,0))
-                        mesh.vertices.push_back({ positions[positionIndex], { 0.0f, 0.0f, 0.0f }, materialPalette[currentMaterial] });
+                        mesh.vertices.push_back({ positions[element.position], normals[element.normal], materialPalette[currentMaterial] });
                     }
                     faceVertexIndices.push_back(entry->second);
                 }
@@ -227,10 +315,11 @@ namespace TenFiftyEight
                     currentMaterial = 0;
                 }
             }
-            // 上記以外(コメント・空行・vn・vt・o・g など)は今は使わないので読み飛ばす
+            // 上記以外(コメント・空行・vt・o・g など)は今は使わないので読み飛ばす
         }
 
-        TFE_LOG_INFO("LoadObj: {} 頂点 {} 三角形 {}", relativePath.string(), mesh.vertices.size(), mesh.indices.size() / 3);
+        TFE_LOG_INFO("LoadObj: {} 頂点 {} 三角形 {} 法線(ファイル {} / 計算 {})", relativePath.string(),
+            mesh.vertices.size(), mesh.indices.size() / 3, normals.size() - computedNormalCount, computedNormalCount);
 
         return mesh;
     }
