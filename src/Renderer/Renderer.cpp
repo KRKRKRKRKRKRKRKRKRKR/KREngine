@@ -31,9 +31,13 @@ namespace TenFiftyEight
     namespace
     {
         // b1 の別紙(定数バッファ)の中身。シェーダーの cbuffer FrameConstants と形を合わせる
+        // float4 にそろえているのは、HLSL の定数バッファが「16 バイトの区切り」で並ぶため(float3 だと、並びがずれる)
         struct FrameConstants
         {
             XMFLOAT4X4 viewProjection;
+            XMFLOAT4 toLight;      // xyz = 物から太陽へ向かう向き(長さ 1)
+            XMFLOAT4 lightColor;   // rgb = 太陽の光の色
+            XMFLOAT4 ambientColor; // rgb = 環境光
         };
 
         // シェーダーから見える札掛け(SRV ヒープ)の枠の数。ImGui のフォント画像など、画像の札を掛ける
@@ -236,6 +240,12 @@ namespace TenFiftyEight
         FrameConstants frameConstants;
         XMStoreFloat4x4(&frameConstants.viewProjection,
                         m_Camera.GetViewMatrix() * m_Camera.GetProjectionMatrix(aspectRatio));
+
+        // 4-3: 光も同じ別紙に書く。光の向きは、陰影の計算(内積)のため、長さ 1 にそろえる
+        XMStoreFloat4(&frameConstants.toLight, XMVector3Normalize(XMLoadFloat3(&m_Lighting.toLight)));
+        frameConstants.lightColor = { m_Lighting.color.x, m_Lighting.color.y, m_Lighting.color.z, 0.0f };
+        frameConstants.ambientColor = { m_Lighting.ambient.x, m_Lighting.ambient.y, m_Lighting.ambient.z, 0.0f };
+
         DX12UploadBuffer& frameConstantBuffer = *m_FrameConstantBuffers[m_FrameIndex];
         frameConstantBuffer.Write(&frameConstants, sizeof(frameConstants));
 

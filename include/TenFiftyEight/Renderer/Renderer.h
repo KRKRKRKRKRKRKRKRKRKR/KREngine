@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TenFiftyEight/Renderer/Camera.h"
+#include "TenFiftyEight/Renderer/Lighting.h"
 #include "TenFiftyEight/Renderer/Mesh.h"
 
 #include <array>
@@ -40,6 +41,9 @@ namespace TenFiftyEight
 
         // このフレームで使うカメラ(コピーして保持する)。呼ばなければ Camera の初期値で描く
         void SetCamera(const Camera& camera) { m_Camera = camera; }
+
+        // このフレームで使う光(コピーして保持する)。呼ばなければ Lighting の初期値で描く
+        void SetLighting(const Lighting& lighting) { m_Lighting = lighting; }
 
         // 形のデータを GPU のバッファに入れ、番号札を返す(失敗したら無効な番号札)
         MeshHandle CreateMesh(const MeshData& data);
@@ -112,6 +116,7 @@ namespace TenFiftyEight
         // カメラの行列を入れる定数バッファ(別紙)。GPU が読んでいる途中で書き換えないよう、フレームインフライトの数だけ持つ
         std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_FrameConstantBuffers;
         Camera m_Camera;
+        Lighting m_Lighting;
 
         // 各フレームの命令が GPU で終わったときに到達する Fence 値
         std::array<uint64_t, FramesInFlight> m_FrameFenceValues = {};
