@@ -150,6 +150,7 @@ function(tfe_copy_runtime_files target)
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Shaders $<TARGET_FILE_DIR:${target}>/Shaders
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Models $<TARGET_FILE_DIR:${target}>/Models
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Courses $<TARGET_FILE_DIR:${target}>/Courses
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Settings $<TARGET_FILE_DIR:${target}>/Settings
         VERBATIM
     )
 endfunction()
