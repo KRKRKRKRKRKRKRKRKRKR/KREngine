@@ -117,6 +117,10 @@ namespace TenFiftyEight
         // 6-3: 白の 1×1 の画像(R, G, B, A = 255)。画像を貼らない物に使う(白を掛けても、色は変わらない)
         constexpr uint8_t whitePixel[4] = { 255, 255, 255, 255 };
         m_WhiteTexture = CreateTextureFromPixels(1, 1, whitePixel);
+        if (!m_WhiteTexture.IsValid())
+        {
+            TFE_LOG_FATAL("白の 1x1 の画像を作れませんでした");
+        }
     }
 
     //レンダー削除
@@ -316,6 +320,12 @@ namespace TenFiftyEight
         commandList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
         commandList->SetGraphicsRootConstantBufferView(FrameConstantsRootIndex, frameConstantBuffer.GetGpuAddress());
 
+        // 6-4: 画像の札掛け(SRV ヒープ)を使うことを伝え、t0 の口に、白の 1×1 を置く
+        // (空は、画像を読まないが、設計図に口があるので、何か置いておく。物は、画像が変わるときだけ、置き直す)
+        ID3D12DescriptorHeap* descriptorHeaps[] = { m_SrvHeap->Get() };
+        commandList->SetDescriptorHeaps(1, descriptorHeaps);
+        commandList->SetGraphicsRootDescriptorTable(TextureRootIndex, m_Textures.at(m_WhiteTexture.id)->GetGpuHandle());
+
         // 4-7b: 空を、最初に、画面全体に描く(頂点バッファなし。三角形 1 つ = 頂点 3 つ)
         // 深度には何も書かないので、深度バッファは「一番奥」のまま。あとから描く地面や物が、空の上に上書きする
         commandList->SetPipelineState(m_SkyPipeline->Get());
@@ -431,10 +441,11 @@ namespace TenFiftyEight
     }
 
     // 2-7 処理4: その場では描かず、依頼メモを描画リストに積むだけ
-    void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world)
+    void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world, TextureHandle texture)
     {
         DrawCommand command;
         command.mesh = mesh;
+        command.texture = texture;
         XMStoreFloat4x4(&command.world, world); // 計算用の XMMATRIX を、保存用の XMFLOAT4X4 に書き出す
         m_DrawList.push_back(command);
     }
@@ -449,6 +460,7 @@ namespace TenFiftyEight
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         uint32_t boundMeshId = 0; // 今、頂点バッファと番号バッファに設定している形
+        uint32_t boundTextureId = m_WhiteTexture.id; // 今、t0 の口に置いている画像(BeginFrame で、白を置いてある)
         for (const DrawCommand& command : m_DrawList)
         {
             // 番号札から形を探す。無効・捨てた後の番号札なら飛ばす(エラーは番号ごとに最初の1回だけ)
@@ -481,6 +493,27 @@ namespace TenFiftyEight
                 commandList->IASetIndexBuffer(&indexBufferView);
 
                 boundMeshId = command.mesh.id;
+            }
+
+            // 画像: 無効な番号札(指定なし)は、白の 1×1。捨てた後の番号札なら、エラーを(番号ごとに最初の1回だけ)出して、白にする
+            uint32_t textureId = m_WhiteTexture.id;
+            if (command.texture.IsValid())
+            {
+                if (m_Textures.contains(command.texture.id))
+                {
+                    textureId = command.texture.id;
+                }
+                else if (m_ReportedInvalidTextures.insert(command.texture.id).second)
+                {
+                    TFE_LOG_ERROR("DrawMesh: 無効な画像の番号札です (id {})。白で描きます", command.texture.id);
+                }
+            }
+
+            // 直前と同じ画像なら、設定を省く(t0 の口に、画像の札(SRV)の場所を伝える)
+            if (textureId != boundTextureId)
+            {
+                commandList->SetGraphicsRootDescriptorTable(TextureRootIndex, m_Textures.at(textureId)->GetGpuHandle());
+                boundTextureId = textureId;
             }
 
             // ワールド行列(数字16個)を b0 の箱に入れて、描く

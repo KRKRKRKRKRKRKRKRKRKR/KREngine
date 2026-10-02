@@ -69,7 +69,8 @@ namespace TenFiftyEight
 
         // 「この形を、この行列で描いて」という依頼を描画リストに積む(OnRender で呼ぶ)
         // 実際の描画命令は EndFrame でまとめて作る
-        void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world);
+        // texture: 貼る画像。省略(無効な番号札)なら、白の 1×1(頂点の色のまま。画像を貼らない物は、今までと同じ見た目)
+        void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, TextureHandle texture = {});
 
     private:
         // フレームの開始・終了は Application だけが呼ぶ(Game からは呼べない)
@@ -120,6 +121,7 @@ namespace TenFiftyEight
         {
             MeshHandle mesh;
             DirectX::XMFLOAT4X4 world;
+            TextureHandle texture; // 無効なら、白の 1×1
         };
 
         std::unique_ptr<DX12Device> m_Device;
@@ -143,6 +145,7 @@ namespace TenFiftyEight
         TextureHandle m_WhiteTexture;                                    // 白の 1×1(画像を貼らない物に使う。6-4)
         std::vector<DrawCommand> m_DrawList;                             // 描画リスト(毎フレーム空にする)
         std::unordered_set<uint32_t> m_ReportedInvalidMeshes;            // エラーを出済みの無効な番号(1回だけ出すため)
+        std::unordered_set<uint32_t> m_ReportedInvalidTextures;          // 同じく、画像の無効な番号
 
         // カメラの行列を入れる定数バッファ(別紙)。GPU が読んでいる途中で書き換えないよう、フレームインフライトの数だけ持つ
         std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_FrameConstantBuffers;

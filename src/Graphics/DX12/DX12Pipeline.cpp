@@ -10,14 +10,26 @@ namespace TenFiftyEight
         //   0番: b0 の箱に、4バイトの数字を16個(= 4x4 のワールド行列)。頂点シェーダーだけが使う
         //   1番: b1 の箱に、定数バッファ(別紙)の住所。頂点シェーダーもピクセルシェーダーも使う(ALL)
         //        (カメラの行列は頂点シェーダー、光やフォグはピクセルシェーダーが使うため)
+        //   2番: t0 の口に、画像の札(SRV)。札掛け(SRV ヒープ)の中の、どの札を指すかは、描くたびに変えられる。ピクセルシェーダーだけが使う
+        //   サンプラー(s0):画像から色を取るときの読み方。設計図に埋め込む(静的サンプラー)。線形(隣のピクセルと混ぜる)・繰り返し
         bool CreateRootSignature(ID3D12Device* device, ComPtr<ID3D12RootSignature>& outRootSignature)
         {
-            CD3DX12_ROOT_PARAMETER rootParameters[2];
+            CD3DX12_DESCRIPTOR_RANGE textureRange;
+            textureRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); // t0 から 1 個(SRV)
+
+            CD3DX12_ROOT_PARAMETER rootParameters[3];
             rootParameters[ObjectConstantsRootIndex].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
             rootParameters[FrameConstantsRootIndex].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
+            rootParameters[TextureRootIndex].InitAsDescriptorTable(1, &textureRange, D3D12_SHADER_VISIBILITY_PIXEL);
+
+            const CD3DX12_STATIC_SAMPLER_DESC linearSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+                                                            D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+                                                            D3D12_TEXTURE_ADDRESS_MODE_WRAP, 0.0f, 1, D3D12_COMPARISON_FUNC_NEVER,
+                                                            D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK, 0.0f, D3D12_FLOAT32_MAX,
+                                                            D3D12_SHADER_VISIBILITY_PIXEL);
 
             CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-            rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 0, nullptr,
+            rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 1, &linearSampler,
                                    D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
             // 構造体 → バイナリに変換(シリアライズ)してから作成する決まりになっている
