@@ -24,6 +24,7 @@ namespace TenFiftyEight
 
         bool depthEnabled = true;  // false: 深度テスト・深度書き込みをしない(空など、最初に描いて、あとから上書きされるもの)
         bool cullBackFaces = true; // false: 裏向きの三角形も描く(画面全体を覆う三角形の向きを、気にしなくて済む)
+        bool lines = false;        // true: 頂点を 2 つずつ、線として組み立てる(デバッグの線)。false: 3 つずつ、三角形として組み立てる
     };
 
     // 描画の設定一式

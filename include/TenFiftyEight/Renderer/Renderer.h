@@ -4,6 +4,7 @@
 #include "TenFiftyEight/Renderer/Lighting.h"
 #include "TenFiftyEight/Renderer/Mesh.h"
 #include "TenFiftyEight/Renderer/Texture.h"
+#include "TenFiftyEight/Physics/Collision.h"
 
 #include <array>
 #include <cstdint>
@@ -72,6 +73,13 @@ namespace TenFiftyEight
         // texture: 貼る画像。省略(無効な番号札)なら、白の 1×1(頂点の色のまま。画像を貼らない物は、今までと同じ見た目)
         void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, TextureHandle texture = {});
 
+        // デバッグ用の線を 1 本、積む(OnRender で呼ぶ)。座標は世界の座標。光・フォグはかからず、色のまま描く
+        // DrawMesh と同じく、その場では描かず、EndFrame で、形のあとに、まとめて 1 回で描く(深度テストあり。物に隠れる)
+        void DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end, const DirectX::XMFLOAT4& color);
+
+        // OBB の 12 本の辺を、線で積む(当たり判定の箱の確認用)
+        void DrawWireBox(const OBB& box, const DirectX::XMFLOAT4& color);
+
     private:
         // フレームの開始・終了は Application だけが呼ぶ(Game からは呼べない)
         friend class Application;
@@ -92,6 +100,9 @@ namespace TenFiftyEight
 
         // 描画リストの依頼を1つずつ GPU への命令にして、リストを空にする
         void ExecuteDrawList();
+
+        // 積んだ線を、今のフレームの頂点バッファに書いて、まとめて 1 回で描く(ExecuteDrawList の最後に呼ぶ)
+        void ExecuteLines();
 
         // RGBA8 のピクセルから、テクスチャを作る(CreateTexture と、白の 1×1 が使う)
         TextureHandle CreateTextureFromPixels(uint32_t width, uint32_t height, const uint8_t* rgbaPixels);
@@ -117,6 +128,16 @@ namespace TenFiftyEight
             uint64_t fenceValue = 0; // PendingRelease と同じ
         };
 
+        // デバッグの線の頂点(Line.hlsl の VSInput と、並びを合わせる)
+        struct LineVertex
+        {
+            DirectX::XMFLOAT3 position; // 世界の座標
+            DirectX::XMFLOAT4 color;
+        };
+
+        // 1 フレームに描ける線の頂点の数(2 つで 1 本 → 32,768 本)。超えた分は描かない
+        static constexpr uint32_t MaxLineVertices = 65536;
+
         struct DrawCommand
         {
             MeshHandle mesh;
@@ -135,6 +156,7 @@ namespace TenFiftyEight
         std::unique_ptr<DX12ShaderCompiler> m_ShaderCompiler;
         std::unique_ptr<DX12Pipeline> m_Pipeline;
         std::unique_ptr<DX12Pipeline> m_SkyPipeline; // 空専用(画面全体を覆う三角形を、深度なしで描く)。Root Signature は m_Pipeline と共有
+        std::unique_ptr<DX12Pipeline> m_LinePipeline; // デバッグの線専用(2 頂点で 1 本。光・フォグなし・深度あり)。Root Signature は m_Pipeline と共有
 
         std::unordered_map<uint32_t, std::unique_ptr<GpuMesh>> m_Meshes; // 一覧表(番号札 → 形の実体)
         uint32_t m_NextMeshId = 1;                                       // 次に発行する番号(使い回さない)
@@ -146,6 +168,11 @@ namespace TenFiftyEight
         std::vector<DrawCommand> m_DrawList;                             // 描画リスト(毎フレーム空にする)
         std::unordered_set<uint32_t> m_ReportedInvalidMeshes;            // エラーを出済みの無効な番号(1回だけ出すため)
         std::unordered_set<uint32_t> m_ReportedInvalidTextures;          // 同じく、画像の無効な番号
+
+        // デバッグの線(DrawLine で積み、EndFrame で、まとめて描く)
+        std::vector<LineVertex> m_LineVertices;                          // 今のフレームで積んだ線の頂点(2 つで 1 本。毎フレーム空にする)
+        std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_LineVertexBuffers; // 線の頂点を GPU に渡す箱。GPU が読んでいる途中で書き換えないよう、フレームの数だけ持つ
+        bool m_ReportedLineOverflow = false;                             // 線の上限を超えた警告を出済みか(1 回だけ出すため)
 
         // カメラの行列を入れる定数バッファ(別紙)。GPU が読んでいる途中で書き換えないよう、フレームインフライトの数だけ持つ
         std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_FrameConstantBuffers;

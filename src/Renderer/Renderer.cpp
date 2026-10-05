@@ -64,6 +64,13 @@ namespace TenFiftyEight
             { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, offsetof(Vertex, uv),       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
 
+        // 線の頂点(Renderer::LineVertex)の形式。位置と色だけ(Line.hlsl の VSInput と対応)
+        // offsetof は private な型に使えないので、並び(位置 12 バイト → 色)を直接書く
+        constexpr D3D12_INPUT_ELEMENT_DESC LineInputLayout[] = {
+            { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        };
+
         // Debug: 編集中の元ファイル(ホットリロード用) / Release: exe の横にコピーされたもの(場所の決まりは GetAssetDirectory にある)
         std::filesystem::path GetShaderDirectory()
         {
@@ -114,6 +121,13 @@ namespace TenFiftyEight
             buffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), FrameConstantBufferSize);
         }
 
+        // 当たり判定: デバッグの線の頂点バッファ(フレームごとに 1 つ。上限いっぱいの大きさで、最初に作っておく)
+        for (std::unique_ptr<DX12UploadBuffer>& buffer : m_LineVertexBuffers)
+        {
+            buffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), sizeof(LineVertex) * MaxLineVertices);
+        }
+        m_LineVertices.reserve(MaxLineVertices);
+
         // 6-3: 白の 1×1 の画像(R, G, B, A = 255)。画像を貼らない物に使う(白を掛けても、色は変わらない)
         constexpr uint8_t whitePixel[4] = { 255, 255, 255, 255 };
         m_WhiteTexture = CreateTextureFromPixels(1, 1, whitePixel);
@@ -139,6 +153,11 @@ namespace TenFiftyEight
         {
             buffer.reset();
         }
+        for (std::unique_ptr<DX12UploadBuffer>& buffer : m_LineVertexBuffers)
+        {
+            buffer.reset();
+        }
+        m_LinePipeline.reset();
         m_SkyPipeline.reset();
         m_Pipeline.reset();
         m_ShaderCompiler.reset();
@@ -207,10 +226,39 @@ namespace TenFiftyEight
             return false;
         }
 
-        // 古いパイプラインを GPU が使い終わってから差し替える(物と空は、同時に差し替える)
+        // 当たり判定: デバッグの線のシェーダー(Line.hlsl)と、線のパイプライン
+        const std::filesystem::path lineShaderPath = GetShaderDirectory() / L"Line.hlsl";
+        ComPtr<IDxcBlob> lineVertexShader = m_ShaderCompiler->Compile(lineShaderPath, L"VSMain", L"vs_6_0");
+        if (!lineVertexShader)
+        {
+            return false;
+        }
+        ComPtr<IDxcBlob> linePixelShader = m_ShaderCompiler->Compile(lineShaderPath, L"PSMain", L"ps_6_0");
+        if (!linePixelShader)
+        {
+            return false;
+        }
+
+        DX12PipelineDesc lineDesc;
+        lineDesc.vertexShader = { lineVertexShader->GetBufferPointer(), lineVertexShader->GetBufferSize() };
+        lineDesc.pixelShader = { linePixelShader->GetBufferPointer(), linePixelShader->GetBufferSize() };
+        lineDesc.inputLayout = LineInputLayout;
+        // 線として組み立てる。深度テストあり(物に隠れる)。線に裏・表はないので、カリングなし。Root Signature は共有
+        lineDesc.sharedRootSignature = pipeline->GetRootSignature();
+        lineDesc.lines = true;
+        lineDesc.cullBackFaces = false;
+
+        std::unique_ptr<DX12Pipeline> linePipeline = DX12Pipeline::Create(m_Device->Get(), lineDesc);
+        if (!linePipeline)
+        {
+            return false;
+        }
+
+        // 古いパイプラインを GPU が使い終わってから差し替える(物・空・線は、同時に差し替える)
         m_Queue->Flush();
         m_Pipeline = std::move(pipeline);
         m_SkyPipeline = std::move(skyPipeline);
+        m_LinePipeline = std::move(linePipeline);
         return true;
     }
 
@@ -450,6 +498,38 @@ namespace TenFiftyEight
         m_DrawList.push_back(command);
     }
 
+    // 当たり判定: 線も、その場では描かず、頂点を 2 つ積むだけ(DrawMesh と同じ)
+    void Renderer::DrawLine(const XMFLOAT3& start, const XMFLOAT3& end, const XMFLOAT4& color)
+    {
+        if (m_LineVertices.size() + 2 > MaxLineVertices)
+        {
+            if (!m_ReportedLineOverflow)
+            {
+                TFE_LOG_WARN("DrawLine: 1 フレームの線の上限({} 本)を超えました。超えた分は描きません", MaxLineVertices / 2);
+                m_ReportedLineOverflow = true;
+            }
+            return;
+        }
+        m_LineVertices.push_back({ start, color });
+        m_LineVertices.push_back({ end, color });
+    }
+
+    void Renderer::DrawWireBox(const OBB& box, const XMFLOAT4& color)
+    {
+        // 角の番号は、ビット 0 が右・ビット 1 が上・ビット 2 が前(GetCorners の決まり)
+        // 12 本の辺 = 1 つのビットだけが違う角どうしを結ぶ(右の向きに 4 本・上の向きに 4 本・前の向きに 4 本)
+        static constexpr int Edges[12][2] = {
+            { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, // 右の向き(ビット 0 が違う)
+            { 0, 2 }, { 1, 3 }, { 4, 6 }, { 5, 7 }, // 上の向き(ビット 1 が違う)
+            { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }, // 前の向き(ビット 2 が違う)
+        };
+        const std::array<XMFLOAT3, 8> corners = GetCorners(box);
+        for (const auto& edge : Edges)
+        {
+            DrawLine(corners[edge[0]], corners[edge[1]], color);
+        }
+    }
+
     // 2-7 処理5: 描画リストの依頼を1つずつ GPU への命令にする
     void Renderer::ExecuteDrawList()
     {
@@ -522,6 +602,36 @@ namespace TenFiftyEight
         }
 
         m_DrawList.clear();
+
+        // 形を描いたあとに、線を描く(深度テストで、物の後ろの線は隠れる)
+        ExecuteLines();
+    }
+
+    void Renderer::ExecuteLines()
+    {
+        if (m_LineVertices.empty())
+        {
+            return;
+        }
+
+        // 今のフレームの箱に書く(1 つ前のフレームの箱は、GPU が、まだ読んでいるかもしれない)
+        DX12UploadBuffer& buffer = *m_LineVertexBuffers[m_FrameIndex];
+        const auto byteSize = static_cast<uint32_t>(sizeof(LineVertex) * m_LineVertices.size());
+        buffer.Write(m_LineVertices.data(), byteSize);
+
+        D3D12_VERTEX_BUFFER_VIEW view = {};
+        view.BufferLocation = buffer.GetGpuAddress();
+        view.SizeInBytes = byteSize;
+        view.StrideInBytes = sizeof(LineVertex);
+
+        // 線のパイプラインに切り替えて、全部の線を 1 回で描く(Root Signature と b1 は、BeginFrame で設定済み・共有)
+        ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
+        commandList->SetPipelineState(m_LinePipeline->Get());
+        commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST); // 頂点を 2 つずつ、1 本の線にする
+        commandList->IASetVertexBuffers(0, 1, &view);
+        commandList->DrawInstanced(static_cast<UINT>(m_LineVertices.size()), 1, 0, 0);
+
+        m_LineVertices.clear();
     }
 
     //フレーム終了

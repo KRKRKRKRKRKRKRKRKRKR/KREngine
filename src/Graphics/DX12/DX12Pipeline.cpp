@@ -70,7 +70,8 @@ namespace TenFiftyEight
         psoDesc.VS = desc.vertexShader;
         psoDesc.PS = desc.pixelShader;
         psoDesc.InputLayout = { desc.inputLayout.data(), static_cast<UINT>(desc.inputLayout.size()) };
-        psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        // 頂点を、何として組み立てるか(線なら 2 つずつ、三角形なら 3 つずつ)。描くときの IASetPrimitiveTopology と合わせる
+        psoDesc.PrimitiveTopologyType = desc.lines ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
         psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // 裏向きの三角形は描かない(時計回りが表)
         if (!desc.cullBackFaces)
         {

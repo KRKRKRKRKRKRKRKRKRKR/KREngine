@@ -101,6 +101,7 @@ set(SHADER_FILES
     ${CMAKE_SOURCE_DIR}/Assets/Shaders/Basic.hlsl
     ${CMAKE_SOURCE_DIR}/Assets/Shaders/Common.hlsli
     ${CMAKE_SOURCE_DIR}/Assets/Shaders/Sky.hlsl
+    ${CMAKE_SOURCE_DIR}/Assets/Shaders/Line.hlsl
 )
 set_source_files_properties(${SHADER_FILES} PROPERTIES VS_TOOL_OVERRIDE "None")
 
