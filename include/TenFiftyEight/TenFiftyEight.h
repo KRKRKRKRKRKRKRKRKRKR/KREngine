@@ -9,3 +9,4 @@
 #include "TenFiftyEight/Renderer/Lighting.h"
 #include "TenFiftyEight/Renderer/Mesh.h"
 #include "TenFiftyEight/Renderer/ModelLoader.h"
+#include "TenFiftyEight/Physics/Collision.h"

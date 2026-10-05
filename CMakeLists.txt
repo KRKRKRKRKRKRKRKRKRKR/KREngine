@@ -54,6 +54,7 @@ set(ENGINE_FILES
     include/TenFiftyEight/Renderer/Mesh.h
     include/TenFiftyEight/Renderer/Texture.h
     include/TenFiftyEight/Renderer/ModelLoader.h
+    include/TenFiftyEight/Physics/Collision.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -69,6 +70,7 @@ set(ENGINE_FILES
     src/Renderer/ModelLoader.cpp
     src/Renderer/Image.h
     src/Renderer/Image.cpp
+    src/Physics/Collision.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
