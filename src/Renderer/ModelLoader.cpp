@@ -40,7 +40,7 @@ namespace TenFiftyEight
             size_t position = 0;
             bool hasUv = false;     // UV の番号が書いてあったか
             size_t uv = 0;
-            bool hasNormal = false; // 法線の番号が書いてあったか(猫のように、書いていないこともある)
+            bool hasNormal = false; // 法線の番号が書いてあったか(自機のように、書いていないこともある)
             size_t normal = 0;
         };
 
