@@ -1,6 +1,6 @@
 #include "Renderer/Image.h"
 
-#include "TenFiftyEight/Core/Log.h"
+#include "KR/Core/Log.h"
 
 // stb_image の本体(関数の中身)を、このファイルに、取り込む(ほかのファイルでは、これを書かない)
 #define STB_IMAGE_IMPLEMENTATION
@@ -9,7 +9,7 @@
 #include <fstream>
 #include <iterator>
 
-namespace TenFiftyEight
+namespace KR
 {
     ImageData LoadImageRgba8(const std::filesystem::path& file)
     {

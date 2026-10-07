@@ -4,7 +4,7 @@
 
 #include <vector>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 「札掛け」(ディスクリプタヒープ)と、枠の貸し借り。
     // 札(ディスクリプタ)= 「この画像をこう読め」「この画像にこう描け」という情報。ヒープはその札を並べて掛けておく棚

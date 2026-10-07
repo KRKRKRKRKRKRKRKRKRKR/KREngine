@@ -1,4 +1,4 @@
-#include "TenFiftyEight/Renderer/Renderer.h"
+#include "KR/Renderer/Renderer.h"
 
 #include "Graphics/DX12/DX12Buffer.h"
 #include "Graphics/DX12/DX12CommandList.h"
@@ -12,7 +12,7 @@
 #include "Graphics/DX12/DX12Texture.h"
 #include "Platform/Windows/Window.h"
 #include "Renderer/Image.h"
-#include "TenFiftyEight/Core/Assets.h"
+#include "KR/Core/Assets.h"
 #include "UI/ImGuiLayer.h"
 
 #include <DirectXMath.h>
@@ -21,7 +21,7 @@
 
 using namespace DirectX;
 
-namespace TenFiftyEight
+namespace KR
 {
     // 2-7 処理2: 形の実体。一覧表(m_Meshes)に番号札と対応づけて保存する
     struct Renderer::GpuMesh

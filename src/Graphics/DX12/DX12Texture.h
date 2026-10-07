@@ -4,7 +4,7 @@
 
 #include <memory>
 
-namespace TenFiftyEight
+namespace KR
 {
     class DX12CommandList;
     class DX12CommandQueue;

@@ -5,7 +5,7 @@
 #include "Graphics/DX12/DX12CommandQueue.h"
 #include "Graphics/DX12/DX12DescriptorHeap.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

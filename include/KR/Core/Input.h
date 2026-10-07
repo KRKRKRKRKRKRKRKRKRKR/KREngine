@@ -1,6 +1,6 @@
 #pragma once
 
-namespace TenFiftyEight
+namespace KR
 {
     // Game が使えるキー(Windows のキー番号は Input.cpp の中に閉じ込めて、Game に見せない)
     enum class Key

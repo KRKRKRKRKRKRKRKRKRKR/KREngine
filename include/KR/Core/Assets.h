@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-namespace TenFiftyEight
+namespace KR
 {
     // データ(シェーダー・モデル・コースなど)のフォルダーの場所を返す。name は、Assets の下のフォルダー名(例:"Courses")
     //   Debug  : 編集中の元フォルダー(Assets/<name>)。保存した変更が、コピーなしで、すぐ読める

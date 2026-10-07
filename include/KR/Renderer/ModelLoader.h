@@ -1,10 +1,10 @@
 #pragma once
 
-#include "TenFiftyEight/Renderer/Mesh.h"
+#include "KR/Renderer/Mesh.h"
 
 #include <filesystem>
 
-namespace TenFiftyEight
+namespace KR
 {
     // OBJ ファイルを読んで、形のデータ(CPU 側)にする。
     // relativePath は Assets/Models からの相対パス(例: "Cube/Cube.obj")

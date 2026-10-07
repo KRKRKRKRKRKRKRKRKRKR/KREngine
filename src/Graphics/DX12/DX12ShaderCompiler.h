@@ -6,7 +6,7 @@
 
 #include <filesystem>
 
-namespace TenFiftyEight
+namespace KR
 {
     // HLSL(テキスト)を、GPU が実行できる形式(DXIL)に実行時に変換する
     class DX12ShaderCompiler

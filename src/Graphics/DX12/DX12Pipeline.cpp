@@ -2,7 +2,7 @@
 
 #include "Graphics/DX12/DX12DepthBuffer.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

@@ -1,4 +1,4 @@
-#include "TenFiftyEight/Core/Log.h"
+#include "KR/Core/Log.h"
 
 #include <Windows.h>
 
@@ -7,7 +7,7 @@
 #include <mutex>
 #include <string>
 
-namespace TenFiftyEight::Log
+namespace KR::Log
 {
     namespace
     {

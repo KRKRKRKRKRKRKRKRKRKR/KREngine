@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 画像(テクスチャ)の番号札。実体(GPU のメモリ)は Renderer が預かっている。MeshHandle と同じ考え方
     struct TextureHandle

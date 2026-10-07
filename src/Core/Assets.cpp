@@ -1,10 +1,10 @@
-#include "TenFiftyEight/Core/Assets.h"
+#include "KR/Core/Assets.h"
 
 #ifndef TFE_DEBUG
 #include <Windows.h>
 #endif
 
-namespace TenFiftyEight
+namespace KR
 {
     std::filesystem::path GetAssetDirectory(const std::filesystem::path& name)
     {

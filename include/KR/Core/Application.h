@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 前方宣言のみ。Window.h(= Windows.h)を Game 側に漏らさないため
     class Window;

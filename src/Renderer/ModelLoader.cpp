@@ -1,7 +1,7 @@
-#include "TenFiftyEight/Renderer/ModelLoader.h"
+#include "KR/Renderer/ModelLoader.h"
 
-#include "TenFiftyEight/Core/Assets.h"
-#include "TenFiftyEight/Core/Log.h"
+#include "KR/Core/Assets.h"
+#include "KR/Core/Log.h"
 
 #include <Windows.h>
 
@@ -18,7 +18,7 @@
 
 using namespace DirectX;
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

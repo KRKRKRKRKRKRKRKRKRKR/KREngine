@@ -2,7 +2,7 @@
 
 #include "Graphics/DX12/DX12Common.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     // Upload ヒープ(CPU から書き込めるメモリ)に置くバッファ
     // 頂点バッファ・インデックスバッファ・定数バッファのどれにも使える

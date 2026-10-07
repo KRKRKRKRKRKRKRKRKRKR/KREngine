@@ -4,7 +4,7 @@
 
 #include <string>
 
-namespace TenFiftyEight
+namespace KR
 {
     // GPU の選択と ID3D12Device の作成を担当する
     class DX12Device

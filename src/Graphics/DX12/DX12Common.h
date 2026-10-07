@@ -6,11 +6,11 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
-#include "TenFiftyEight/Core/Log.h"
+#include "KR/Core/Log.h"
 
 #include <cstdint>
 
-namespace TenFiftyEight
+namespace KR
 {
     // COM オブジェクト用のスマートポインタ。スコープを抜けると自動で Release() される
     using Microsoft::WRL::ComPtr;

@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace TenFiftyEight
+namespace KR
 {
     DX12UploadBuffer::DX12UploadBuffer(ID3D12Device* device, uint64_t size)
         : m_Size(size)

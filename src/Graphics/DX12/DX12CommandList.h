@@ -4,7 +4,7 @@
 
 #include <vector>
 
-namespace TenFiftyEight
+namespace KR
 {
     // GPU への命令を記録するクラス
     //

@@ -2,7 +2,7 @@
 
 #include "Graphics/DX12/DX12Common.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     class DX12DescriptorHeap;
 

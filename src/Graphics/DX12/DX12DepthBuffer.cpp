@@ -1,6 +1,6 @@
 #include "Graphics/DX12/DX12DepthBuffer.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     DX12DepthBuffer::DX12DepthBuffer(ID3D12Device* device, uint32_t width, uint32_t height)
         : m_Device(device)

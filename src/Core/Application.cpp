@@ -1,13 +1,13 @@
-#include "TenFiftyEight/Core/Application.h"
+#include "KR/Core/Application.h"
 
-#include "TenFiftyEight/Core/Log.h"
-#include "TenFiftyEight/Renderer/Renderer.h"
+#include "KR/Core/Log.h"
+#include "KR/Renderer/Renderer.h"
 #include "Core/InputState.h"
 #include "Platform/Windows/Window.h"
 
 #include <chrono>
 
-namespace TenFiftyEight
+namespace KR
 {
     Application::Application(const ApplicationDesc& desc)
     {

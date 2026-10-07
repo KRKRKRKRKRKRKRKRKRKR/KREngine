@@ -2,7 +2,7 @@
 
 #include "Graphics/DX12/DX12Common.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     // GPU へ命令を提出する窓口と、GPU の進み具合を知るための Fence をまとめたクラス
     //

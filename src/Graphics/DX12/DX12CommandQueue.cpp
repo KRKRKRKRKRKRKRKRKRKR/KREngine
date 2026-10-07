@@ -1,6 +1,6 @@
 #include "Graphics/DX12/DX12CommandQueue.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     DX12CommandQueue::DX12CommandQueue(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE type)
     {

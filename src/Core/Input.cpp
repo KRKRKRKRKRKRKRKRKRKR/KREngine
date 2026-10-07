@@ -1,4 +1,4 @@
-#include "TenFiftyEight/Core/Input.h"
+#include "KR/Core/Input.h"
 
 #include "Core/InputState.h"
 
@@ -6,7 +6,7 @@
 
 #include <array>
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

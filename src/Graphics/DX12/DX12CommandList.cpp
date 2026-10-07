@@ -1,6 +1,6 @@
 #include "Graphics/DX12/DX12CommandList.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     DX12CommandList::DX12CommandList(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE type, uint32_t allocatorCount)
         : m_Allocators(allocatorCount)

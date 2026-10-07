@@ -1,6 +1,6 @@
 #include "Graphics/DX12/DX12DescriptorHeap.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     DX12DescriptorHeap::DX12DescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t count, bool shaderVisible)
     {

@@ -43,18 +43,18 @@ FetchContent_Declare(stb
 FetchContent_MakeAvailable(stb)
 
 set(ENGINE_FILES
-    include/TenFiftyEight/TenFiftyEight.h
-    include/TenFiftyEight/Core/Application.h
-    include/TenFiftyEight/Core/Log.h
-    include/TenFiftyEight/Core/Input.h
-    include/TenFiftyEight/Core/Assets.h
-    include/TenFiftyEight/Renderer/Renderer.h
-    include/TenFiftyEight/Renderer/Camera.h
-    include/TenFiftyEight/Renderer/Lighting.h
-    include/TenFiftyEight/Renderer/Mesh.h
-    include/TenFiftyEight/Renderer/Texture.h
-    include/TenFiftyEight/Renderer/ModelLoader.h
-    include/TenFiftyEight/Physics/Collision.h
+    include/KR/KR.h
+    include/KR/Core/Application.h
+    include/KR/Core/Log.h
+    include/KR/Core/Input.h
+    include/KR/Core/Assets.h
+    include/KR/Renderer/Renderer.h
+    include/KR/Renderer/Camera.h
+    include/KR/Renderer/Lighting.h
+    include/KR/Renderer/Mesh.h
+    include/KR/Renderer/Texture.h
+    include/KR/Renderer/ModelLoader.h
+    include/KR/Physics/Collision.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp

@@ -4,7 +4,7 @@
 
 #include <array>
 
-namespace TenFiftyEight
+namespace KR
 {
     struct DX12SwapChainDesc
     {

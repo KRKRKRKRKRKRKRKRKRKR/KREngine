@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <vector>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 画像を、ほどいた(デコードした)もの。GPU が読めるのは、圧縮されていない、ピクセルの色の並びだけ
     struct ImageData

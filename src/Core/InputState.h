@@ -4,7 +4,7 @@
 
 // 入力の状態表への書き込み口(エンジン内部専用。Game からは見えない)
 // Window が OS からのメッセージを受けて呼び、Application がフレームの最後に EndFrame を呼ぶ
-namespace TenFiftyEight::InputState
+namespace KR::InputState
 {
     // virtualKey は Windows のキー番号(WM_KEYDOWN の wParam)
     void OnKeyDown(uint32_t virtualKey);

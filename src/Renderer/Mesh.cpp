@@ -1,10 +1,10 @@
-#include "TenFiftyEight/Renderer/Mesh.h"
+#include "KR/Renderer/Mesh.h"
 
 #include <array>
 
 using namespace DirectX;
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

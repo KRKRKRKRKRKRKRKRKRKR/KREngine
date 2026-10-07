@@ -1,10 +1,10 @@
 #pragma once
 
-#include "TenFiftyEight/Renderer/Camera.h"
-#include "TenFiftyEight/Renderer/Lighting.h"
-#include "TenFiftyEight/Renderer/Mesh.h"
-#include "TenFiftyEight/Renderer/Texture.h"
-#include "TenFiftyEight/Physics/Collision.h"
+#include "KR/Renderer/Camera.h"
+#include "KR/Renderer/Lighting.h"
+#include "KR/Renderer/Mesh.h"
+#include "KR/Renderer/Texture.h"
+#include "KR/Physics/Collision.h"
 
 #include <array>
 #include <cstdint>
@@ -14,7 +14,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 前方宣言のみ。DX12 の型を Game 側に漏らさないため
     class Window;

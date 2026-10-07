@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

@@ -2,7 +2,7 @@
 
 #include "Graphics/DX12/DX12Common.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     // 深度の形式(PSO の DSVFormat と一致させる必要がある)
     constexpr DXGI_FORMAT DepthBufferFormat = DXGI_FORMAT_D32_FLOAT;

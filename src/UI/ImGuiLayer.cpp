@@ -11,7 +11,7 @@
 // imgui_impl_win32.h には宣言だけ(#if 0 の中)なので、ここで宣言する
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

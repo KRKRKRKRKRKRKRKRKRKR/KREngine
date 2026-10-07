@@ -2,7 +2,7 @@
 
 #include <DirectXMath.h>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 光の設定。Game が持ち、毎フレーム Renderer::SetLighting で渡す(SetCamera と同じ形)
     // 太陽のような「平行な光」(世界のどこでも同じ向き)と、環境光(光が当たらない面の最低限の明るさ)

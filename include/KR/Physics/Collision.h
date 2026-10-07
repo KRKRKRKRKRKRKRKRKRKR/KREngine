@@ -4,7 +4,7 @@
 
 #include <array>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 向きを持てる箱(OBB = Oriented Bounding Box)。当たり判定に使う
     // 回転しない箱も、軸を (1,0,0)(0,1,0)(0,0,1) にすれば、同じ形で持てる(同じ関数で判定できる)

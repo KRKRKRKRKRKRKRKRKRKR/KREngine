@@ -4,7 +4,7 @@
 #include <source_location>
 #include <string_view>
 
-namespace TenFiftyEight
+namespace KR
 {
     enum class LogLevel
     {
@@ -35,7 +35,7 @@ namespace TenFiftyEight
 // マクロにする理由: 呼び出し元の source_location を自動で渡すため、
 // および Release で Trace / Info をコードごと消すため
 #define TFE_LOG_IMPL(level, ...) \
-    ::TenFiftyEight::Log::Print(::TenFiftyEight::LogLevel::level, std::source_location::current(), __VA_ARGS__)
+    ::KR::Log::Print(::KR::LogLevel::level, std::source_location::current(), __VA_ARGS__)
 
 #ifdef TFE_DEBUG
     #define TFE_LOG_TRACE(...) TFE_LOG_IMPL(Trace, __VA_ARGS__)

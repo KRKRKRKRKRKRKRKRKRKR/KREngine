@@ -1,8 +1,8 @@
 #include "Platform/Windows/Window.h"
 
-#include "TenFiftyEight/Core/Log.h"
+#include "KR/Core/Log.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

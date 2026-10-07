@@ -1,14 +1,14 @@
-#include "TenFiftyEight/Core/Application.h"
-#include "TenFiftyEight/Core/Log.h"
+#include "KR/Core/Application.h"
+#include "KR/Core/Log.h"
 
 int main()
 {
 
     //ログの初期化
-    TenFiftyEight::Log::Init();
+    KR::Log::Init();
 
     //アプリケーションの作成
-    std::unique_ptr<TenFiftyEight::Application> app = TenFiftyEight::CreateApplication();
+    std::unique_ptr<KR::Application> app = KR::CreateApplication();
     
     // 初期化 → メインループ → 終了処理
     app->Run();

@@ -1,8 +1,8 @@
-#include "TenFiftyEight/Renderer/Camera.h"
+#include "KR/Renderer/Camera.h"
 
 using namespace DirectX;
 
-namespace TenFiftyEight
+namespace KR
 {
     XMMATRIX Camera::GetViewMatrix() const
     {

@@ -1,6 +1,6 @@
 #include "Graphics/DX12/DX12SwapChain.h"
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

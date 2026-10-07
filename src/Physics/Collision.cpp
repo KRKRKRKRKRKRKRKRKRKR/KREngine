@@ -1,10 +1,10 @@
-#include "TenFiftyEight/Physics/Collision.h"
+#include "KR/Physics/Collision.h"
 
 #include <cmath>
 
 using namespace DirectX;
 
-namespace TenFiftyEight
+namespace KR
 {
     namespace
     {

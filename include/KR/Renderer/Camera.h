@@ -2,7 +2,7 @@
 
 #include <DirectXMath.h>
 
-namespace TenFiftyEight
+namespace KR
 {
     // どこから・どこを・どれくらいの範囲で見るか(長さの単位はメートル)
     // Game が持ち、毎フレーム Renderer::SetCamera で渡す

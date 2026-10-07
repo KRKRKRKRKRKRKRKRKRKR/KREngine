@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <vector>
 
-namespace TenFiftyEight
+namespace KR
 {
     // 頂点1つ分(シェーダーの VSInput と形を合わせる)
     struct Vertex

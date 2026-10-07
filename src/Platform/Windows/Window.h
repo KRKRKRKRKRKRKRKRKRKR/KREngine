@@ -6,7 +6,7 @@
 #include <functional>
 #include <string>
 
-namespace TenFiftyEight
+namespace KR
 {
     struct WindowDesc
     {
