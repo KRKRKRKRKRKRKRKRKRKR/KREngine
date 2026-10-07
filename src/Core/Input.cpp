@@ -30,6 +30,8 @@ namespace TenFiftyEight
             case Key::Right: return VK_RIGHT;
             case Key::Up:    return VK_UP;
             case Key::Down:  return VK_DOWN;
+            case Key::R:     return 'R';
+            case Key::Enter: return VK_RETURN;
             case Key::F3:    return VK_F3;
             }
             return 0;

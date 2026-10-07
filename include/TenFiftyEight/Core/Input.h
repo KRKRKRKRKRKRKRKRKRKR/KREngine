@@ -7,6 +7,7 @@ namespace TenFiftyEight
     {
         W, A, S, D,
         Left, Right, Up, Down,
+        R, Enter, // ゲームオーバーのあと、やり直す
         F3, // デバッグ用の画面(ImGui)の表示切り替え
     };
 
