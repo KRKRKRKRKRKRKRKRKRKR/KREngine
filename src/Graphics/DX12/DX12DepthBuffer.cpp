@@ -10,7 +10,7 @@ namespace KR
         heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         heapDesc.NumDescriptors = 1;
         heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        TFE_DX_CHECK(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_DsvHeap)));
+        KR_DX_CHECK(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_DsvHeap)));
 
         CreateTexture(width, height);
     }
@@ -43,7 +43,7 @@ namespace KR
         clearValue.Format = DepthBufferFormat;
         clearValue.DepthStencil.Depth = DepthClearValue;
 
-        TFE_DX_CHECK(m_Device->CreateCommittedResource(
+        KR_DX_CHECK(m_Device->CreateCommittedResource(
             &heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc,
             D3D12_RESOURCE_STATE_DEPTH_WRITE, &clearValue, IID_PPV_ARGS(&m_Texture)));
 

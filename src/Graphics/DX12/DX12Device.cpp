@@ -29,10 +29,10 @@ namespace KR
             {
             case D3D12_MESSAGE_SEVERITY_CORRUPTION:
             case D3D12_MESSAGE_SEVERITY_ERROR:
-                TFE_LOG_ERROR("[D3D12] {}", description);
+                KR_LOG_ERROR("[D3D12] {}", description);
                 break;
             case D3D12_MESSAGE_SEVERITY_WARNING:
-                TFE_LOG_WARN("[D3D12] {}", description);
+                KR_LOG_WARN("[D3D12] {}", description);
                 break;
             default:
                 break;
@@ -45,14 +45,14 @@ namespace KR
         EnableDebugLayer();
 
         UINT factoryFlags = 0;
-#ifdef TFE_DEBUG
+#ifdef KR_DEBUG
         factoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
 #endif
-        TFE_DX_CHECK(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&m_Factory)));
+        KR_DX_CHECK(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&m_Factory)));
 
         SelectAdapter();
 
-        TFE_DX_CHECK(D3D12CreateDevice(m_Adapter.Get(), MinFeatureLevel, IID_PPV_ARGS(&m_Device)));
+        KR_DX_CHECK(D3D12CreateDevice(m_Adapter.Get(), MinFeatureLevel, IID_PPV_ARGS(&m_Device)));
 
         SetupDebugMessages();
     }
@@ -69,16 +69,16 @@ namespace KR
     // デバッグレイヤー: DX12 の使い方の間違いを検出して教えてくれる。重いので Debug ビルドのみ
     void DX12Device::EnableDebugLayer()
     {
-#ifdef TFE_DEBUG
+#ifdef KR_DEBUG
         ComPtr<ID3D12Debug> debug;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))
         {
             debug->EnableDebugLayer();
-            TFE_LOG_INFO("D3D12 デバッグレイヤー有効");
+            KR_LOG_INFO("D3D12 デバッグレイヤー有効");
         }
         else
         {
-            TFE_LOG_WARN("D3D12 デバッグレイヤーを有効にできません(グラフィックスツールが未インストールの可能性)");
+            KR_LOG_WARN("D3D12 デバッグレイヤーを有効にできません(グラフィックスツールが未インストールの可能性)");
         }
 #endif
     }
@@ -104,17 +104,17 @@ namespace KR
             if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), MinFeatureLevel, __uuidof(ID3D12Device), nullptr)))
             {
                 m_Adapter = adapter;
-                TFE_LOG_INFO("GPU: {} (VRAM {} MB)", ToUtf8(desc.Description), desc.DedicatedVideoMemory / (1024 * 1024));
+                KR_LOG_INFO("GPU: {} (VRAM {} MB)", ToUtf8(desc.Description), desc.DedicatedVideoMemory / (1024 * 1024));
                 return;
             }
         }
 
-        TFE_LOG_FATAL("DirectX 12 に対応した GPU が見つかりません");
+        KR_LOG_FATAL("DirectX 12 に対応した GPU が見つかりません");
     }
 
     void DX12Device::SetupDebugMessages()
     {
-#ifdef TFE_DEBUG
+#ifdef KR_DEBUG
         ComPtr<ID3D12InfoQueue> infoQueue;
         if (FAILED(m_Device.As(&infoQueue)))
         {
@@ -140,7 +140,7 @@ namespace KR
 
     void ReportLiveDX12Objects()
     {
-#ifdef TFE_DEBUG
+#ifdef KR_DEBUG
         ComPtr<IDXGIDebug1> dxgiDebug;
         ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
         if (FAILED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))) ||
@@ -162,12 +162,12 @@ namespace KR
             std::vector<char> buffer(size);
             auto* message = reinterpret_cast<DXGI_INFO_QUEUE_MESSAGE*>(buffer.data());
             dxgiInfoQueue->GetMessage(DxgiDebugAll, i, message, &size);
-            TFE_LOG_WARN("[リーク] {}", std::string_view(message->pDescription, message->DescriptionByteLength));
+            KR_LOG_WARN("[リーク] {}", std::string_view(message->pDescription, message->DescriptionByteLength));
         }
 
         if (count == 0)
         {
-            TFE_LOG_INFO("DX12 オブジェクトの解放漏れなし");
+            KR_LOG_INFO("DX12 オブジェクトの解放漏れなし");
         }
 #endif
     }

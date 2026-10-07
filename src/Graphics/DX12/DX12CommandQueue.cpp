@@ -8,9 +8,9 @@ namespace KR
         desc.Type = type;
         desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
         desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-        TFE_DX_CHECK(device->CreateCommandQueue(&desc, IID_PPV_ARGS(&m_Queue)));
+        KR_DX_CHECK(device->CreateCommandQueue(&desc, IID_PPV_ARGS(&m_Queue)));
 
-        TFE_DX_CHECK(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_Fence)));
+        KR_DX_CHECK(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_Fence)));
     }
 
     void DX12CommandQueue::Execute(ID3D12CommandList* commandList)
@@ -21,7 +21,7 @@ namespace KR
     uint64_t DX12CommandQueue::Signal()
     {
         const uint64_t value = m_NextFenceValue++;
-        TFE_DX_CHECK(m_Queue->Signal(m_Fence.Get(), value));
+        KR_DX_CHECK(m_Queue->Signal(m_Fence.Get(), value));
         return value;
     }
 
@@ -37,7 +37,7 @@ namespace KR
             return;
         }
         // イベントに nullptr を渡すと、Fence が指定値に達するまでこの関数がブロックする
-        TFE_DX_CHECK(m_Fence->SetEventOnCompletion(fenceValue, nullptr));
+        KR_DX_CHECK(m_Fence->SetEventOnCompletion(fenceValue, nullptr));
     }
 
     void DX12CommandQueue::Flush()

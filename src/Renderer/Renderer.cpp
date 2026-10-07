@@ -112,7 +112,7 @@ namespace KR
         m_ShaderCompiler = std::make_unique<DX12ShaderCompiler>();
         if (!LoadShaders())
         {
-            TFE_LOG_FATAL("起動時のシェーダー読み込みに失敗しました");
+            KR_LOG_FATAL("起動時のシェーダー読み込みに失敗しました");
         }
 
         // 2-6 処理4: カメラの行列用の定数バッファ(フレームごとに1枚、計2枚)
@@ -133,7 +133,7 @@ namespace KR
         m_WhiteTexture = CreateTextureFromPixels(1, 1, whitePixel);
         if (!m_WhiteTexture.IsValid())
         {
-            TFE_LOG_FATAL("白の 1x1 の画像を作れませんでした");
+            KR_LOG_FATAL("白の 1x1 の画像を作れませんでした");
         }
     }
 
@@ -266,11 +266,11 @@ namespace KR
     {
         if (LoadShaders())
         {
-            TFE_LOG_INFO("シェーダー再読み込み: 成功");
+            KR_LOG_INFO("シェーダー再読み込み: 成功");
         }
         else
         {
-            TFE_LOG_ERROR("シェーダー再読み込み: 失敗(前のシェーダーのまま動作を続けます)");
+            KR_LOG_ERROR("シェーダー再読み込み: 失敗(前のシェーダーのまま動作を続けます)");
         }
     }
 
@@ -389,12 +389,12 @@ namespace KR
     {
         if (data.vertices.empty() || data.indices.empty())
         {
-            TFE_LOG_ERROR("CreateMesh: 頂点または番号が空です");
+            KR_LOG_ERROR("CreateMesh: 頂点または番号が空です");
             return {};
         }
         if (data.vertices.size() > UINT32_MAX)
         {
-            TFE_LOG_ERROR("CreateMesh: 頂点が多すぎます({} 個。uint32_t の番号で扱えるのは 約42億個まで)", data.vertices.size());
+            KR_LOG_ERROR("CreateMesh: 頂点が多すぎます({} 個。uint32_t の番号で扱えるのは 約42億個まで)", data.vertices.size());
             return {};
         }
 
@@ -420,7 +420,7 @@ namespace KR
         auto it = m_Meshes.find(mesh.id);
         if (it == m_Meshes.end())
         {
-            TFE_LOG_WARN("DestroyMesh: 無効な番号札です (id {})", mesh.id);
+            KR_LOG_WARN("DestroyMesh: 無効な番号札です (id {})", mesh.id);
             return;
         }
 
@@ -469,7 +469,7 @@ namespace KR
         const TextureHandle handle = CreateTextureFromPixels(image.width, image.height, image.pixels.data());
         if (handle.IsValid())
         {
-            TFE_LOG_INFO("Texture: {} を GPU に置きました(番号札 {})", file.filename().string(), handle.id);
+            KR_LOG_INFO("Texture: {} を GPU に置きました(番号札 {})", file.filename().string(), handle.id);
         }
         return handle;
     }
@@ -480,7 +480,7 @@ namespace KR
         auto it = m_Textures.find(texture.id);
         if (it == m_Textures.end())
         {
-            TFE_LOG_WARN("DestroyTexture: 無効な番号札です (id {})", texture.id);
+            KR_LOG_WARN("DestroyTexture: 無効な番号札です (id {})", texture.id);
             return;
         }
 
@@ -505,7 +505,7 @@ namespace KR
         {
             if (!m_ReportedLineOverflow)
             {
-                TFE_LOG_WARN("DrawLine: 1 フレームの線の上限({} 本)を超えました。超えた分は描きません", MaxLineVertices / 2);
+                KR_LOG_WARN("DrawLine: 1 フレームの線の上限({} 本)を超えました。超えた分は描きません", MaxLineVertices / 2);
                 m_ReportedLineOverflow = true;
             }
             return;
@@ -549,7 +549,7 @@ namespace KR
             {
                 if (m_ReportedInvalidMeshes.insert(command.mesh.id).second)
                 {
-                    TFE_LOG_ERROR("DrawMesh: 無効な番号札です (id {})。この描画を飛ばします", command.mesh.id);
+                    KR_LOG_ERROR("DrawMesh: 無効な番号札です (id {})。この描画を飛ばします", command.mesh.id);
                 }
                 continue;
             }
@@ -585,7 +585,7 @@ namespace KR
                 }
                 else if (m_ReportedInvalidTextures.insert(command.texture.id).second)
                 {
-                    TFE_LOG_ERROR("DrawMesh: 無効な画像の番号札です (id {})。白で描きます", command.texture.id);
+                    KR_LOG_ERROR("DrawMesh: 無効な画像の番号札です (id {})。白で描きます", command.texture.id);
                 }
             }
 

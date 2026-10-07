@@ -8,7 +8,7 @@ namespace KR
         heapDesc.Type = type;
         heapDesc.NumDescriptors = count;
         heapDesc.Flags = shaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        TFE_DX_CHECK(device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_Heap)));
+        KR_DX_CHECK(device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_Heap)));
 
         m_CpuStart = m_Heap->GetCPUDescriptorHandleForHeapStart();
         if (shaderVisible)
@@ -29,7 +29,7 @@ namespace KR
     {
         if (m_FreeIndices.empty())
         {
-            TFE_LOG_ERROR("DX12DescriptorHeap: 空いている枠がありません");
+            KR_LOG_ERROR("DX12DescriptorHeap: 空いている枠がありません");
             return false;
         }
 

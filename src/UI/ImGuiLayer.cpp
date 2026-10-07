@@ -49,7 +49,7 @@ namespace KR
         // ② ウィンドウ・マウス・キーボードとつなぐ
         if (!ImGui_ImplWin32_Init(window))
         {
-            TFE_LOG_FATAL("ImGui_ImplWin32_Init に失敗しました");
+            KR_LOG_FATAL("ImGui_ImplWin32_Init に失敗しました");
         }
 
         // I-6b 画面の拡大率(DPI)に合わせて、文字と余白の大きさを変える(拡大率が高いモニターで、小さくなりすぎないように)
@@ -69,7 +69,7 @@ namespace KR
         }
         else
         {
-            TFE_LOG_WARN("日本語のフォントが見つかりません: {}(標準のフォントのままにします。日本語は表示できません)", fontPath.string());
+            KR_LOG_WARN("日本語のフォントが見つかりません: {}(標準のフォントのままにします。日本語は表示できません)", fontPath.string());
         }
 
         // ③ 描画の道具を渡す(Device・Queue・フレーム数・描画先の形式・SRV ヒープと、枠の借り方・返し方)
@@ -85,10 +85,10 @@ namespace KR
         initInfo.SrvDescriptorFreeFn = FreeSrv;
         if (!ImGui_ImplDX12_Init(&initInfo))
         {
-            TFE_LOG_FATAL("ImGui_ImplDX12_Init に失敗しました");
+            KR_LOG_FATAL("ImGui_ImplDX12_Init に失敗しました");
         }
 
-        TFE_LOG_INFO("ImGui 初期化 (v{})", IMGUI_VERSION);
+        KR_LOG_INFO("ImGui 初期化 (v{})", IMGUI_VERSION);
     }
 
     void ImGuiLayer::BeginFrame()

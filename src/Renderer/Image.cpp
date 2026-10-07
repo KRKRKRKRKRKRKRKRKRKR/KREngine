@@ -18,7 +18,7 @@ namespace KR
         std::ifstream stream(file, std::ios::binary);
         if (!stream.is_open())
         {
-            TFE_LOG_ERROR("Image: ファイルを開けません: {}", file.string());
+            KR_LOG_ERROR("Image: ファイルを開けません: {}", file.string());
             return {};
         }
         const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
@@ -30,7 +30,7 @@ namespace KR
         stbi_uc* decoded = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &width, &height, &originalChannels, 4);
         if (!decoded)
         {
-            TFE_LOG_ERROR("Image: {} を画像として読めません: {}", file.string(), stbi_failure_reason());
+            KR_LOG_ERROR("Image: {} を画像として読めません: {}", file.string(), stbi_failure_reason());
             return {};
         }
 
@@ -41,7 +41,7 @@ namespace KR
         image.pixels.assign(decoded, decoded + static_cast<size_t>(width) * height * 4);
         stbi_image_free(decoded);
 
-        TFE_LOG_INFO("Image: {} {}x{}(元は {} チャンネル)", file.filename().string(), width, height, originalChannels);
+        KR_LOG_INFO("Image: {} {}x{}(元は {} チャンネル)", file.filename().string(), width, height, originalChannels);
         return image;
     }
 }

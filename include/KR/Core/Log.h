@@ -34,17 +34,17 @@ namespace KR
 
 // マクロにする理由: 呼び出し元の source_location を自動で渡すため、
 // および Release で Trace / Info をコードごと消すため
-#define TFE_LOG_IMPL(level, ...) \
+#define KR_LOG_IMPL(level, ...) \
     ::KR::Log::Print(::KR::LogLevel::level, std::source_location::current(), __VA_ARGS__)
 
-#ifdef TFE_DEBUG
-    #define TFE_LOG_TRACE(...) TFE_LOG_IMPL(Trace, __VA_ARGS__)
-    #define TFE_LOG_INFO(...)  TFE_LOG_IMPL(Info, __VA_ARGS__)
+#ifdef KR_DEBUG
+    #define KR_LOG_TRACE(...) KR_LOG_IMPL(Trace, __VA_ARGS__)
+    #define KR_LOG_INFO(...)  KR_LOG_IMPL(Info, __VA_ARGS__)
 #else
-    #define TFE_LOG_TRACE(...) ((void)0)
-    #define TFE_LOG_INFO(...)  ((void)0)
+    #define KR_LOG_TRACE(...) ((void)0)
+    #define KR_LOG_INFO(...)  ((void)0)
 #endif
 
-#define TFE_LOG_WARN(...)  TFE_LOG_IMPL(Warn, __VA_ARGS__)
-#define TFE_LOG_ERROR(...) TFE_LOG_IMPL(Error, __VA_ARGS__)
-#define TFE_LOG_FATAL(...) TFE_LOG_IMPL(Fatal, __VA_ARGS__)
+#define KR_LOG_WARN(...)  KR_LOG_IMPL(Warn, __VA_ARGS__)
+#define KR_LOG_ERROR(...) KR_LOG_IMPL(Error, __VA_ARGS__)
+#define KR_LOG_FATAL(...) KR_LOG_IMPL(Fatal, __VA_ARGS__)

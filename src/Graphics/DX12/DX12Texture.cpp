@@ -18,7 +18,7 @@ namespace KR
     {
         if (width == 0 || height == 0 || !rgbaPixels)
         {
-            TFE_LOG_ERROR("DX12Texture: 画像の大きさが 0、または、ピクセルがありません");
+            KR_LOG_ERROR("DX12Texture: 画像の大きさが 0、または、ピクセルがありません");
             return nullptr;
         }
 
@@ -27,7 +27,7 @@ namespace KR
         // ① 画像の置き場所(Default ヒープ)。最初は「コピーを受け取る」状態
         const CD3DX12_HEAP_PROPERTIES defaultHeap(D3D12_HEAP_TYPE_DEFAULT);
         const CD3DX12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(TextureFormat, width, height, 1, 1);
-        TFE_DX_CHECK(device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &textureDesc,
+        KR_DX_CHECK(device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &textureDesc,
                                                      D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&texture->m_Resource)));
 
         // ② 「Upload ヒープに、どう並べれば、コピーできるか」を聞く

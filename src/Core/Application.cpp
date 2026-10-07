@@ -72,7 +72,7 @@ namespace KR
     void Application::OnWindowResize(uint32_t width, uint32_t height)
     {
         m_Minimized = (width == 0 || height == 0);
-        TFE_LOG_TRACE("ウィンドウサイズ変更 {}x{}", width, height);
+        KR_LOG_TRACE("ウィンドウサイズ変更 {}x{}", width, height);
 
         // 最小化(0x0)のときはバックバッファを作れないので、元のサイズのまま保持する
         if (!m_Minimized && m_Renderer)
@@ -93,7 +93,7 @@ namespace KR
         // 3-7-2: 入力の状態表へ「押された」を書く(押しっぱなしの繰り返しは Window 側で除かれている)
         InputState::OnKeyDown(virtualKey);
 
-#ifdef TFE_DEBUG
+#ifdef KR_DEBUG
         // F10: シェーダーのホットリロード(Debug のみ。Release はコピーされたファイルを読むため意味がない)
         if (virtualKey == VK_F10)
         {

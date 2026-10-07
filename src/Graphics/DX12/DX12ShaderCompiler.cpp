@@ -16,9 +16,9 @@ namespace KR
 
     DX12ShaderCompiler::DX12ShaderCompiler()
     {
-        TFE_DX_CHECK(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&m_Utils)));
-        TFE_DX_CHECK(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&m_Compiler)));
-        TFE_DX_CHECK(m_Utils->CreateDefaultIncludeHandler(&m_IncludeHandler));
+        KR_DX_CHECK(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&m_Utils)));
+        KR_DX_CHECK(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&m_Compiler)));
+        KR_DX_CHECK(m_Utils->CreateDefaultIncludeHandler(&m_IncludeHandler));
     }
 
     ComPtr<IDxcBlob> DX12ShaderCompiler::Compile(const std::filesystem::path& file, const wchar_t* entryPoint, const wchar_t* target)
@@ -26,7 +26,7 @@ namespace KR
         ComPtr<IDxcBlobEncoding> source;
         if (FAILED(m_Utils->LoadFile(file.c_str(), nullptr, &source)))
         {
-            TFE_LOG_ERROR("シェーダーファイルを開けません: {}", ToUtf8(file));
+            KR_LOG_ERROR("シェーダーファイルを開けません: {}", ToUtf8(file));
             return nullptr;
         }
 
@@ -43,7 +43,7 @@ namespace KR
             L"-E", entryPoint,
             L"-T", target,
             L"-I", includeDirectory.c_str(),
-#ifdef TFE_DEBUG
+#ifdef KR_DEBUG
             L"-Zi", L"-Qembed_debug", // デバッグ情報を埋め込む(PIX でシェーダーをデバッグできる)
             L"-Od",                   // 最適化しない
 #else
@@ -52,7 +52,7 @@ namespace KR
         };
 
         ComPtr<IDxcResult> result;
-        TFE_DX_CHECK(m_Compiler->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()),
+        KR_DX_CHECK(m_Compiler->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()),
                                          m_IncludeHandler.Get(), IID_PPV_ARGS(&result)));
 
         // エラーと警告のメッセージ(成功時も警告が入っていることがある)
@@ -64,17 +64,17 @@ namespace KR
         result->GetStatus(&status);
         if (FAILED(status))
         {
-            TFE_LOG_ERROR("シェーダーのコンパイル失敗 ({})\n{}", ToUtf8(file.filename()),
+            KR_LOG_ERROR("シェーダーのコンパイル失敗 ({})\n{}", ToUtf8(file.filename()),
                           hasMessages ? messages->GetStringPointer() : "");
             return nullptr;
         }
         if (hasMessages)
         {
-            TFE_LOG_WARN("シェーダーの警告 ({})\n{}", ToUtf8(file.filename()), messages->GetStringPointer());
+            KR_LOG_WARN("シェーダーの警告 ({})\n{}", ToUtf8(file.filename()), messages->GetStringPointer());
         }
 
         ComPtr<IDxcBlob> bytecode;
-        TFE_DX_CHECK(result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&bytecode), nullptr));
+        KR_DX_CHECK(result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&bytecode), nullptr));
         return bytecode;
     }
 }

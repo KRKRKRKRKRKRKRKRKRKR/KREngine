@@ -37,14 +37,14 @@ namespace KR
             ComPtr<ID3DBlob> error;
             if (FAILED(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, &error)))
             {
-                TFE_LOG_ERROR("Root Signature のシリアライズ失敗: {}",
+                KR_LOG_ERROR("Root Signature のシリアライズ失敗: {}",
                               error ? static_cast<const char*>(error->GetBufferPointer()) : "");
                 return false;
             }
             if (FAILED(device->CreateRootSignature(0, serialized->GetBufferPointer(), serialized->GetBufferSize(),
                                                    IID_PPV_ARGS(&outRootSignature))))
             {
-                TFE_LOG_ERROR("Root Signature の作成失敗");
+                KR_LOG_ERROR("Root Signature の作成失敗");
                 return false;
             }
             return true;
@@ -92,7 +92,7 @@ namespace KR
 
         if (FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipeline->m_PipelineState))))
         {
-            TFE_LOG_ERROR("PSO の作成失敗(シェーダーの入力と頂点データの形式が合っているか確認)");
+            KR_LOG_ERROR("PSO の作成失敗(シェーダーの入力と頂点データの形式が合っているか確認)");
             return nullptr;
         }
 

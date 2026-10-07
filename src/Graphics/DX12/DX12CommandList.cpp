@@ -7,25 +7,25 @@ namespace KR
     {
         for (ComPtr<ID3D12CommandAllocator>& allocator : m_Allocators)
         {
-            TFE_DX_CHECK(device->CreateCommandAllocator(type, IID_PPV_ARGS(&allocator)));
+            KR_DX_CHECK(device->CreateCommandAllocator(type, IID_PPV_ARGS(&allocator)));
         }
 
-        TFE_DX_CHECK(device->CreateCommandList(0, type, m_Allocators[0].Get(), nullptr, IID_PPV_ARGS(&m_List)));
+        KR_DX_CHECK(device->CreateCommandList(0, type, m_Allocators[0].Get(), nullptr, IID_PPV_ARGS(&m_List)));
 
         // 作成直後は「記録中」の状態なので、いったん閉じて Begin() から使える状態にそろえる
-        TFE_DX_CHECK(m_List->Close());
+        KR_DX_CHECK(m_List->Close());
     }
 
     ID3D12GraphicsCommandList* DX12CommandList::Begin(uint32_t allocatorIndex)
     {
         ID3D12CommandAllocator* allocator = m_Allocators[allocatorIndex].Get();
-        TFE_DX_CHECK(allocator->Reset());
-        TFE_DX_CHECK(m_List->Reset(allocator, nullptr));
+        KR_DX_CHECK(allocator->Reset());
+        KR_DX_CHECK(m_List->Reset(allocator, nullptr));
         return m_List.Get();
     }
 
     void DX12CommandList::End()
     {
-        TFE_DX_CHECK(m_List->Close());
+        KR_DX_CHECK(m_List->Close());
     }
 }

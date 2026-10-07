@@ -117,10 +117,10 @@ target_include_directories(TenFiftyEight
 target_include_directories(TenFiftyEight SYSTEM PRIVATE ${stb_SOURCE_DIR})
 
 target_compile_definitions(TenFiftyEight
-    PUBLIC  $<$<CONFIG:Debug>:TFE_DEBUG>
+    PUBLIC  $<$<CONFIG:Debug>:KR_DEBUG>
     PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             # Debug ではホットリロードのため、編集中の元ファイルを直接読む
-            TFE_ASSETS_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets"
+            KR_ASSETS_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets"
 )
 
 # ImGui は PUBLIC でリンクする → Game も #include <imgui.h> で直接使える
@@ -143,13 +143,13 @@ set_target_properties(DirectX-Headers DirectX-Guids imgui PROPERTIES FOLDER Thir
 # 実行時に必要なファイル: DXC 本体(dxcompiler.dll)とシェーダー署名用(dxil.dll)は Windows SDK のものを使う
 set(PROGRAM_FILES_X86 "ProgramFiles(x86)")
 set(WINDOWS_SDK_BIN_DIR "$ENV{${PROGRAM_FILES_X86}}/Windows Kits/10/bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
-find_file(TFE_DXCOMPILER_DLL dxcompiler.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
-find_file(TFE_DXIL_DLL dxil.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
+find_file(KR_DXCOMPILER_DLL dxcompiler.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
+find_file(KR_DXIL_DLL dxil.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
 
 # exe のビルド後に、DLL・シェーダー・モデルを exe と同じフォルダーへコピーする(Game の CMakeLists.txt から呼ぶ)
 function(tfe_copy_runtime_files target)
     add_custom_command(TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TFE_DXCOMPILER_DLL} ${TFE_DXIL_DLL} $<TARGET_FILE_DIR:${target}>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${KR_DXCOMPILER_DLL} ${KR_DXIL_DLL} $<TARGET_FILE_DIR:${target}>
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Shaders $<TARGET_FILE_DIR:${target}>/Shaders
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Models $<TARGET_FILE_DIR:${target}>/Models
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Courses $<TARGET_FILE_DIR:${target}>/Courses

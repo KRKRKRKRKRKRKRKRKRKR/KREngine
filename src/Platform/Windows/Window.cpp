@@ -34,7 +34,7 @@ namespace KR
 
         if (!RegisterClassExW(&windowClass))
         {
-            TFE_LOG_FATAL("RegisterClassExW 失敗 (エラーコード {})", GetLastError());
+            KR_LOG_FATAL("RegisterClassExW 失敗 (エラーコード {})", GetLastError());
         }
 
         // 指定サイズは「描画される部分」のサイズなので、枠とタイトルバーの分を足した全体サイズを計算する
@@ -57,11 +57,11 @@ namespace KR
 
         if (!m_Handle)
         {
-            TFE_LOG_FATAL("CreateWindowExW 失敗 (エラーコード {})", GetLastError());
+            KR_LOG_FATAL("CreateWindowExW 失敗 (エラーコード {})", GetLastError());
         }
 
         ShowWindow(m_Handle, SW_SHOW);
-        TFE_LOG_INFO("ウィンドウ作成 {}x{} (DPI {})", m_Width, m_Height, GetDpiForWindow(m_Handle));
+        KR_LOG_INFO("ウィンドウ作成 {}x{} (DPI {})", m_Width, m_Height, GetDpiForWindow(m_Handle));
     }
 
     Window::~Window()
@@ -233,6 +233,6 @@ namespace KR
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
         }
 
-        TFE_LOG_INFO("表示モード: {}", m_Borderless ? "ボーダーレス" : "ウィンドウ");
+        KR_LOG_INFO("表示モード: {}", m_Borderless ? "ボーダーレス" : "ウィンドウ");
     }
 }

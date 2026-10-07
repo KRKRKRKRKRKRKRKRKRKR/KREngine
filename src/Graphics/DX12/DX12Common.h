@@ -26,13 +26,13 @@ namespace KR
 }
 
 // DX12 / DXGI の関数は HRESULT で成否を返す。失敗したら式と HRESULT を出して停止する
-#define TFE_DX_CHECK(expression)                                                        \
+#define KR_DX_CHECK(expression)                                                        \
     do                                                                                  \
     {                                                                                   \
         const HRESULT tfeHr = (expression);                                             \
         if (FAILED(tfeHr))                                                              \
         {                                                                               \
-            TFE_LOG_FATAL("{} 失敗 (HRESULT 0x{:08X})", #expression,                    \
+            KR_LOG_FATAL("{} 失敗 (HRESULT 0x{:08X})", #expression,                    \
                           static_cast<uint32_t>(tfeHr));                                \
         }                                                                               \
     } while (0)

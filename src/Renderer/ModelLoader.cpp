@@ -59,7 +59,7 @@ namespace KR
             std::ifstream file(mtlPath);
             if (!file.is_open())
             {
-                TFE_LOG_WARN("LoadObj: .mtl を開けません: {}", mtlPath.string());
+                KR_LOG_WARN("LoadObj: .mtl を開けません: {}", mtlPath.string());
                 return {};
             }
 
@@ -84,7 +84,7 @@ namespace KR
                     if (currentName.empty() || !(stream >> r >> g >> b))
                     {
                         // 名前がまだない、または数字が3つ読めない行は無視する
-                        TFE_LOG_WARN("LoadObj: {} の Kd の行を読めません: {}", mtlPath.string(), line);
+                        KR_LOG_WARN("LoadObj: {} の Kd の行を読めません: {}", mtlPath.string(), line);
                         continue;
                     }
                     materials[currentName].color = { r, g, b, 1.0f };
@@ -95,7 +95,7 @@ namespace KR
                     std::string fileName;
                     if (currentName.empty() || !(stream >> fileName))
                     {
-                        TFE_LOG_WARN("LoadObj: {} の map_Kd の行を読めません: {}", mtlPath.string(), line);
+                        KR_LOG_WARN("LoadObj: {} の map_Kd の行を読めません: {}", mtlPath.string(), line);
                         continue;
                     }
                     materials[currentName].diffuseMap = fileName;
@@ -188,7 +188,7 @@ namespace KR
         std::ifstream file(fullPath);
         if (!file.is_open())
         {
-            TFE_LOG_ERROR("LoadObj: ファイルを開けません: {}", fullPath.string());
+            KR_LOG_ERROR("LoadObj: ファイルを開けません: {}", fullPath.string());
             return {};
         }
 
@@ -218,7 +218,7 @@ namespace KR
                 if (!(stream >> x >> y >> z))
                 {
                     // 数字が3つ読めない行は不良品。棚に並べずに飛ばす
-                    TFE_LOG_WARN("LoadObj: {} の v の行を読めません: {}", relativePath.string(), line);
+                    KR_LOG_WARN("LoadObj: {} の v の行を読めません: {}", relativePath.string(), line);
                     continue;
                 }
 
@@ -231,7 +231,7 @@ namespace KR
                 float x, y, z;
                 if (!(stream >> x >> y >> z))
                 {
-                    TFE_LOG_WARN("LoadObj: {} の vn の行を読めません: {}", relativePath.string(), line);
+                    KR_LOG_WARN("LoadObj: {} の vn の行を読めません: {}", relativePath.string(), line);
                     continue;
                 }
 
@@ -245,7 +245,7 @@ namespace KR
                 float u, v;
                 if (!(stream >> u >> v))
                 {
-                    TFE_LOG_WARN("LoadObj: {} の vt の行を読めません: {}", relativePath.string(), line);
+                    KR_LOG_WARN("LoadObj: {} の vt の行を読めません: {}", relativePath.string(), line);
                     continue;
                 }
 
@@ -264,7 +264,7 @@ namespace KR
                     FaceElement element;
                     if (!ParseFaceElement(text, positions.size(), uvs.size(), normals.size(), element))
                     {
-                        TFE_LOG_WARN("LoadObj: {} の f の要素を読めません({}): {}", relativePath.string(), text, line);
+                        KR_LOG_WARN("LoadObj: {} の f の要素を読めません({}): {}", relativePath.string(), text, line);
                         valid = false;
                         break;
                     }
@@ -360,7 +360,7 @@ namespace KR
                             }
                             else if (mesh.diffuseTexturePath != texturePath)
                             {
-                                TFE_LOG_WARN("LoadObj: {} の材質 {} の画像({})は、使えません(今は、形ごとに 1 枚だけ)",
+                                KR_LOG_WARN("LoadObj: {} の材質 {} の画像({})は、使えません(今は、形ごとに 1 枚だけ)",
                                     relativePath.string(), name, material.diffuseMap);
                             }
                         }
@@ -379,18 +379,18 @@ namespace KR
                 }
                 else
                 {
-                    TFE_LOG_WARN("LoadObj: {} に未知の材質があります: {}", relativePath.string(), materialName);
+                    KR_LOG_WARN("LoadObj: {} に未知の材質があります: {}", relativePath.string(), materialName);
                     currentMaterial = 0;
                 }
             }
             // 上記以外(コメント・空行・vt・o・g など)は今は使わないので読み飛ばす
         }
 
-        TFE_LOG_INFO("LoadObj: {} 頂点 {} 三角形 {} 法線(ファイル {} / 計算 {}) UV {}", relativePath.string(),
+        KR_LOG_INFO("LoadObj: {} 頂点 {} 三角形 {} 法線(ファイル {} / 計算 {}) UV {}", relativePath.string(),
             mesh.vertices.size(), mesh.indices.size() / 3, normals.size() - computedNormalCount, computedNormalCount, uvs.size());
         if (!mesh.diffuseTexturePath.empty())
         {
-            TFE_LOG_INFO("LoadObj: {} の画像: {}", relativePath.string(), mesh.diffuseTexturePath.filename().string());
+            KR_LOG_INFO("LoadObj: {} の画像: {}", relativePath.string(), mesh.diffuseTexturePath.filename().string());
         }
 
         return mesh;

@@ -39,14 +39,14 @@ namespace KR
         swapChainDesc.Flags = GetSwapChainFlags();
 
         ComPtr<IDXGISwapChain1> swapChain1;
-        TFE_DX_CHECK(desc.factory->CreateSwapChainForHwnd(
+        KR_DX_CHECK(desc.factory->CreateSwapChainForHwnd(
             desc.queue, desc.window, &swapChainDesc, nullptr, nullptr, &swapChain1));
 
         // IDXGISwapChain3 にすると GetCurrentBackBufferIndex() が使える
-        TFE_DX_CHECK(swapChain1.As(&m_SwapChain));
+        KR_DX_CHECK(swapChain1.As(&m_SwapChain));
 
         // DXGI による Alt+Enter の自動フルスクリーン切り替えを止める
-        TFE_DX_CHECK(desc.factory->MakeWindowAssociation(desc.window, DXGI_MWA_NO_ALT_ENTER));
+        KR_DX_CHECK(desc.factory->MakeWindowAssociation(desc.window, DXGI_MWA_NO_ALT_ENTER));
 
         // RTV(Render Target View)を置くためのヒープ。バックバッファの枚数 × 2 の枠を確保する
         // (前半 = sRGB の見方、後半 = UNORM の見方。同じバックバッファを 2 通りの見方で描けるようにする)
@@ -54,14 +54,14 @@ namespace KR
         heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         heapDesc.NumDescriptors = BackBufferCount * 2;
         heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        TFE_DX_CHECK(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_RtvHeap)));
+        KR_DX_CHECK(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_RtvHeap)));
 
         // ヒープ内の1枠のサイズは GPU によって違うため、問い合わせる
         m_RtvDescriptorSize = m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
         CreateRenderTargetViews();
 
-        TFE_LOG_INFO("SwapChain 作成 {}x{} (ティアリング対応: {})", desc.width, desc.height, m_TearingSupported);
+        KR_LOG_INFO("SwapChain 作成 {}x{} (ティアリング対応: {})", desc.width, desc.height, m_TearingSupported);
     }
 
     void DX12SwapChain::CreateRenderTargetViews()
@@ -78,7 +78,7 @@ namespace KR
         const D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_RtvHeap->GetCPUDescriptorHandleForHeapStart();
         for (uint32_t i = 0; i < BackBufferCount; ++i)
         {
-            TFE_DX_CHECK(m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&m_BackBuffers[i])));
+            KR_DX_CHECK(m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&m_BackBuffers[i])));
 
             // 枠 0 〜 (枚数-1) が sRGB、枚数 〜 (枚数×2-1) が UNORM
             const CD3DX12_CPU_DESCRIPTOR_HANDLE srgbHandle(heapStart, static_cast<INT>(i), m_RtvDescriptorSize);
@@ -109,12 +109,12 @@ namespace KR
             backBuffer.Reset();
         }
 
-        TFE_DX_CHECK(m_SwapChain->ResizeBuffers(BackBufferCount, width, height, BackBufferFormat, GetSwapChainFlags()));
+        KR_DX_CHECK(m_SwapChain->ResizeBuffers(BackBufferCount, width, height, BackBufferFormat, GetSwapChainFlags()));
 
         // 新しいバックバッファに対して RTV を作り直す(ヒープの枠は使い回す)
         CreateRenderTargetViews();
 
-        TFE_LOG_TRACE("SwapChain リサイズ {}x{}", width, height);
+        KR_LOG_TRACE("SwapChain リサイズ {}x{}", width, height);
     }
 
     void DX12SwapChain::Present(bool vsync)
@@ -122,7 +122,7 @@ namespace KR
         // syncInterval 1 = 次の垂直同期まで待つ / 0 = すぐ表示する
         const UINT syncInterval = vsync ? 1 : 0;
         const UINT flags = (!vsync && m_TearingSupported) ? DXGI_PRESENT_ALLOW_TEARING : 0;
-        TFE_DX_CHECK(m_SwapChain->Present(syncInterval, flags));
+        KR_DX_CHECK(m_SwapChain->Present(syncInterval, flags));
     }
 
     ID3D12Resource* DX12SwapChain::GetCurrentBackBuffer() const
