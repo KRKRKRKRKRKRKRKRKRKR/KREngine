@@ -1,5 +1,11 @@
 include(FetchContent)
 
+# ゲームのアセット(モデル・コース・設定など)の場所。ゲームの CMakeLists.txt が、エンジンを取り込む前に、決める(set(KR_GAME_ASSETS_DIR ...))
+# 決めてなければ、最上位の Assets/ とする(サンプルのように、ゲームのアセットが、無いときは、あってもなくても、よい)
+if(NOT DEFINED KR_GAME_ASSETS_DIR)
+    set(KR_GAME_ASSETS_DIR "${CMAKE_SOURCE_DIR}/Assets")
+endif()
+
 # d3dx12.h などの DX12 ヘッダー(Git 不要の zip ダウンロード。ハッシュで改ざんを検出する)
 FetchContent_Declare(DirectX-Headers
     URL      https://github.com/microsoft/DirectX-Headers/archive/refs/tags/v1.618.2.zip
@@ -98,10 +104,10 @@ set(ENGINE_FILES
 
 # シェーダーは実行時にコンパイルする。VS が勝手に FXC でコンパイルしないよう、ビルド対象から外す
 set(SHADER_FILES
-    ${CMAKE_SOURCE_DIR}/Assets/Shaders/Basic.hlsl
-    ${CMAKE_SOURCE_DIR}/Assets/Shaders/Common.hlsli
-    ${CMAKE_SOURCE_DIR}/Assets/Shaders/Sky.hlsl
-    ${CMAKE_SOURCE_DIR}/Assets/Shaders/Line.hlsl
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/Basic.hlsl
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/Common.hlsli
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/Sky.hlsl
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/Line.hlsl
 )
 set_source_files_properties(${SHADER_FILES} PROPERTIES VS_TOOL_OVERRIDE "None")
 
@@ -120,7 +126,9 @@ target_compile_definitions(KREngine
     PUBLIC  $<$<CONFIG:Debug>:KR_DEBUG>
     PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             # Debug ではホットリロードのため、編集中の元ファイルを直接読む
-            KR_ASSETS_SOURCE_DIR="${CMAKE_SOURCE_DIR}/Assets"
+            KR_ASSETS_SOURCE_DIR="${KR_GAME_ASSETS_DIR}"
+            # シェーダーは、エンジンの物(エンジンの shaders/)。Debug では、その元ファイルを、直接読む(F10 で再読み込みできる)
+            KR_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
 )
 
 # ImGui は PUBLIC でリンクする → Game も #include <imgui.h> で直接使える
@@ -146,14 +154,28 @@ set(WINDOWS_SDK_BIN_DIR "$ENV{${PROGRAM_FILES_X86}}/Windows Kits/10/bin/${CMAKE_
 find_file(KR_DXCOMPILER_DLL dxcompiler.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
 find_file(KR_DXIL_DLL dxil.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
 
-# exe のビルド後に、DLL・シェーダー・モデルを exe と同じフォルダーへコピーする(Game の CMakeLists.txt から呼ぶ)
+# exe のビルド後に、DLL・シェーダー・ゲームのアセットを、exe と同じフォルダーへコピーする(ゲームの CMakeLists.txt から呼ぶ)
+#   DLL: dxcompiler.dll / dxil.dll(Windows SDK の物)
+#   Shaders: エンジンの shaders/(エンジンの物)
+#   ゲームのアセット: KR_GAME_ASSETS_DIR の下の、全部のフォルダー(Models・Courses・Settings など。configure のときの、一覧)。無ければ、何もしない
 function(kr_copy_runtime_files target)
+    set(shader_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/shaders")
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${KR_DXCOMPILER_DLL} ${KR_DXIL_DLL} $<TARGET_FILE_DIR:${target}>
-        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Shaders $<TARGET_FILE_DIR:${target}>/Shaders
-        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Models $<TARGET_FILE_DIR:${target}>/Models
-        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Courses $<TARGET_FILE_DIR:${target}>/Courses
-        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Settings $<TARGET_FILE_DIR:${target}>/Settings
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${shader_dir} $<TARGET_FILE_DIR:${target}>/Shaders
         VERBATIM
     )
+
+    if(EXISTS "${KR_GAME_ASSETS_DIR}")
+        file(GLOB asset_entries LIST_DIRECTORIES true "${KR_GAME_ASSETS_DIR}/*")
+        foreach(entry IN LISTS asset_entries)
+            if(IS_DIRECTORY "${entry}")
+                get_filename_component(folder_name "${entry}" NAME)
+                add_custom_command(TARGET ${target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${entry}" "$<TARGET_FILE_DIR:${target}>/${folder_name}"
+                    VERBATIM
+                )
+            endif()
+        endforeach()
+    endif()
 endfunction()

@@ -71,10 +71,10 @@ namespace KR
             { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
 
-        // Debug: 編集中の元ファイル(ホットリロード用) / Release: exe の横にコピーされたもの(場所の決まりは GetAssetDirectory にある)
+        // Debug: エンジンの shaders/ の元ファイル(ホットリロード用) / Release: exe の横にコピーされたもの(場所の決まりは GetEngineShaderDirectory にある)
         std::filesystem::path GetShaderDirectory()
         {
-            return GetAssetDirectory("Shaders");
+            return GetEngineShaderDirectory(); // シェーダーは、エンジンの物(ゲームのアセットではない)
         }
     }
 
