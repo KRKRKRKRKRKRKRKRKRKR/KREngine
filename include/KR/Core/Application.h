@@ -12,7 +12,7 @@ namespace KR
 
     struct ApplicationDesc
     {
-        std::string title = "TenFiftyEight";
+        std::string title = "KR Engine";
         uint32_t width = 1280;
         uint32_t height = 720;
     };

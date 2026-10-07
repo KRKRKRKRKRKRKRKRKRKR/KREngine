@@ -105,18 +105,18 @@ set(SHADER_FILES
 )
 set_source_files_properties(${SHADER_FILES} PROPERTIES VS_TOOL_OVERRIDE "None")
 
-add_library(TenFiftyEight STATIC ${ENGINE_FILES} ${SHADER_FILES})
+add_library(KREngine STATIC ${ENGINE_FILES} ${SHADER_FILES})
 
 # PUBLIC = Game からも見える / PRIVATE = Engine 内部だけ
-target_include_directories(TenFiftyEight
+target_include_directories(KREngine
     PUBLIC  include
     PRIVATE src
 )
 
 # stb_image は、Engine の中だけで使う(PRIVATE)。SYSTEM = 他人のコードの警告は出さない
-target_include_directories(TenFiftyEight SYSTEM PRIVATE ${stb_SOURCE_DIR})
+target_include_directories(KREngine SYSTEM PRIVATE ${stb_SOURCE_DIR})
 
-target_compile_definitions(TenFiftyEight
+target_compile_definitions(KREngine
     PUBLIC  $<$<CONFIG:Debug>:KR_DEBUG>
     PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             # Debug ではホットリロードのため、編集中の元ファイルを直接読む
@@ -124,10 +124,10 @@ target_compile_definitions(TenFiftyEight
 )
 
 # ImGui は PUBLIC でリンクする → Game も #include <imgui.h> で直接使える
-target_link_libraries(TenFiftyEight PUBLIC imgui)
+target_link_libraries(KREngine PUBLIC imgui)
 
 # DX12 は PRIVATE でリンクする → Game からは DX12 のヘッダーが見えない
-target_link_libraries(TenFiftyEight PRIVATE
+target_link_libraries(KREngine PRIVATE
     Microsoft::DirectX-Headers
     Microsoft::DirectX-Guids
     d3d12
@@ -147,7 +147,7 @@ find_file(KR_DXCOMPILER_DLL dxcompiler.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAU
 find_file(KR_DXIL_DLL dxil.dll PATHS ${WINDOWS_SDK_BIN_DIR} NO_DEFAULT_PATH REQUIRED)
 
 # exe のビルド後に、DLL・シェーダー・モデルを exe と同じフォルダーへコピーする(Game の CMakeLists.txt から呼ぶ)
-function(tfe_copy_runtime_files target)
+function(kr_copy_runtime_files target)
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${KR_DXCOMPILER_DLL} ${KR_DXIL_DLL} $<TARGET_FILE_DIR:${target}>
         COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Assets/Shaders $<TARGET_FILE_DIR:${target}>/Shaders

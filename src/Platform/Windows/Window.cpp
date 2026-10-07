@@ -6,7 +6,7 @@ namespace KR
 {
     namespace
     {
-        constexpr const wchar_t* WindowClassName = L"TenFiftyEightWindow";
+        constexpr const wchar_t* WindowClassName = L"KRWindow";
 
         std::wstring ToWide(const std::string& utf8)
         {
