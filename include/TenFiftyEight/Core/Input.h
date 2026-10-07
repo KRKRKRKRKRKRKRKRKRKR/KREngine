@@ -8,6 +8,7 @@ namespace TenFiftyEight
         W, A, S, D,
         Left, Right, Up, Down,
         R, Enter, // ゲームオーバーのあと、やり直す
+        Space,    // ブースト(貯めたゲージを使って、加速する)
         F3, // デバッグ用の画面(ImGui)の表示切り替え
     };
 
