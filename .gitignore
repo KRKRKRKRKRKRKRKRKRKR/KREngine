@@ -1,0 +1,10 @@
+# CMake の出力(エンジン単体でビルドしたとき)
+build/
+
+# エディタ・IDE の設定
+.vs/
+.vscode/
+*.user
+
+# ImGui が作る、窓の位置などの保存ファイル
+imgui.ini

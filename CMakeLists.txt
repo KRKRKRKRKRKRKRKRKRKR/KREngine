@@ -1,3 +1,21 @@
+cmake_minimum_required(VERSION 3.28)
+project(KREngine LANGUAGES CXX)
+
+# このフォルダーが、最上位(エンジン単体でビルドしている)か、ゲームの一部(ゲームが、add_subdirectory している)か
+# 単体のときは、C++ の規格・Visual Studio のフォルダー表示・サンプルを、ここで決める(ゲームの一部のときは、ゲーム側が決める)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(KR_IS_TOP_LEVEL ON)
+    set(CMAKE_CXX_STANDARD 23)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+    set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+else()
+    set(KR_IS_TOP_LEVEL OFF)
+endif()
+
+# サンプル(samples/)をビルドするか。単体のときは ON(エンジンの動作確認・新しいゲームの雛形)。ゲームの一部のときは OFF
+option(KR_BUILD_SAMPLES "KR エンジンのサンプルをビルドする" ${KR_IS_TOP_LEVEL})
+
 include(FetchContent)
 
 # ゲームのアセット(モデル・コース・設定など)の場所。ゲームの CMakeLists.txt が、エンジンを取り込む前に、決める(set(KR_GAME_ASSETS_DIR ...))
@@ -134,6 +152,11 @@ target_compile_definitions(KREngine
 # ImGui は PUBLIC でリンクする → Game も #include <imgui.h> で直接使える
 target_link_libraries(KREngine PUBLIC imgui)
 
+# C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
+target_compile_features(KREngine PUBLIC cxx_std_23)
+target_compile_options(KREngine PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+target_compile_options(KREngine PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive- /MP>)
+
 # DX12 は PRIVATE でリンクする → Game からは DX12 のヘッダーが見えない
 target_link_libraries(KREngine PRIVATE
     Microsoft::DirectX-Headers
@@ -179,3 +202,8 @@ function(kr_copy_runtime_files target)
         endforeach()
     endif()
 endfunction()
+
+# サンプル(エンジンの使い方の見本・動作確認)。KR_BUILD_SAMPLES が ON のときだけ(samples/ は、E-3 で足す)
+if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
+    add_subdirectory(samples/Minimal)
+endif()
