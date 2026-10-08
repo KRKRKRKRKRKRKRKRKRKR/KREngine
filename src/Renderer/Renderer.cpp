@@ -17,6 +17,8 @@
 
 #include <DirectXMath.h>
 
+#include <cmath>
+
 #include <filesystem>
 
 using namespace DirectX;
@@ -640,6 +642,31 @@ namespace KR
         for (const auto& edge : Edges)
         {
             DrawLine(corners[edge[0]], corners[edge[1]], color);
+        }
+    }
+
+    void Renderer::DrawWireSphere(const Sphere& sphere, const XMFLOAT4& color)
+    {
+        // 3 つの面(XY・YZ・XZ)で、それぞれ円を、Segments 本の線で近似する。円の点 = 中心 + 半径 × (cos, sin) を、面の 2 軸に割り当てる
+        constexpr int Segments = 24;
+        constexpr float Step = 2.0f * 3.14159265358979f / Segments;
+        for (int plane = 0; plane < 3; ++plane)
+        {
+            XMFLOAT3 previous = {};
+            for (int i = 0; i <= Segments; ++i)
+            {
+                const float c = sphere.radius * std::cos(Step * i);
+                const float s = sphere.radius * std::sin(Step * i);
+                XMFLOAT3 point = sphere.center;
+                if (plane == 0)      { point.x += c; point.y += s; } // XY の面
+                else if (plane == 1) { point.y += c; point.z += s; } // YZ の面
+                else                 { point.x += c; point.z += s; } // XZ の面
+                if (i > 0)
+                {
+                    DrawLine(previous, point, color);
+                }
+                previous = point;
+            }
         }
     }
 

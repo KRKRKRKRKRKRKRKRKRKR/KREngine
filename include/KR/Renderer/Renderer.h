@@ -91,6 +91,9 @@ namespace KR
         // OBB の 12 本の辺を、線で積む(当たり判定の箱の確認用)
         void DrawWireBox(const OBB& box, const DirectX::XMFLOAT4& color);
 
+        // 球を、3 つの円(XY・YZ・XZ の面)の線で積む(当たり判定の球の確認用。72 本)
+        void DrawWireSphere(const Sphere& sphere, const DirectX::XMFLOAT4& color);
+
     private:
         // フレームの開始・終了は Application だけが呼ぶ(Game からは呼べない)
         friend class Application;

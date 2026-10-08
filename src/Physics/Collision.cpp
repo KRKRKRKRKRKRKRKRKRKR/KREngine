@@ -1,5 +1,6 @@
 #include "KR/Physics/Collision.h"
 
+#include <algorithm>
 #include <cmath>
 
 using namespace DirectX;
@@ -88,6 +89,40 @@ namespace KR
 
         // 15 本の、どの軸でも、影が重なっていた → 当たっている
         return true;
+    }
+
+    bool Intersects(const Sphere& a, const Sphere& b)
+    {
+        // 距離を 2 乗のまま比べる(平方根を避ける)。半径の和も 2 乗にする
+        const XMVECTOR offset = XMVectorSubtract(XMLoadFloat3(&b.center), XMLoadFloat3(&a.center));
+        const float distanceSq = XMVectorGetX(XMVector3LengthSq(offset));
+        const float radiusSum = a.radius + b.radius;
+        return distanceSq <= radiusSum * radiusSum;
+    }
+
+    bool Intersects(const Sphere& sphere, const OBB& box)
+    {
+        // 球の中心を、箱の軸ごとに測り(箱の中心からの距離)、箱の範囲(± 半分の大きさ)に収める → 箱の上で、一番近い点
+        const XMVECTOR offset = XMVectorSubtract(XMLoadFloat3(&sphere.center), XMLoadFloat3(&box.center));
+        const float half[3] = { box.halfSize.x, box.halfSize.y, box.halfSize.z };
+
+        XMVECTOR closest = XMLoadFloat3(&box.center);
+        for (int i = 0; i < 3; ++i)
+        {
+            const XMVECTOR axis = XMLoadFloat3(&box.axes[i]);
+            const float distanceAlongAxis = XMVectorGetX(XMVector3Dot(offset, axis));
+            const float clamped = std::clamp(distanceAlongAxis, -half[i], half[i]);
+            closest = XMVectorAdd(closest, XMVectorScale(axis, clamped));
+        }
+
+        // 一番近い点までの距離(2 乗)と、半径(2 乗)を比べる。球の中心が箱の中なら、距離は 0 で、当たり
+        const float distanceSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat3(&sphere.center), closest)));
+        return distanceSq <= sphere.radius * sphere.radius;
+    }
+
+    bool Intersects(const OBB& box, const Sphere& sphere)
+    {
+        return Intersects(sphere, box);
     }
 
     std::array<XMFLOAT3, 8> GetCorners(const OBB& box)
