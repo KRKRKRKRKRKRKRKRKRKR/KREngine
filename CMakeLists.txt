@@ -23,7 +23,7 @@ include(FetchContent)
 if(NOT DEFINED KR_GAME_ASSETS_DIR)
     if(KR_IS_TOP_LEVEL)
         # エンジン単体のときは、サンプルのアセット(テスト用のモデルなど)
-        set(KR_GAME_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/Assets")
+        set(KR_GAME_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/samples/Assets")
     else()
         set(KR_GAME_ASSETS_DIR "${CMAKE_SOURCE_DIR}/Assets")
     endif()
@@ -95,6 +95,7 @@ set(ENGINE_FILES
     include/KR/Animation/Skeleton.h
     include/KR/Animation/AnimationClip.h
     include/KR/Animation/GltfLoader.h
+    include/KR/Animation/SkeletonDebug.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -112,6 +113,7 @@ set(ENGINE_FILES
     src/Renderer/Image.cpp
     src/Physics/Collision.cpp
     src/Animation/GltfLoader.cpp
+    src/Animation/SkeletonDebug.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
@@ -223,4 +225,10 @@ endfunction()
 # サンプル(エンジンの使い方の見本・動作確認)。KR_BUILD_SAMPLES が ON のときだけ(samples/ は、E-3 で足す)
 if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
     add_subdirectory(samples/Minimal)
+    add_subdirectory(samples/Skeleton)
+
+    # Visual Studio で、F5 で実行する物(指定しないと、実行できない ALL_BUILD になる)。エンジン単体のときだけ
+    if(KR_IS_TOP_LEVEL)
+        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT KRSkeleton)
+    endif()
 endif()
