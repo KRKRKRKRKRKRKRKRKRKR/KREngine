@@ -91,9 +91,29 @@ protected:
         check("回した箱 角の先(当たり)", KR::Intersects(KR::Sphere{ { 1.7f, 0.0f, 0.0f }, 0.5f }, rotated), true);
         check("軸にそろえた箱 同じ点は外れ", KR::Intersects(KR::Sphere{ { 1.7f, 0.0f, 0.0f }, 0.5f }, box), false);
 
+        // 画面の点 → レイ:カメラは (0, 0, -10) から、原点を見る(視野 60°・画面 1600 × 900)
+        {
+            KR::Camera camera;
+            camera.SetPosition({ 0.0f, 0.0f, -10.0f });
+            camera.LookAt({ 0.0f, 0.0f, 0.0f });
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-3f; };
+
+            const KR::Ray center = camera.ScreenPointToRay(800.0f, 450.0f, 1600.0f, 900.0f);
+            check("レイ 画面の中心 → 正面", nearEnough(center.direction.x, 0.0f) && nearEnough(center.direction.y, 0.0f) && nearEnough(center.direction.z, 1.0f), true);
+            check("レイ 始点は、カメラの前(near の面)", nearEnough(center.origin.z, -9.9f), true);
+
+            // 縦の視野の半分の角度 30° の tan = 0.57735・横は、画面の縦横比 16:9 を掛ける
+            const KR::Ray right = camera.ScreenPointToRay(1600.0f, 450.0f, 1600.0f, 900.0f);
+            check("レイ 右端 → 右へ傾く(視野の端)", nearEnough(right.direction.x / right.direction.z, 0.57735f * 16.0f / 9.0f), true);
+            const KR::Ray left = camera.ScreenPointToRay(0.0f, 450.0f, 1600.0f, 900.0f);
+            check("レイ 左端 → 左へ傾く", nearEnough(left.direction.x / left.direction.z, -0.57735f * 16.0f / 9.0f), true);
+            const KR::Ray top = camera.ScreenPointToRay(800.0f, 0.0f, 1600.0f, 900.0f);
+            check("レイ 上端 → 上へ傾く(画面の y は、下向きに増える)", nearEnough(top.direction.y / top.direction.z, 0.57735f), true);
+        }
+
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ)");
         }
     }
 
