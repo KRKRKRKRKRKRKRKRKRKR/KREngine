@@ -1,0 +1,5 @@
+# 改行コード: リポジトリの中も、作業フォルダーも LF にそろえる(Claude などのツールが書くファイルも LF のため。コミットのたびの、改行の警告が出なくなる)
+* text=auto eol=lf
+*.png binary
+*.glb binary
+*.blend binary
