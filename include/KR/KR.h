@@ -17,3 +17,5 @@
 #include "KR/Animation/AnimationPose.h"
 #include "KR/Animation/SkinMatrices.h"
 #include "KR/Animation/Hitbox.h"
+#include "KR/Animation/HitboxFile.h"
+#include "KR/Animation/AnimatedModel.h"

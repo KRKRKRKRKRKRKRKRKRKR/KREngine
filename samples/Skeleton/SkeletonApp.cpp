@@ -1,5 +1,10 @@
-// KR エンジンのサンプル:glTF を読んで、骨を線で描く(基準姿勢)
-// 座標変換(右手系→左手系)や、骨の位置が、モデルに合っているかを、目で確かめるためのもの
+// KR エンジンのサンプル:動くモデル(AnimatedModel)の使い方
+// glTF を読んで、骨・動き・判定の形を使う。ゲームが AnimatedModel を使うときの、見本にもなる(部品を直接呼ばない)
+//
+//   OnInit    : Load(読み込み)
+//   OnUpdate  : Update(時刻を進めて、姿勢を求める)
+//   OnRender  : Draw(描く)・GetWorldHitboxes(判定の形)
+//   OnShutdown: Unload
 
 #include <KR/KR.h>
 
@@ -7,8 +12,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <numbers>
+#include <string>
 #include <vector>
 
 using namespace DirectX;
@@ -58,58 +65,55 @@ protected:
         }
     }
 
+    // 判定の形の、保存 → 読み込みの往復の確認:同じ値に戻るか(一時フォルダーに書いて、消す。絶対パスは、そのまま使われる)
+    static void RunHitboxFileSelfTest(const KR::AnimatedModel& model)
+    {
+        const std::filesystem::path file = std::filesystem::temp_directory_path() / "kr_hitbox_roundtrip.hitboxes.json";
+        std::vector<KR::Hitbox> loaded;
+        const bool saved = KR::SaveHitboxes(file, model.GetHitboxes(), model.GetSkeleton());
+        const KR::HitboxLoadResult result = KR::LoadHitboxes(file, model.GetSkeleton(), loaded);
+
+        bool same = saved && result == KR::HitboxLoadResult::Loaded && loaded.size() == model.GetHitboxes().size();
+        for (size_t i = 0; same && i < loaded.size(); ++i)
+        {
+            const KR::Hitbox& a = model.GetHitboxes()[i];
+            const KR::Hitbox& b = loaded[i];
+            same = a.name == b.name && a.jointIndex == b.jointIndex && a.shape == b.shape
+                && a.center.x == b.center.x && a.center.y == b.center.y && a.center.z == b.center.z
+                && a.halfSize.x == b.halfSize.x && a.halfSize.y == b.halfSize.y && a.halfSize.z == b.halfSize.z
+                && a.radius == b.radius;
+        }
+        std::error_code ignored;
+        std::filesystem::remove(file, ignored);
+
+        if (same)
+        {
+            KR_LOG_INFO("  判定の形の保存の確認: OK(保存 → 読み込みで、同じ値)");
+        }
+        else
+        {
+            KR_LOG_ERROR("  判定の形の保存の確認 NG(保存 → 読み込みで、値が変わった)");
+        }
+    }
+
     void OnInit() override
     {
         RunCollisionSelfTest();
 
-        m_Model = KR::LoadGltf("Test/BossObstacle/BossObstacle.glb");
-        if (m_Model.IsEmpty())
+        if (!m_Model.Load(GetRenderer(), "Test/BossObstacle/BossObstacle.glb"))
         {
-            return; // 失敗は、LoadGltf がログに出している
+            return; // 失敗は、Load がログに出している
         }
+        RunHitboxFileSelfTest(m_Model);
 
-        m_Mesh = GetRenderer().CreateMesh(m_Model.mesh);
         m_BoneRenderer.Create(GetRenderer());
-        m_JointWorld = KR::GetBindPoseWorldMatrices(m_Model.skeleton);
 
-        for (size_t i = 0; i < m_Model.skeleton.joints.size(); ++i)
-        {
-            KR_LOG_INFO("  骨 {}: {}(親 {})", i, m_Model.skeleton.joints[i].name, m_Model.skeleton.joints[i].parent);
-        }
-        for (const KR::AnimationClip& clip : m_Model.clips)
-        {
-            KR_LOG_INFO("  動き {}: {:.3f} 秒 / 動く骨 {} 本", clip.name, clip.duration, clip.tracks.size());
-        }
-
-        // 確認:動き無し(基準姿勢)で求めた骨の位置が、逆バインド行列から求めた位置と、合っているか(合っていれば、差は 0 に近い)
-        const std::vector<XMFLOAT4X4> bindFromLocal = KR::EvaluatePose(m_Model.skeleton, nullptr, 0.0f);
-        float maxDifference = 0.0f;
-        for (size_t i = 0; i < bindFromLocal.size(); ++i)
-        {
-            for (int row = 0; row < 4; ++row)
-            {
-                for (int column = 0; column < 4; ++column)
-                {
-                    maxDifference = std::max(maxDifference, std::fabs(bindFromLocal[i].m[row][column] - m_JointWorld[i].m[row][column]));
-                }
-            }
-        }
-        KR_LOG_INFO("  基準姿勢の一致(親子の掛け算 と 逆バインド行列の逆): 差の最大 {:.5f}", maxDifference);
-
-        // 形の大きさに合わせて、カメラを置く:形を囲む箱を求めて、その中心を原点に動かし、半径の 3 倍だけ離れて見る
-        XMFLOAT3 minimum = m_Model.mesh.vertices[0].position;
-        XMFLOAT3 maximum = minimum;
-        for (const KR::Vertex& vertex : m_Model.mesh.vertices)
-        {
-            minimum = { std::min(minimum.x, vertex.position.x), std::min(minimum.y, vertex.position.y), std::min(minimum.z, vertex.position.z) };
-            maximum = { std::max(maximum.x, vertex.position.x), std::max(maximum.y, vertex.position.y), std::max(maximum.z, vertex.position.z) };
-        }
-        m_Center = { (minimum.x + maximum.x) * 0.5f, (minimum.y + maximum.y) * 0.5f, (minimum.z + maximum.z) * 0.5f };
-        const float radius = 0.5f * XMVectorGetX(XMVector3Length(XMVectorSet(maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z, 0.0f)));
+        // カメラ:モデルの中心を原点に動かして(OnRender の world)、大きさの 3 倍だけ離れて見る
+        const KR::AnimatedModel::Bounds& bounds = m_Model.GetBounds();
+        m_Center = bounds.Center();
+        const float radius = bounds.Radius();
         KR_LOG_INFO("  大きさ: 中心 ({:.2f}, {:.2f}, {:.2f}) / 半径 {:.2f} m", m_Center.x, m_Center.y, m_Center.z, radius);
 
-        // 判定の形:骨ごとの、とりあえずの形(骨の長さに合わせた箱・先端は球)。太さは、モデルの大きさの 12%
-        m_Hitboxes = KR::GenerateDefaultHitboxes(m_Model.skeleton, radius * 0.12f);
         m_ModelRadius = radius;
         m_TestBox.halfSize = { radius * 0.15f, radius * 0.15f, radius * 0.15f };
         m_TestCenter = { radius * 0.8f, 0.0f, 0.0f }; // 最初は、モデルの横に置く(スライダーで、動かして、骨の形に、ぶつける)
@@ -126,26 +130,12 @@ protected:
         {
             m_Angle = std::fmod(m_Angle + deltaTime * 0.5f, 2.0f * std::numbers::pi_v<float>);
         }
-
-        // 動きの時刻を進める(長さをこえたら、最初に戻る = ループ)
-        if (m_Playing && !m_Model.clips.empty())
-        {
-            const float duration = m_Model.clips[m_ClipIndex].duration;
-            m_Time += deltaTime * m_Speed;
-            if (duration > 0.0f)
-            {
-                m_Time = std::fmod(m_Time, duration);
-                if (m_Time < 0.0f)
-                {
-                    m_Time += duration;
-                }
-            }
-        }
+        m_Model.Update(deltaTime); // 時刻を進めて、姿勢を求める
     }
 
     void OnRender() override
     {
-        if (m_Model.IsEmpty())
+        if (!m_Model.IsLoaded())
         {
             return;
         }
@@ -153,29 +143,16 @@ protected:
         // 形の中心を原点に動かしてから、Y 軸で回す
         const XMMATRIX world = XMMatrixTranslation(-m_Center.x, -m_Center.y, -m_Center.z) * XMMatrixRotationY(m_Angle);
 
-        // 今の時刻の姿勢(動きが無いモデル・「Bind pose」のときは、基準姿勢)
-        const bool useClip = !m_BindPose && !m_Model.clips.empty();
-        const KR::AnimationClip* clip = useClip ? &m_Model.clips[m_ClipIndex] : nullptr;
-        const std::vector<XMFLOAT4X4> pose = KR::EvaluatePose(m_Model.skeleton, clip, m_Time);
-
         if (m_ShowMesh)
         {
-            if (m_Model.mesh.skin.empty())
-            {
-                GetRenderer().DrawMesh(m_Mesh, world); // 骨なしの形
-            }
-            else
-            {
-                // 骨つきの形:骨の行列の表(逆バインド × 今の姿勢)を渡すと、GPU が、頂点を骨に合わせて動かす
-                GetRenderer().DrawSkinnedMesh(m_Mesh, world, KR::ComputeSkinMatrices(m_Model.skeleton, pose));
-            }
+            m_Model.Draw(GetRenderer(), world);
         }
         if (m_ShowBones)
         {
             KR::BoneRenderer::Style style;
             style.selectedJoint = m_SelectedBone; // 選んだ骨は、色が変わる
             style.inFront = m_BonesInFront;
-            m_BoneRenderer.Draw(GetRenderer(), m_Model.skeleton, pose, world, style);
+            m_BoneRenderer.Draw(GetRenderer(), m_Model.GetSkeleton(), m_Model.GetPose(), world, style);
         }
 
         if (m_ShowHitboxes)
@@ -187,8 +164,8 @@ protected:
             testShape.shape = KR::HitShape::Box;
             testShape.box = m_TestBox;
 
-            // 判定の形を、骨の今の姿勢で、世界の座標にして、描く。テストの箱に触れた形は赤・触れていなければ緑
-            const std::vector<KR::WorldHitbox> shapes = KR::EvaluateHitboxes(m_Hitboxes, pose, world);
+            // 判定の形を、今の姿勢で、世界の座標にして、描く
+            const std::vector<KR::WorldHitbox> shapes = m_Model.GetWorldHitboxes(world);
             m_HitIndices.clear();
             for (size_t i = 0; i < shapes.size(); ++i)
             {
@@ -217,20 +194,27 @@ protected:
     {
         ImGui::Begin("Skeleton");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-        ImGui::Text("Joints: %zu / Clips: %zu", m_Model.skeleton.joints.size(), m_Model.clips.size());
+        if (!m_Model.IsLoaded())
+        {
+            ImGui::Text("Model not loaded (see log)");
+            ImGui::End();
+            return;
+        }
+
+        ImGui::Text("Joints: %zu / Clips: %zu", m_Model.GetSkeleton().joints.size(), m_Model.GetClipCount());
         ImGui::Checkbox("Bones", &m_ShowBones);
         ImGui::Checkbox("Bones in front", &m_BonesInFront); // 骨を、メッシュの手前に描く(メッシュの中の骨も見える)
         ImGui::Checkbox("Mesh", &m_ShowMesh);
         ImGui::Checkbox("Rotate", &m_Rotate);
-        ImGui::Checkbox("Bind pose", &m_BindPose); // チェック:動きを使わず、基準姿勢(形が、骨なしの形と同じに見えるはず)
 
         // 選んだ骨:色が変わる(橙)。その骨の判定の形も、連動して選ばれる(黄色)
-        const int lastJoint = static_cast<int>(m_Model.skeleton.joints.size()) - 1;
+        const int lastJoint = static_cast<int>(m_Model.GetSkeleton().joints.size()) - 1;
         if (ImGui::SliderInt("Bone", &m_SelectedBone, 0, std::max(lastJoint, 0)))
         {
-            for (size_t i = 0; i < m_Hitboxes.size(); ++i)
+            const std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
+            for (size_t i = 0; i < hitboxes.size(); ++i)
             {
-                if (m_Hitboxes[i].jointIndex == m_SelectedBone)
+                if (hitboxes[i].jointIndex == m_SelectedBone)
                 {
                     m_SelectedHitbox = i;
                     break;
@@ -238,14 +222,47 @@ protected:
             }
         }
 
-        if (!m_Model.clips.empty())
+        // 動き(AnimatedModel の再生)
+        ImGui::Separator();
+        if (m_Model.GetClipCount() > 0)
         {
-            const KR::AnimationClip& clip = m_Model.clips[m_ClipIndex];
-            ImGui::Separator();
-            ImGui::Text("Clip: %s (%.3f s)", clip.name.c_str(), clip.duration);
-            ImGui::Checkbox("Play", &m_Playing);
-            ImGui::SliderFloat("Speed", &m_Speed, 0.0f, 3.0f);
-            ImGui::SliderFloat("Time", &m_Time, 0.0f, clip.duration); // 止めているときに、時刻を動かして、姿勢を確かめる
+            int clip = std::max(m_Model.GetCurrentClip(), 0);
+            if (ImGui::SliderInt("Clip", &clip, 0, static_cast<int>(m_Model.GetClipCount()) - 1))
+            {
+                m_Model.Play(static_cast<size_t>(clip), m_Model.IsLooping());
+            }
+            ImGui::Text("%s (%.3f s)", m_Model.GetClipName(static_cast<size_t>(clip)).c_str(), m_Model.GetDuration());
+
+            bool paused = m_Model.IsPaused();
+            if (ImGui::Checkbox("Pause", &paused))
+            {
+                m_Model.Pause(paused);
+            }
+            bool loop = m_Model.IsLooping();
+            if (ImGui::Checkbox("Loop", &loop))
+            {
+                m_Model.SetLooping(loop);
+                if (loop)
+                {
+                    m_Model.Play(static_cast<size_t>(clip), true); // ループに戻したら、最初から
+                }
+            }
+            ImGui::SameLine();
+            ImGui::Text(m_Model.IsFinished() ? "(finished)" : "");
+            float speed = m_Model.GetSpeed();
+            if (ImGui::SliderFloat("Speed", &speed, 0.0f, 3.0f))
+            {
+                m_Model.SetSpeed(speed);
+            }
+            float time = m_Model.GetTime();
+            if (ImGui::SliderFloat("Time", &time, 0.0f, m_Model.GetDuration())) // 止めているときに、時刻を動かして、姿勢を確かめる
+            {
+                m_Model.SetTime(time);
+            }
+            if (ImGui::Button("Stop (bind pose)"))
+            {
+                m_Model.Stop();
+            }
         }
 
         // 骨に追従する判定の形
@@ -253,24 +270,27 @@ protected:
         ImGui::Checkbox("Hitboxes", &m_ShowHitboxes);
         const float range = m_ModelRadius * 1.5f;
         ImGui::SliderFloat3("Test box position", &m_TestCenter.x, -range, range);
-        ImGui::Text("Hit: %zu / %zu", m_HitIndices.size(), m_Hitboxes.size());
+        std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
+        ImGui::Text("Hit: %zu / %zu", m_HitIndices.size(), hitboxes.size());
         for (const size_t index : m_HitIndices)
         {
-            ImGui::BulletText("hitbox %zu (joint %d)", index, m_Hitboxes[index].jointIndex);
+            ImGui::BulletText("hitbox %zu (joint %d)", index, hitboxes[index].jointIndex);
         }
 
-        if (!m_Hitboxes.empty())
+        if (!hitboxes.empty())
         {
+            m_SelectedHitbox = std::min(m_SelectedHitbox, hitboxes.size() - 1);
+
             // 形を 1 つ選んで、調整する(形は、骨の中の座標。骨が動いても、この数字は変わらない)
             int selected = static_cast<int>(m_SelectedHitbox);
-            if (ImGui::SliderInt("Hitbox", &selected, 0, static_cast<int>(m_Hitboxes.size()) - 1))
+            if (ImGui::SliderInt("Hitbox", &selected, 0, static_cast<int>(hitboxes.size()) - 1))
             {
-                m_SelectedBone = m_Hitboxes[static_cast<size_t>(selected)].jointIndex; // 形を選んだら、その形がくっついた骨も、選ぶ
+                m_SelectedBone = hitboxes[static_cast<size_t>(selected)].jointIndex; // 形を選んだら、その形がくっついた骨も、選ぶ
             }
             m_SelectedHitbox = static_cast<size_t>(selected);
-            KR::Hitbox& hitbox = m_Hitboxes[m_SelectedHitbox];
+            KR::Hitbox& hitbox = hitboxes[m_SelectedHitbox];
 
-            if (ImGui::SliderInt("Joint", &hitbox.jointIndex, 0, static_cast<int>(m_Model.skeleton.joints.size()) - 1))
+            if (ImGui::SliderInt("Joint", &hitbox.jointIndex, 0, lastJoint))
             {
                 m_SelectedBone = hitbox.jointIndex;
             }
@@ -287,45 +307,44 @@ protected:
                 ImGui::DragFloat("Radius", &hitbox.radius, 0.05f, 0.01f, 100.0f);
             }
         }
+
+        // 判定の形の、保存・読み直し(<モデル名>.hitboxes.json。Debug では、元の Assets フォルダーに書く)
+        if (ImGui::Button("Save hitboxes"))
+        {
+            m_Model.SaveHitboxes();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Reload hitboxes"))
+        {
+            m_Model.ReloadHitboxes();
+        }
         ImGui::End();
     }
 
     void OnShutdown() override
     {
         m_BoneRenderer.Destroy(GetRenderer());
-        if (m_Mesh.IsValid())
-        {
-            GetRenderer().DestroyMesh(m_Mesh);
-        }
+        m_Model.Unload(GetRenderer());
     }
 
 private:
-    KR::GltfModel m_Model;
-    KR::MeshHandle m_Mesh;
-    std::vector<XMFLOAT4X4> m_JointWorld; // 基準姿勢での、各骨の世界の行列
-    XMFLOAT3 m_Center = {};               // 形の中心
+    KR::AnimatedModel m_Model; // 動くモデル(形・骨・動き・判定の形)
+    KR::BoneRenderer m_BoneRenderer; // 骨を、八面体の形(Blender の骨に似せた形)で描く(デバッグ用)
+    XMFLOAT3 m_Center = {};          // 形の中心
+    float m_ModelRadius = 1.0f;      // モデルの大きさ(スライダーの範囲に使う)
     float m_Angle = 0.0f;
-    KR::BoneRenderer m_BoneRenderer; // 骨を、八面体の形(Blender の骨に似せた形)で描く
     int m_SelectedBone = 0;          // 選んだ骨(関節の番号)。色が変わる。選んだ形(判定)と連動する
     bool m_ShowBones = true;
     bool m_BonesInFront = true;
     bool m_ShowMesh = true;
     bool m_Rotate = true;
-    bool m_BindPose = false;
 
-    // 骨に追従する判定
-    std::vector<KR::Hitbox> m_Hitboxes;    // 判定の形(骨の中の座標)
+    // 判定の形の確認用
     size_t m_SelectedHitbox = 0;           // ImGui で調整している形
     bool m_ShowHitboxes = true;
-    float m_ModelRadius = 1.0f;            // モデルの大きさ(スライダーの範囲に使う)
     XMFLOAT3 m_TestCenter = {};            // テストの箱の位置(世界)
     KR::OBB m_TestBox;                     // テストの箱(軸にそろえた箱)
     std::vector<size_t> m_HitIndices;      // 今、テストの箱に触れている形の番号
-
-    size_t m_ClipIndex = 0;   // 再生する動きの番号
-    float m_Time = 0.0f;      // 動きの、今の時刻(秒)
-    float m_Speed = 1.0f;     // 再生の速さ(1 = 等倍)
-    bool m_Playing = true;
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()
