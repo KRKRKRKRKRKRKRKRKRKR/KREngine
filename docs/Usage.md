@@ -166,3 +166,6 @@ bool hit = KR::Intersects(a, b);                           // 重なっている
 | エンジンの変更を、ゲームの、正式な版に、する | **① エンジンのリポジトリで、コミット・push** → **② ゲームのリポジトリで、`External/KREngine` が、新しいコミットを指している変更を、コミット**(順番を守る。逆にすると、別の PC で、そのコミットが、見つからない) |
 | サブモジュールの中を、直す | サブモジュールの中は、特定のコミットに固定(`detached HEAD`)。直す前に、`git checkout main` |
 | 別の PC で、更新を、取り込む | ゲームで `git pull` したあと、`git submodule update` |
+
+## 日本語などを含むフォルダーに置いたとき(Debug)
+Debug ビルドは、エンジンの `shaders/` と、ゲームのアセット(`KR_GAME_ASSETS_DIR`)を、元のフォルダーから直接読む(場所は、CMake が文字列として埋め込む)。埋め込んだ文字列は UTF-8 なので、`GetAssetDirectory` / `GetEngineShaderDirectory`(`src/Core/Assets.cpp`)は、UTF-8 として `std::filesystem::path` にしている。そのため、フォルダー名に日本語が入っていても動く(以前は、日本語 Windows で、起動直後に `std::system_error` で落ちた)。
