@@ -17,6 +17,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | デバッグ用の画面(ImGui) | [ImGui.md](ImGui.md) |
 | ボーンアニメーション(調べ物・実装の記録) | [Animation.md](Animation.md) |
 | **アニメーションの調整ツール**(骨・判定の形) | [AnimationEditor.md](AnimationEditor.md) |
+| 敵の行動(ノードのグラフ・保存・読み込み。作成中) | [Behavior.md](Behavior.md) |
 | **版(バージョン)の付け方** | [Versioning.md](Versioning.md)・[CHANGELOG.md](../CHANGELOG.md) |
 | 調べ物:演出(爆発・シェーダーなど) | [Effects.md](Effects.md) |
 
