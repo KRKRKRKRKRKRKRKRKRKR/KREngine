@@ -28,7 +28,7 @@ KREngine/
 │   ├─ KR.h                        まとめヘッダー(主なヘッダーを、まとめて取り込む)
 │   ├─ Core/                       Application, Log, Input(IsKeyDown / IsKeyPressed / IsKeyReleased), Assets(アセット・シェーダーの場所)
 │   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners。当たり判定)
-│   ├─ Animation/                  Skeleton(骨の階層)・AnimationClip(動き)・GltfLoader(LoadGltf。glTF を読む)
+│   ├─ Animation/                  Skeleton(骨の階層)・AnimationClip(動き)・GltfLoader(LoadGltf。glTF を読む)・SkeletonDebug(骨を線で描く)
 │   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
 ├─ src/                          【非公開】ゲームからは見えない
 │   ├─ Core/                       Application, EntryPoint(main), Log, Input(状態表), InputState(書き込み口), Assets
@@ -50,7 +50,7 @@ KREngine/
 │       ├─ DX12Buffer                Upload ヒープのバッファ(頂点・番号・定数)
 │       └─ DX12Texture               画像(Default ヒープ + SRV の札。Upload 経由でコピー)
 ├─ shaders/                      シェーダー(実行時にコンパイル): Basic.hlsl(物)/ Sky.hlsl(空)/ Line.hlsl(線。当たり判定の箱)/ Common.hlsli(共通の b1 の宣言)
-├─ samples/Minimal/              最小のサンプル(ウィンドウ + 回るキューブ + ImGui の FPS)。新しいゲームの雛形。assets は samples/Minimal/Assets/(テスト用のモデル)
+├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Skeleton/(glTF の骨を線で描く)・Assets/(サンプル共通のアセット。テスト用のモデル)
 ├─ docs/                         この資料
 ├─ CMakeLists.txt                エンジンのビルド(ライブラリ KREngine・関数 kr_copy_runtime_files・サンプル)
 └─ CMakePresets.json             エンジンを単体でビルドするときの設定(vs2026)

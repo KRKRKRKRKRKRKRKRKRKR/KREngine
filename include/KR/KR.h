@@ -13,3 +13,4 @@
 #include "KR/Animation/Skeleton.h"
 #include "KR/Animation/AnimationClip.h"
 #include "KR/Animation/GltfLoader.h"
+#include "KR/Animation/SkeletonDebug.h"

@@ -1,0 +1,6 @@
+# 骨を見るサンプル KRSkeleton(glTF を読んで、骨を線で描く。メッシュの表示は切り替え)
+add_executable(KRSkeleton SkeletonApp.cpp)
+target_link_libraries(KRSkeleton PRIVATE KREngine)
+kr_copy_runtime_files(KRSkeleton)
+set_target_properties(KRSkeleton PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Samples)
+target_link_options(KRSkeleton PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
