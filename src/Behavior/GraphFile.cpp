@@ -5,6 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <charconv>
 #include <cstdlib>
 #include <fstream>
@@ -187,11 +188,42 @@ namespace KR::Behavior
             graph.startNode = root.value("start", 0);
             for (const json& item : root.at("nodes"))
             {
-                graph.nodes.push_back(NodeFromJson(item));
+                Node node = NodeFromJson(item);
+                if (graph.FindNode(node.id) != nullptr)
+                {
+                    throw std::runtime_error("ノードの id が重なっている: " + std::to_string(node.id));
+                }
+                graph.nodes.push_back(std::move(node));
             }
-            for (const json& item : root.at("links"))
+
+            // 線は、無くてもよい(つながっていない = その状態のまま)。存在しないノードへの線は、警告して捨てる
+            if (root.contains("links"))
             {
-                graph.links.push_back({ item.at("from").get<int>(), item.at("to").get<int>(), item.value("priority", 0) });
+                for (const json& item : root.at("links"))
+                {
+                    const Link link{ item.at("from").get<int>(), item.at("to").get<int>(), item.value("priority", 0) };
+                    if (graph.FindNode(link.from) == nullptr || graph.FindNode(link.to) == nullptr)
+                    {
+                        KR_LOG_WARN("Behavior: 存在しないノードへの線を捨てました: {} → {}({})", link.from, link.to, file.filename().string());
+                        continue;
+                    }
+                    graph.links.push_back(link);
+                }
+            }
+
+            // 開始ノードが無い・状態でないときは、最初の状態にする。状態が 1 つも無ければ、壊れたファイル
+            const Node* start = graph.FindNode(graph.startNode);
+            if (start == nullptr || start->kind != NodeKind::State)
+            {
+                const auto firstState = std::find_if(graph.nodes.begin(), graph.nodes.end(),
+                    [](const Node& node) { return node.kind == NodeKind::State; });
+                if (firstState == graph.nodes.end())
+                {
+                    throw std::runtime_error("状態のノードが 1 つも無い");
+                }
+                KR_LOG_WARN("Behavior: 開始ノード({})が正しくないので、最初の状態({})から始めます({})",
+                    graph.startNode, firstState->id, file.filename().string());
+                graph.startNode = firstState->id;
             }
             out = std::move(graph);
         }
