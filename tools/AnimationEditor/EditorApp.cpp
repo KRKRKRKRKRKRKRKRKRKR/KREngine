@@ -210,7 +210,7 @@ protected:
 
     void OnImGui() override
     {
-        ImGui::Begin("Animation Editor");
+        ImGui::Begin("アニメーション調整ツール###AnimationEditor");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
         DrawProjectSection();
@@ -224,7 +224,7 @@ protected:
         else
         {
             ImGui::Separator();
-            ImGui::TextWrapped(m_Models.empty() ? "No .glb found in <Assets>/Models. Choose another folder." : "Model not loaded (see log).");
+            ImGui::TextWrapped(m_Models.empty() ? "Models の下に .glb が見つかりません。別のフォルダーを選んでください。" : "モデルを読み込めていません(ログを見てください)。");
         }
         ImGui::End();
 
@@ -248,7 +248,7 @@ private:
         if (!std::filesystem::is_directory(folder / "Models", error))
         {
             KR_LOG_WARN("Editor: {} に、Models フォルダーがありません", ToUtf8(folder));
-            m_StatusMessage = "No Models folder in: " + ToUtf8(folder);
+            m_StatusMessage = "Models フォルダーがありません: " + ToUtf8(folder);
             return false;
         }
 
@@ -283,7 +283,7 @@ private:
             m_Recent.resize(MaxRecentFolders);
         }
 
-        m_StatusMessage = m_Models.empty() ? "No .glb found in <Assets>/Models" : "";
+        m_StatusMessage = m_Models.empty() ? "Models の下に .glb が見つかりません" : "";
         KR_LOG_INFO("Editor: アセットのフォルダー {}(モデル {} 個)", ToUtf8(folder), m_Models.size());
         return true;
     }
@@ -295,7 +295,7 @@ private:
         m_CurrentModel.clear();
         if (!m_Model.Load(GetRenderer(), relative))
         {
-            m_StatusMessage = "Failed to load: " + ToUtf8(relative);
+            m_StatusMessage = "読み込めません: " + ToUtf8(relative);
             return false;
         }
         m_CurrentModel = ToUtf8(relative.generic_u8string());
@@ -465,28 +465,26 @@ private:
 
     void DrawProjectSection()
     {
-        ImGui::SeparatorText("Project");
+        ImGui::SeparatorText("プロジェクト");
 
-        // アセットのフォルダー:文字欄(Enter で開く)・Browse・最近使った一覧
-        ImGui::SetNextItemWidth(-130.0f);
+        // アセットのフォルダー:文字欄(Enter で開く)・最近(一覧を出す)・参照(フォルダーを選ぶ窓)
+        ImGui::SetNextItemWidth(-190.0f);
         const bool entered = ImGui::InputText("##folder", m_FolderText, sizeof(m_FolderText), ImGuiInputTextFlags_EnterReturnsTrue);
-        ImGui::SameLine();
-        if (ImGui::Button("Browse...") )
-        {
-            if (const std::optional<std::filesystem::path> picked = PickFolder(m_Folder))
-            {
-                RequestFolder(*picked);
-            }
-        }
-        ImGui::SameLine();
-        ImGui::Text("Assets");
         if (entered)
         {
             RequestFolder(FromUtf8(m_FolderText));
         }
-
-        if (!m_Recent.empty() && ImGui::BeginCombo("Recent", "Choose..."))
+        ImGui::SameLine();
+        if (ImGui::Button("最近..."))
         {
+            ImGui::OpenPopup("recent_popup");
+        }
+        if (ImGui::BeginPopup("recent_popup"))
+        {
+            if (m_Recent.empty())
+            {
+                ImGui::TextDisabled("履歴はありません");
+            }
             for (size_t i = 0; i < m_Recent.size(); ++i)
             {
                 const std::string label = m_Recent[i] + "##recent" + std::to_string(i);
@@ -495,15 +493,25 @@ private:
                     RequestFolder(FromUtf8(m_Recent[i]));
                 }
             }
-            ImGui::EndCombo();
+            ImGui::EndPopup();
         }
+        ImGui::SameLine();
+        if (ImGui::Button("参照..."))
+        {
+            if (const std::optional<std::filesystem::path> picked = PickFolder(m_Folder))
+            {
+                RequestFolder(*picked);
+            }
+        }
+        ImGui::SameLine();
+        ImGui::Text("アセット");
 
         // モデルの一覧(Models の下の .glb)
         if (!m_Models.empty())
         {
             m_SelectedModel = std::min(m_SelectedModel, m_Models.size() - 1);
-            const std::string preview = m_CurrentModel.empty() ? "Choose..." : m_CurrentModel;
-            if (ImGui::BeginCombo("Model", preview.c_str()))
+            const std::string preview = m_CurrentModel.empty() ? "選んでください..." : m_CurrentModel;
+            if (ImGui::BeginCombo("モデル", preview.c_str()))
             {
                 for (size_t i = 0; i < m_Models.size(); ++i)
                 {
@@ -522,31 +530,31 @@ private:
         }
         if (m_Dirty)
         {
-            ImGui::TextColored({ 1.0f, 0.8f, 0.2f, 1.0f }, "* Unsaved hitbox changes");
+            ImGui::TextColored({ 1.0f, 0.8f, 0.2f, 1.0f }, "* 判定の形が、保存されていません");
         }
     }
 
     void DrawViewSection()
     {
-        ImGui::SeparatorText("View");
-        ImGui::Text("Joints: %zu / Clips: %zu", m_Model.GetSkeleton().joints.size(), m_Model.GetClipCount());
-        ImGui::Checkbox("Bones", &m_ShowBones);
-        ImGui::Checkbox("Bones in front", &m_BonesInFront); // 骨を、メッシュの手前に描く(メッシュの中の骨も見える)
-        ImGui::Checkbox("Mesh", &m_ShowMesh);
-        ImGui::Checkbox("Rotate model", &m_Rotate);
-        if (ImGui::Button("Reset camera"))
+        ImGui::SeparatorText("表示");
+        ImGui::Text("骨: %zu 本 / 動き: %zu 個", m_Model.GetSkeleton().joints.size(), m_Model.GetClipCount());
+        ImGui::Checkbox("骨", &m_ShowBones);
+        ImGui::Checkbox("骨を手前に表示", &m_BonesInFront); // 骨を、メッシュの手前に描く(メッシュの中の骨も見える)
+        ImGui::Checkbox("メッシュ", &m_ShowMesh);
+        ImGui::Checkbox("モデルを回す", &m_Rotate);
+        if (ImGui::Button("カメラをリセット"))
         {
             ResetCamera();
         }
         ImGui::SameLine();
-        ImGui::TextDisabled("(drag: orbit / middle: pan / wheel: zoom)");
+        ImGui::TextDisabled("(左ドラッグ:回す / 中ドラッグ:移動 / ホイール:ズーム)");
 
         // 選んだ骨:一覧(コンボボックス)から、名前で選ぶ。選んだ骨は橙色になり、その骨の判定の形(下)が、調整できる
         // 一覧は、骨の階層に合わせて、字下げする(子の骨ほど、右へ)
         const KR::Skeleton& skeleton = m_Model.GetSkeleton();
         const int jointCount = static_cast<int>(skeleton.joints.size());
         m_SelectedBone = std::clamp(m_SelectedBone, 0, std::max(jointCount - 1, 0));
-        if (ImGui::BeginCombo("Bone", skeleton.joints[static_cast<size_t>(m_SelectedBone)].name.c_str()))
+        if (ImGui::BeginCombo("骨の選択", skeleton.joints[static_cast<size_t>(m_SelectedBone)].name.c_str()))
         {
             for (int i = 0; i < jointCount; ++i)
             {
@@ -568,14 +576,14 @@ private:
 
     void DrawPlaybackSection()
     {
-        ImGui::SeparatorText("Playback");
+        ImGui::SeparatorText("再生");
         if (m_Model.GetClipCount() == 0)
         {
-            ImGui::Text("No animation clips");
+            ImGui::Text("動き(アニメーション)がありません");
             return;
         }
 
-        // 「Bind pose」がオンの間は、動きを止めて、基準姿勢にしている。オフにすると、選んでいる動きを、最初から再生する
+        // 「基準姿勢」がオンの間は、動きを止めて、基準姿勢にしている。オフにすると、選んでいる動きを、最初から再生する
         if (m_Model.GetCurrentClip() >= 0)
         {
             m_LastClip = static_cast<size_t>(m_Model.GetCurrentClip());
@@ -583,7 +591,7 @@ private:
         m_LastClip = std::min(m_LastClip, m_Model.GetClipCount() - 1);
 
         // 動きの一覧(名前で選ぶ)
-        if (ImGui::BeginCombo("Clip", m_Model.GetClipName(m_LastClip).c_str()))
+        if (ImGui::BeginCombo("動き", m_Model.GetClipName(m_LastClip).c_str()))
         {
             for (size_t i = 0; i < m_Model.GetClipCount(); ++i)
             {
@@ -599,15 +607,15 @@ private:
             }
             ImGui::EndCombo();
         }
-        ImGui::Text("Length: %.3f s", m_Model.GetDuration());
+        ImGui::Text("長さ: %.3f 秒", m_Model.GetDuration());
 
         bool paused = m_Model.IsPaused();
-        if (ImGui::Checkbox("Pause", &paused))
+        if (ImGui::Checkbox("一時停止", &paused))
         {
             m_Model.Pause(paused);
         }
         bool loop = m_Model.IsLooping();
-        if (ImGui::Checkbox("Loop", &loop))
+        if (ImGui::Checkbox("ループ", &loop))
         {
             m_Model.SetLooping(loop);
             if (loop && !m_BindPose)
@@ -616,20 +624,20 @@ private:
             }
         }
         ImGui::SameLine();
-        ImGui::Text(m_Model.IsFinished() ? "(finished)" : "");
+        ImGui::Text(m_Model.IsFinished() ? "(再生終了)" : "");
         float speed = m_Model.GetSpeed();
-        if (ImGui::SliderFloat("Speed", &speed, 0.0f, 3.0f))
+        if (ImGui::SliderFloat("速さ", &speed, 0.0f, 3.0f))
         {
             m_Model.SetSpeed(speed);
         }
         float time = m_Model.GetTime();
-        if (ImGui::SliderFloat("Time", &time, 0.0f, m_Model.GetDuration())) // 止めているときに、時刻を動かして、姿勢を確かめる
+        if (ImGui::SliderFloat("時刻", &time, 0.0f, m_Model.GetDuration())) // 止めているときに、時刻を動かして、姿勢を確かめる
         {
             m_Model.SetTime(time);
         }
 
         // 基準姿勢(動かない姿勢)のオン・オフ。オンで、動きを止める。オフで、選んでいる動きを、最初から再生する
-        if (ImGui::Checkbox("Bind pose (no animation)", &m_BindPose))
+        if (ImGui::Checkbox("基準姿勢(アニメーションなし)", &m_BindPose))
         {
             if (m_BindPose)
             {
@@ -644,24 +652,24 @@ private:
 
     void DrawHitboxSection()
     {
-        ImGui::SeparatorText("Hitboxes");
+        ImGui::SeparatorText("当たり判定");
         const KR::Skeleton& skeleton = m_Model.GetSkeleton();
         const int jointCount = static_cast<int>(skeleton.joints.size());
 
-        ImGui::Checkbox("Show hitboxes", &m_ShowHitboxes);
+        ImGui::Checkbox("判定の形を表示", &m_ShowHitboxes);
         const float range = m_ModelRadius * 1.5f;
-        ImGui::SliderFloat3("Test box position", &m_TestCenter.x, -range, range);
+        ImGui::SliderFloat3("テストの箱の位置", &m_TestCenter.x, -range, range);
         std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
-        ImGui::Text("Hit: %zu / %zu", m_HitIndices.size(), hitboxes.size());
+        ImGui::Text("当たり: %zu / %zu", m_HitIndices.size(), hitboxes.size());
         for (const size_t index : m_HitIndices)
         {
             // 触れている形が、どの骨の物か(名前で表示)
             const int joint = hitboxes[index].jointIndex;
-            ImGui::BulletText("%s", joint >= 0 && joint < jointCount ? skeleton.joints[static_cast<size_t>(joint)].name.c_str() : "(no joint)");
+            ImGui::BulletText("%s", joint >= 0 && joint < jointCount ? skeleton.joints[static_cast<size_t>(joint)].name.c_str() : "(骨なし)");
         }
 
-        // 選んだ骨(View の Bone)にくっついた、判定の形を調整する。形は、骨の中の座標で持つ(骨が動いても、この数字は変わらない)
-        // 1 本の骨に、複数の形も付けられる(その場合だけ、「Hitbox on this bone」で選ぶ)
+        // 選んだ骨(表示の「骨の選択」)にくっついた、判定の形を調整する。形は、骨の中の座標で持つ(骨が動いても、この数字は変わらない)
+        // 1 本の骨に、複数の形も付けられる(その場合だけ、「この骨の何番目の形」で選ぶ)
         std::vector<size_t> onBone;
         for (size_t i = 0; i < hitboxes.size(); ++i)
         {
@@ -674,38 +682,38 @@ private:
         m_SelectedHitbox = NoHitbox;
         if (onBone.empty())
         {
-            ImGui::Text("No hitbox on this bone");
+            ImGui::Text("この骨には、判定の形がありません");
         }
         else
         {
             m_SubHitbox = std::clamp(m_SubHitbox, 0, static_cast<int>(onBone.size()) - 1);
             if (onBone.size() > 1)
             {
-                ImGui::SliderInt("Hitbox on this bone", &m_SubHitbox, 0, static_cast<int>(onBone.size()) - 1);
+                ImGui::SliderInt("この骨の何番目の形", &m_SubHitbox, 0, static_cast<int>(onBone.size()) - 1);
             }
             m_SelectedHitbox = onBone[static_cast<size_t>(m_SubHitbox)];
             KR::Hitbox& hitbox = hitboxes[m_SelectedHitbox];
 
             // 変えたら「未保存」の印(m_Dirty)
             int shape = (hitbox.shape == KR::HitShape::Box) ? 0 : 1;
-            if (ImGui::Combo("Shape", &shape, "Box\0Sphere\0"))
+            if (ImGui::Combo("形の種類", &shape, "箱\0球\0"))
             {
                 m_Dirty = true;
             }
             hitbox.shape = (shape == 0) ? KR::HitShape::Box : KR::HitShape::Sphere;
-            m_Dirty |= ImGui::DragFloat3("Center (in joint)", &hitbox.center.x, 0.05f);
+            m_Dirty |= ImGui::DragFloat3("中心(骨の中)", &hitbox.center.x, 0.05f);
             if (hitbox.shape == KR::HitShape::Box)
             {
-                m_Dirty |= ImGui::DragFloat3("Half size", &hitbox.halfSize.x, 0.05f, 0.01f, 100.0f);
+                m_Dirty |= ImGui::DragFloat3("半分の大きさ", &hitbox.halfSize.x, 0.05f, 0.01f, 100.0f);
             }
             else
             {
-                m_Dirty |= ImGui::DragFloat("Radius", &hitbox.radius, 0.05f, 0.01f, 100.0f);
+                m_Dirty |= ImGui::DragFloat("半径", &hitbox.radius, 0.05f, 0.01f, 100.0f);
             }
         }
 
         // 形の追加・削除(追加・削除のあとは、形の一覧が変わるので、最後にまとめて行う)
-        if (ImGui::Button("Add hitbox to this bone"))
+        if (ImGui::Button("この骨に判定の形を追加"))
         {
             KR::Hitbox added;
             added.name = skeleton.joints[static_cast<size_t>(m_SelectedBone)].name;
@@ -720,7 +728,7 @@ private:
         if (m_SelectedHitbox != NoHitbox)
         {
             ImGui::SameLine();
-            if (ImGui::Button("Remove hitbox"))
+            if (ImGui::Button("この形を削除"))
             {
                 hitboxes.erase(hitboxes.begin() + static_cast<std::ptrdiff_t>(m_SelectedHitbox));
                 m_SelectedHitbox = NoHitbox;
@@ -731,7 +739,7 @@ private:
 
         // 保存・読み直し(<モデル名>.hitboxes.json。開いているアセットのフォルダーの、Models の下に書く)
         ImGui::Separator();
-        if (ImGui::Button(m_Dirty ? "Save hitboxes *" : "Save hitboxes"))
+        if (ImGui::Button(m_Dirty ? "判定を保存 *" : "判定を保存"))
         {
             if (m_Model.SaveHitboxes())
             {
@@ -739,7 +747,7 @@ private:
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Reload hitboxes"))
+        if (ImGui::Button("判定を読み直す"))
         {
             m_Model.ReloadHitboxes();
             m_Dirty = false;
@@ -749,14 +757,15 @@ private:
     // 未保存のまま、別のモデル・フォルダーに切り替えようとしたときの、確認の窓
     void DrawUnsavedPopup()
     {
-        if (m_Pending != Pending::None && !ImGui::IsPopupOpen("Unsaved changes"))
+        constexpr const char* PopupName = "未保存の変更";
+        if (m_Pending != Pending::None && !ImGui::IsPopupOpen(PopupName))
         {
-            ImGui::OpenPopup("Unsaved changes");
+            ImGui::OpenPopup(PopupName);
         }
-        if (ImGui::BeginPopupModal("Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        if (ImGui::BeginPopupModal(PopupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            ImGui::Text("The hitboxes of the current model have unsaved changes.");
-            if (ImGui::Button("Save and continue"))
+            ImGui::Text("いまのモデルの判定の形に、保存していない変更があります。");
+            if (ImGui::Button("保存して続ける"))
             {
                 if (m_Model.SaveHitboxes())
                 {
@@ -766,14 +775,14 @@ private:
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Discard and continue"))
+            if (ImGui::Button("捨てて続ける"))
             {
                 m_Dirty = false;
                 ApplyPending();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancel"))
+            if (ImGui::Button("やめる"))
             {
                 m_Pending = Pending::None;
                 ImGui::CloseCurrentPopup();
