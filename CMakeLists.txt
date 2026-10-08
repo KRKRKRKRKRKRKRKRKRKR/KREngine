@@ -143,6 +143,7 @@ set(ENGINE_FILES
     src/Animation/Hitbox.cpp
     src/Animation/HitboxFile.cpp
     src/Animation/AnimatedModel.cpp
+    src/Behavior/Graph.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
