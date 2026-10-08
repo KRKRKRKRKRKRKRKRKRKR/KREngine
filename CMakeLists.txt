@@ -116,6 +116,7 @@ set(ENGINE_FILES
     include/KR/Animation/SkinMatrices.h
     include/KR/Animation/Hitbox.h
     include/KR/Behavior/Graph.h
+    include/KR/Behavior/NodeTypes.h
     include/KR/Animation/HitboxFile.h
     include/KR/Animation/AnimatedModel.h
 
@@ -144,6 +145,7 @@ set(ENGINE_FILES
     src/Animation/HitboxFile.cpp
     src/Animation/AnimatedModel.cpp
     src/Behavior/Graph.cpp
+    src/Behavior/NodeTypes.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
