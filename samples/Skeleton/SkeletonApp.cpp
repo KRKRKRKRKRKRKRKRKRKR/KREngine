@@ -207,29 +207,47 @@ protected:
         ImGui::Checkbox("Mesh", &m_ShowMesh);
         ImGui::Checkbox("Rotate", &m_Rotate);
 
-        // 選んだ骨:色が変わる(橙)。その骨の判定の形も、連動して選ばれる(黄色)
-        const int lastJoint = static_cast<int>(m_Model.GetSkeleton().joints.size()) - 1;
-        if (ImGui::SliderInt("Bone", &m_SelectedBone, 0, std::max(lastJoint, 0)))
+        // 選んだ骨:一覧(コンボボックス)から、名前で選ぶ。選んだ骨は橙色になり、その骨の判定の形(下)が、調整できる
+        // 一覧は、骨の階層に合わせて、字下げする(子の骨ほど、右へ)
+        const KR::Skeleton& skeleton = m_Model.GetSkeleton();
+        const int jointCount = static_cast<int>(skeleton.joints.size());
+        m_SelectedBone = std::clamp(m_SelectedBone, 0, std::max(jointCount - 1, 0));
+        if (ImGui::BeginCombo("Bone", skeleton.joints[static_cast<size_t>(m_SelectedBone)].name.c_str()))
         {
-            const std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
-            for (size_t i = 0; i < hitboxes.size(); ++i)
+            for (int i = 0; i < jointCount; ++i)
             {
-                if (hitboxes[i].jointIndex == m_SelectedBone)
+                int depth = 0; // 根から、何段目か(親をたどって数える)
+                for (int p = skeleton.joints[static_cast<size_t>(i)].parent; p >= 0 && depth < jointCount; p = skeleton.joints[static_cast<size_t>(p)].parent)
                 {
-                    m_SelectedHitbox = i;
-                    break;
+                    ++depth;
+                }
+                const std::string label = std::string(static_cast<size_t>(depth) * 2, ' ') + skeleton.joints[static_cast<size_t>(i)].name + "##bone" + std::to_string(i);
+                if (ImGui::Selectable(label.c_str(), i == m_SelectedBone))
+                {
+                    m_SelectedBone = i;
+                    m_SubHitbox = 0;
                 }
             }
+            ImGui::EndCombo();
         }
 
         // 動き(AnimatedModel の再生)
         ImGui::Separator();
         if (m_Model.GetClipCount() > 0)
         {
-            int clip = std::max(m_Model.GetCurrentClip(), 0);
+            // 「Bind pose」がオンの間は、動きを止めて、基準姿勢にしている。オフにすると、選んでいる動きを、最初から再生する
+            if (m_Model.GetCurrentClip() >= 0)
+            {
+                m_LastClip = static_cast<size_t>(m_Model.GetCurrentClip());
+            }
+            int clip = static_cast<int>(m_LastClip);
             if (ImGui::SliderInt("Clip", &clip, 0, static_cast<int>(m_Model.GetClipCount()) - 1))
             {
-                m_Model.Play(static_cast<size_t>(clip), m_Model.IsLooping());
+                m_LastClip = static_cast<size_t>(clip);
+                if (!m_BindPose)
+                {
+                    m_Model.Play(m_LastClip, m_Model.IsLooping());
+                }
             }
             ImGui::Text("%s (%.3f s)", m_Model.GetClipName(static_cast<size_t>(clip)).c_str(), m_Model.GetDuration());
 
@@ -242,7 +260,7 @@ protected:
             if (ImGui::Checkbox("Loop", &loop))
             {
                 m_Model.SetLooping(loop);
-                if (loop)
+                if (loop && !m_BindPose)
                 {
                     m_Model.Play(static_cast<size_t>(clip), true); // ループに戻したら、最初から
                 }
@@ -259,9 +277,18 @@ protected:
             {
                 m_Model.SetTime(time);
             }
-            if (ImGui::Button("Stop (bind pose)"))
+
+            // 基準姿勢(動かない姿勢)のオン・オフ。オンで、動きを止める。オフで、選んでいる動きを、最初から再生する
+            if (ImGui::Checkbox("Bind pose (no animation)", &m_BindPose))
             {
-                m_Model.Stop();
+                if (m_BindPose)
+                {
+                    m_Model.Stop();
+                }
+                else
+                {
+                    m_Model.Play(m_LastClip, m_Model.IsLooping());
+                }
             }
         }
 
@@ -274,26 +301,37 @@ protected:
         ImGui::Text("Hit: %zu / %zu", m_HitIndices.size(), hitboxes.size());
         for (const size_t index : m_HitIndices)
         {
-            ImGui::BulletText("hitbox %zu (joint %d)", index, hitboxes[index].jointIndex);
+            // 触れている形が、どの骨の物か(名前で表示)
+            const int joint = hitboxes[index].jointIndex;
+            ImGui::BulletText("%s", joint >= 0 && joint < jointCount ? skeleton.joints[static_cast<size_t>(joint)].name.c_str() : "(no joint)");
         }
 
-        if (!hitboxes.empty())
+        // 選んだ骨(上の Bone)にくっついた、判定の形を調整する。形は、骨の中の座標で持つ(骨が動いても、この数字は変わらない)
+        // 1 本の骨に、複数の形も付けられる(その場合だけ、「Hitbox on this bone」で選ぶ)
+        std::vector<size_t> onBone;
+        for (size_t i = 0; i < hitboxes.size(); ++i)
         {
-            m_SelectedHitbox = std::min(m_SelectedHitbox, hitboxes.size() - 1);
-
-            // 形を 1 つ選んで、調整する(形は、骨の中の座標。骨が動いても、この数字は変わらない)
-            int selected = static_cast<int>(m_SelectedHitbox);
-            if (ImGui::SliderInt("Hitbox", &selected, 0, static_cast<int>(hitboxes.size()) - 1))
+            if (hitboxes[i].jointIndex == m_SelectedBone)
             {
-                m_SelectedBone = hitboxes[static_cast<size_t>(selected)].jointIndex; // 形を選んだら、その形がくっついた骨も、選ぶ
+                onBone.push_back(i);
             }
-            m_SelectedHitbox = static_cast<size_t>(selected);
+        }
+
+        m_SelectedHitbox = NoHitbox;
+        if (onBone.empty())
+        {
+            ImGui::Text("No hitbox on this bone");
+        }
+        else
+        {
+            m_SubHitbox = std::clamp(m_SubHitbox, 0, static_cast<int>(onBone.size()) - 1);
+            if (onBone.size() > 1)
+            {
+                ImGui::SliderInt("Hitbox on this bone", &m_SubHitbox, 0, static_cast<int>(onBone.size()) - 1);
+            }
+            m_SelectedHitbox = onBone[static_cast<size_t>(m_SubHitbox)];
             KR::Hitbox& hitbox = hitboxes[m_SelectedHitbox];
 
-            if (ImGui::SliderInt("Joint", &hitbox.jointIndex, 0, lastJoint))
-            {
-                m_SelectedBone = hitbox.jointIndex;
-            }
             int shape = (hitbox.shape == KR::HitShape::Box) ? 0 : 1;
             ImGui::Combo("Shape", &shape, "Box\0Sphere\0");
             hitbox.shape = (shape == 0) ? KR::HitShape::Box : KR::HitShape::Sphere;
@@ -305,6 +343,29 @@ protected:
             else
             {
                 ImGui::DragFloat("Radius", &hitbox.radius, 0.05f, 0.01f, 100.0f);
+            }
+        }
+
+        // 形の追加・削除(追加・削除のあとは、形の一覧が変わるので、最後にまとめて行う)
+        if (ImGui::Button("Add hitbox to this bone"))
+        {
+            KR::Hitbox added;
+            added.name = skeleton.joints[static_cast<size_t>(m_SelectedBone)].name;
+            added.jointIndex = m_SelectedBone;
+            const float size = m_ModelRadius * 0.1f;
+            added.halfSize = { size, size, size };
+            added.radius = size;
+            hitboxes.push_back(added);
+            m_SubHitbox = static_cast<int>(onBone.size()); // 追加した形を、選ぶ
+        }
+        if (m_SelectedHitbox != NoHitbox)
+        {
+            ImGui::SameLine();
+            if (ImGui::Button("Remove hitbox"))
+            {
+                hitboxes.erase(hitboxes.begin() + static_cast<std::ptrdiff_t>(m_SelectedHitbox));
+                m_SelectedHitbox = NoHitbox;
+                m_SubHitbox = 0;
             }
         }
 
@@ -333,14 +394,18 @@ private:
     XMFLOAT3 m_Center = {};          // 形の中心
     float m_ModelRadius = 1.0f;      // モデルの大きさ(スライダーの範囲に使う)
     float m_Angle = 0.0f;
-    int m_SelectedBone = 0;          // 選んだ骨(関節の番号)。色が変わる。選んだ形(判定)と連動する
+    int m_SelectedBone = 0;          // 選んだ骨(関節の番号)。色が変わる。判定の形の調整は、この骨の形について行う
     bool m_ShowBones = true;
     bool m_BonesInFront = true;
     bool m_ShowMesh = true;
     bool m_Rotate = true;
 
     // 判定の形の確認用
-    size_t m_SelectedHitbox = 0;           // ImGui で調整している形
+    static constexpr size_t NoHitbox = static_cast<size_t>(-1); // 調整する形が無い(選んだ骨に、形が無い)
+    size_t m_SelectedHitbox = NoHitbox;    // ImGui で調整している形(選んだ骨の形。毎フレーム、ImGui が決める)
+    int m_SubHitbox = 0;                   // 選んだ骨に、形が複数あるときの、何番目か
+    bool m_BindPose = false;               // 動きを止めて、基準姿勢にしているか
+    size_t m_LastClip = 0;                 // 基準姿勢をオフにしたときに、再生する動き
     bool m_ShowHitboxes = true;
     XMFLOAT3 m_TestCenter = {};            // テストの箱の位置(世界)
     KR::OBB m_TestBox;                     // テストの箱(軸にそろえた箱)
