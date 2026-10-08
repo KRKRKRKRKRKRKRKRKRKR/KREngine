@@ -73,6 +73,7 @@ flowchart LR
 |---|---|---|
 | 頂点データ | [VertexInputLayout(Renderer.cpp)](../src/Renderer/Renderer.cpp) | [VSInput(Basic.hlsl)](../shaders/Basic.hlsl) |
 | b0 / b1 / t0 / s0 の宣言 | [DX12Pipeline.cpp(`CreateRootSignature`)](../src/Graphics/DX12/DX12Pipeline.cpp) | b0:[Basic.hlsl](../shaders/Basic.hlsl)、b1:[Common.hlsli](../shaders/Common.hlsli) |
+| b2(骨の行列の表。パレット) | 同上(`PaletteRootIndex = 3`。骨つきの物を描くときだけ設定) | `cbuffer SkinPalette`([Basic.hlsl](../shaders/Basic.hlsl)。`VSSkinned` だけが読む) |
 | b1 の中身(別紙) | `FrameConstants`([Renderer.cpp](../src/Renderer/Renderer.cpp)。`float4` にそろえる) | `cbuffer FrameConstants`([Common.hlsli](../shaders/Common.hlsli)。並びと大きさは C++ と同じ) |
 
 **食い違いを防ぐ工夫**:b1 の宣言は、共通のファイル(`Common.hlsli`)に **1 か所だけ**書いて、Basic.hlsl と Sky.hlsl の両方が `#include` する。C++ の `FrameConstants` と HLSL の `FrameConstants` は、並びと大きさを同じにする。

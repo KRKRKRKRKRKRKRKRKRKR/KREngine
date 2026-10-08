@@ -143,3 +143,9 @@
 - **作った物**:`AnimationPose.h`・`.cpp`(`EvaluatePose(Skeleton, clip, time)` = ある時刻の、各骨の世界の行列)。手順:① キー列から、時刻 time の位置・向き・大きさを求める(キーの間は、位置・大きさは直線、向きは slerp。STEP は前の値のまま。範囲の外は端の値)→ ② 行列にする(大きさ → 向き → 位置)→ ③ 親の行列を掛ける。KRSkeleton に、再生(Play・Speed・Time の ImGui)を足した。
 - **つまずき(大事)**:骨の親のノード(骨ではない)の変換を、掛け忘れると、基準姿勢が、逆バインド行列の逆と合わない。Blender の書き出しは、アーマチュアのノードに回転(90°)を持つ。**根の骨は、親のノードの世界の行列(`Joint::parentWorld`)を掛ける**。サンプルの起動時に、「親子の掛け算」と「逆バインド行列の逆」の差を、ログに出す(0 なら、一致)。
 - 補間のキー検索は、先頭からの線形探索(キーが少ない間は、これで足りる。多くなったら、二分探索にする)。
+
+### A-5:GPU スキニング(2026-10-08。ブランチ feature/gpu-skinning)
+- **作った物**:`MeshData::skin`(`SkinVertex` = 骨の番号 4 つ + 重み 4 つ。骨なしは空)・`LoadGltf` が `JOINTS_0` / `WEIGHTS_0` を読む(重みの合計を 1 にそろえる)/ `Basic.hlsl` に `VSSkinned`(4 本の骨の行列を、重みで混ぜて、位置・法線を動かす)/ Root Signature に b2(パレットの住所。`PaletteRootIndex = 3`)/ `Renderer::DrawSkinnedMesh(mesh, world, palette, texture)` / `ComputeSkinMatrices(skeleton, pose)`(= 骨ごとに 逆バインド × 今の世界の行列)。
+- **流れ**:`EvaluatePose`(骨の今の姿勢)→ `ComputeSkinMatrices`(パレット)→ `DrawSkinnedMesh`(パレットを、描画リストの表に積む)→ `ExecuteDrawList` で、フレームごとの Upload バッファに、まとめて書き、描く直前に、住所を b2 に伝える → GPU の頂点シェーダーが、頂点ごとに、パレットから 4 本の骨の行列を取って混ぜる。
+- **上限**:骨 128 本(シェーダーの `MaxJoints` と、`Renderer::MaxSkinJoints`)・1 フレームに、骨つきの物 32 個(1 つのパレットは、骨の数にかかわらず、8 KB の枠)。超えたら、警告して、描かない。
+- **確認**:KRSkeleton の「Bind pose」(基準姿勢。形が崩れない)と、再生(形が骨と一緒に曲がる)。

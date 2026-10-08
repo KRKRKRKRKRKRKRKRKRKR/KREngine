@@ -104,15 +104,26 @@ protected:
 
         // 形の中心を原点に動かしてから、Y 軸で回す
         const XMMATRIX world = XMMatrixTranslation(-m_Center.x, -m_Center.y, -m_Center.z) * XMMatrixRotationY(m_Angle);
+
+        // 今の時刻の姿勢(動きが無いモデル・「Bind pose」のときは、基準姿勢)
+        const bool useClip = !m_BindPose && !m_Model.clips.empty();
+        const KR::AnimationClip* clip = useClip ? &m_Model.clips[m_ClipIndex] : nullptr;
+        const std::vector<XMFLOAT4X4> pose = KR::EvaluatePose(m_Model.skeleton, clip, m_Time);
+
         if (m_ShowMesh)
         {
-            GetRenderer().DrawMesh(m_Mesh, world);
+            if (m_Model.mesh.skin.empty())
+            {
+                GetRenderer().DrawMesh(m_Mesh, world); // 骨なしの形
+            }
+            else
+            {
+                // 骨つきの形:骨の行列の表(逆バインド × 今の姿勢)を渡すと、GPU が、頂点を骨に合わせて動かす
+                GetRenderer().DrawSkinnedMesh(m_Mesh, world, KR::ComputeSkinMatrices(m_Model.skeleton, pose));
+            }
         }
         if (m_ShowBones)
         {
-            // 今の時刻の姿勢(動きが無いモデルは、基準姿勢)で、骨を描く
-            const KR::AnimationClip* clip = m_Model.clips.empty() ? nullptr : &m_Model.clips[m_ClipIndex];
-            const std::vector<XMFLOAT4X4> pose = KR::EvaluatePose(m_Model.skeleton, clip, m_Time);
             KR::DrawSkeleton(GetRenderer(), m_Model.skeleton, pose, world, { 1.0f, 1.0f, 0.0f, 1.0f });
         }
     }
@@ -125,6 +136,7 @@ protected:
         ImGui::Checkbox("Bones", &m_ShowBones);
         ImGui::Checkbox("Mesh", &m_ShowMesh);
         ImGui::Checkbox("Rotate", &m_Rotate);
+        ImGui::Checkbox("Bind pose", &m_BindPose); // チェック:動きを使わず、基準姿勢(形が、骨なしの形と同じに見えるはず)
 
         if (!m_Model.clips.empty())
         {
@@ -153,8 +165,9 @@ private:
     XMFLOAT3 m_Center = {};               // 形の中心
     float m_Angle = 0.0f;
     bool m_ShowBones = true;
-    bool m_ShowMesh = false;
+    bool m_ShowMesh = true;
     bool m_Rotate = true;
+    bool m_BindPose = false;
 
     size_t m_ClipIndex = 0;   // 再生する動きの番号
     float m_Time = 0.0f;      // 動きの、今の時刻(秒)

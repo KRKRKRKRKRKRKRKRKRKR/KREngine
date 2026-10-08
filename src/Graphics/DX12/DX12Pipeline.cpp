@@ -11,16 +11,18 @@ namespace KR
         //   1番: b1 の箱に、定数バッファ(別紙)の住所。頂点シェーダーもピクセルシェーダーも使う(ALL)
         //        (カメラの行列は頂点シェーダー、光やフォグはピクセルシェーダーが使うため)
         //   2番: t0 の口に、画像の札(SRV)。札掛け(SRV ヒープ)の中の、どの札を指すかは、描くたびに変えられる。ピクセルシェーダーだけが使う
+        //   3番: b2 の箱に、定数バッファ(骨の行列の表 = パレット)の住所。頂点シェーダーだけが使う(骨つきの物を描くときだけ設定する)
         //   サンプラー(s0):画像から色を取るときの読み方。設計図に埋め込む(静的サンプラー)。線形(隣のピクセルと混ぜる)・繰り返し
         bool CreateRootSignature(ID3D12Device* device, ComPtr<ID3D12RootSignature>& outRootSignature)
         {
             CD3DX12_DESCRIPTOR_RANGE textureRange;
             textureRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); // t0 から 1 個(SRV)
 
-            CD3DX12_ROOT_PARAMETER rootParameters[3];
+            CD3DX12_ROOT_PARAMETER rootParameters[4];
             rootParameters[ObjectConstantsRootIndex].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
             rootParameters[FrameConstantsRootIndex].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
             rootParameters[TextureRootIndex].InitAsDescriptorTable(1, &textureRange, D3D12_SHADER_VISIBILITY_PIXEL);
+            rootParameters[PaletteRootIndex].InitAsConstantBufferView(2, 0, D3D12_SHADER_VISIBILITY_VERTEX);
 
             const CD3DX12_STATIC_SAMPLER_DESC linearSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR,
                                                             D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP,

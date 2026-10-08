@@ -80,6 +80,7 @@ namespace KR
         // メッシュ:三角形のプリミティブを、全部、1つの MeshData にまとめる
         void ReadMeshes(const cgltf_data& data, MeshData& mesh)
         {
+            bool anySkinned = false; // 骨の番号と重みを持つプリミティブが、1 つでもあったか
             for (cgltf_size nodeIndex = 0; nodeIndex < data.nodes_count; ++nodeIndex)
             {
                 const cgltf_mesh* gltfMesh = data.nodes[nodeIndex].mesh;
@@ -110,10 +111,37 @@ namespace KR
                         KR_LOG_WARN("GltfLoader: 法線が無いので、上向きにします");
                     }
 
+                    // 骨の番号と重み(1 組目だけ)。どちらかが無いプリミティブは、骨なしとして、骨 0・重み 1 にする
+                    const cgltf_accessor* joints = FindAttribute(primitive, cgltf_attribute_type_joints);
+                    const cgltf_accessor* weights = FindAttribute(primitive, cgltf_attribute_type_weights);
+                    const bool hasSkin = joints && weights;
+                    if (hasSkin)
+                    {
+                        anySkinned = true;
+                    }
+
                     // 頂点
                     const uint32_t baseVertex = static_cast<uint32_t>(mesh.vertices.size());
                     for (cgltf_size i = 0; i < positions->count; ++i)
                     {
+                        SkinVertex skinVertex;
+                        if (hasSkin)
+                        {
+                            cgltf_uint jointIndices[4] = {};
+                            cgltf_accessor_read_uint(joints, i, jointIndices, 4);
+                            float jointWeights[4] = {};
+                            cgltf_accessor_read_float(weights, i, jointWeights, 4);
+
+                            // 合計を 1 にそろえる(ファイルの数字の誤差を消す)。全部 0 なら、骨 0 に、全部の重みを置く
+                            const float sum = jointWeights[0] + jointWeights[1] + jointWeights[2] + jointWeights[3];
+                            for (int k = 0; k < 4; ++k)
+                            {
+                                skinVertex.joints[k] = static_cast<uint16_t>(jointIndices[k]);
+                                skinVertex.weights[k] = (sum > 0.0f) ? jointWeights[k] / sum : (k == 0 ? 1.0f : 0.0f);
+                            }
+                        }
+                        mesh.skin.push_back(skinVertex);
+
                         float position[3] = {};
                         cgltf_accessor_read_float(positions, i, position, 3);
 
@@ -152,6 +180,12 @@ namespace KR
                         mesh.indices.push_back(triangle[1]);
                     }
                 }
+            }
+
+            // 骨つきのプリミティブが 1 つも無ければ、骨なしの形(skin は空)
+            if (!anySkinned)
+            {
+                mesh.skin.clear();
             }
         }
 
@@ -392,7 +426,21 @@ namespace KR
 
         cgltf_free(data);
 
-        KR_LOG_INFO("GltfLoader: {} 頂点 {} 三角形 / 骨 {} 本 / 動き {} 個", model.mesh.vertices.size(), model.mesh.indices.size() / 3, model.skeleton.joints.size(), model.clips.size());
+        // 骨つきなら、頂点が使う骨の番号の最大値も出す(骨の数より小さいはず)
+        int maxJoint = -1;
+        for (const SkinVertex& skinVertex : model.mesh.skin)
+        {
+            for (int k = 0; k < 4; ++k)
+            {
+                if (skinVertex.weights[k] > 0.0f)
+                {
+                    maxJoint = std::max(maxJoint, static_cast<int>(skinVertex.joints[k]));
+                }
+            }
+        }
+        KR_LOG_INFO("GltfLoader: {} 頂点 {} 三角形 / 骨 {} 本 / 動き {} 個 / 頂点の骨つき: {}(使う骨の番号の最大 {})",
+                    model.mesh.vertices.size(), model.mesh.indices.size() / 3, model.skeleton.joints.size(), model.clips.size(),
+                    model.mesh.skin.empty() ? "なし" : "あり", maxJoint);
         return model;
     }
 }

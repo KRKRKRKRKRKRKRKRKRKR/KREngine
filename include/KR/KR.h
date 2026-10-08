@@ -15,3 +15,4 @@
 #include "KR/Animation/GltfLoader.h"
 #include "KR/Animation/SkeletonDebug.h"
 #include "KR/Animation/AnimationPose.h"
+#include "KR/Animation/SkinMatrices.h"
