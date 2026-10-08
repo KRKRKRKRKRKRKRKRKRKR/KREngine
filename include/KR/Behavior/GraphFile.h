@@ -12,3 +12,20 @@ namespace KR::Behavior
     // 失敗したら、エラーを出して false
     bool SaveGraph(const Graph& graph, const std::filesystem::path& file);
 }
+
+namespace KR::Behavior
+{
+    enum class GraphLoadResult
+    {
+        Loaded,   // 読めた(out に入った)
+        NotFound, // ファイルが無い
+        Invalid,  // 壊れている・形式が違う(エラーを出した。out は空のグラフ)
+    };
+
+    // グラフを、JSON ファイルから読む。file は、フルパス
+    GraphLoadResult LoadGraphFile(const std::filesystem::path& file, Graph& out);
+
+    // ゲーム向けの窓口:読めたらそのグラフ。読めなければ、エラーを出して、安全な既定のグラフ(待機 1 つ)
+    // いつも null でないグラフを返す
+    GraphPtr LoadGraph(const std::filesystem::path& file);
+}
