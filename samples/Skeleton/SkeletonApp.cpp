@@ -39,6 +39,21 @@ protected:
             KR_LOG_INFO("  動き {}: {:.3f} 秒 / 動く骨 {} 本", clip.name, clip.duration, clip.tracks.size());
         }
 
+        // 確認:動き無し(基準姿勢)で求めた骨の位置が、逆バインド行列から求めた位置と、合っているか(合っていれば、差は 0 に近い)
+        const std::vector<XMFLOAT4X4> bindFromLocal = KR::EvaluatePose(m_Model.skeleton, nullptr, 0.0f);
+        float maxDifference = 0.0f;
+        for (size_t i = 0; i < bindFromLocal.size(); ++i)
+        {
+            for (int row = 0; row < 4; ++row)
+            {
+                for (int column = 0; column < 4; ++column)
+                {
+                    maxDifference = std::max(maxDifference, std::fabs(bindFromLocal[i].m[row][column] - m_JointWorld[i].m[row][column]));
+                }
+            }
+        }
+        KR_LOG_INFO("  基準姿勢の一致(親子の掛け算 と 逆バインド行列の逆): 差の最大 {:.5f}", maxDifference);
+
         // 形の大きさに合わせて、カメラを置く:形を囲む箱を求めて、その中心を原点に動かし、半径の 3 倍だけ離れて見る
         XMFLOAT3 minimum = m_Model.mesh.vertices[0].position;
         XMFLOAT3 maximum = minimum;
@@ -63,6 +78,21 @@ protected:
         {
             m_Angle = std::fmod(m_Angle + deltaTime * 0.5f, 2.0f * std::numbers::pi_v<float>);
         }
+
+        // 動きの時刻を進める(長さをこえたら、最初に戻る = ループ)
+        if (m_Playing && !m_Model.clips.empty())
+        {
+            const float duration = m_Model.clips[m_ClipIndex].duration;
+            m_Time += deltaTime * m_Speed;
+            if (duration > 0.0f)
+            {
+                m_Time = std::fmod(m_Time, duration);
+                if (m_Time < 0.0f)
+                {
+                    m_Time += duration;
+                }
+            }
+        }
     }
 
     void OnRender() override
@@ -80,7 +110,10 @@ protected:
         }
         if (m_ShowBones)
         {
-            KR::DrawSkeleton(GetRenderer(), m_Model.skeleton, m_JointWorld, world, { 1.0f, 1.0f, 0.0f, 1.0f });
+            // 今の時刻の姿勢(動きが無いモデルは、基準姿勢)で、骨を描く
+            const KR::AnimationClip* clip = m_Model.clips.empty() ? nullptr : &m_Model.clips[m_ClipIndex];
+            const std::vector<XMFLOAT4X4> pose = KR::EvaluatePose(m_Model.skeleton, clip, m_Time);
+            KR::DrawSkeleton(GetRenderer(), m_Model.skeleton, pose, world, { 1.0f, 1.0f, 0.0f, 1.0f });
         }
     }
 
@@ -92,6 +125,16 @@ protected:
         ImGui::Checkbox("Bones", &m_ShowBones);
         ImGui::Checkbox("Mesh", &m_ShowMesh);
         ImGui::Checkbox("Rotate", &m_Rotate);
+
+        if (!m_Model.clips.empty())
+        {
+            const KR::AnimationClip& clip = m_Model.clips[m_ClipIndex];
+            ImGui::Separator();
+            ImGui::Text("Clip: %s (%.3f s)", clip.name.c_str(), clip.duration);
+            ImGui::Checkbox("Play", &m_Playing);
+            ImGui::SliderFloat("Speed", &m_Speed, 0.0f, 3.0f);
+            ImGui::SliderFloat("Time", &m_Time, 0.0f, clip.duration); // 止めているときに、時刻を動かして、姿勢を確かめる
+        }
         ImGui::End();
     }
 
@@ -112,6 +155,11 @@ private:
     bool m_ShowBones = true;
     bool m_ShowMesh = false;
     bool m_Rotate = true;
+
+    size_t m_ClipIndex = 0;   // 再生する動きの番号
+    float m_Time = 0.0f;      // 動きの、今の時刻(秒)
+    float m_Speed = 1.0f;     // 再生の速さ(1 = 等倍)
+    bool m_Playing = true;
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()

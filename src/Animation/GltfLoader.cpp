@@ -189,6 +189,14 @@ namespace KR
                     }
                 }
 
+                // 根(親が骨ではない)のとき:親のノード(アーマチュアなど)の、世界の行列を覚える(骨の世界の行列に、掛けるため)
+                if (joint.parent < 0 && node->parent)
+                {
+                    float parentWorld[16] = {};
+                    cgltf_node_transform_world(node->parent, parentWorld);
+                    joint.parentWorld = ConvertMatrix(parentWorld);
+                }
+
                 // 基準姿勢。行列で書いてあるときは、位置・向き・大きさに分ける
                 float translation[3] = { 0.0f, 0.0f, 0.0f };
                 float rotation[4] = { 0.0f, 0.0f, 0.0f, 1.0f };

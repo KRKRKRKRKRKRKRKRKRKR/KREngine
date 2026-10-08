@@ -96,6 +96,7 @@ set(ENGINE_FILES
     include/KR/Animation/AnimationClip.h
     include/KR/Animation/GltfLoader.h
     include/KR/Animation/SkeletonDebug.h
+    include/KR/Animation/AnimationPose.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -114,6 +115,7 @@ set(ENGINE_FILES
     src/Physics/Collision.cpp
     src/Animation/GltfLoader.cpp
     src/Animation/SkeletonDebug.cpp
+    src/Animation/AnimationPose.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
