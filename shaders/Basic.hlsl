@@ -32,23 +32,62 @@ struct PSInput
     float2 uv            : TEXCOORD2;   // 三角形の内側では、3頂点の uv が自動で補間される
 };
 
-// 頂点シェーダー: 頂点1つにつき1回呼ばれ、「画面のどこに置くか」を決める
-PSInput VSMain(VSInput input)
+// 骨の行列の表(パレット)。スキニングの頂点シェーダー(VSSkinned)だけが読む(C++ 側は Root Signature の b2 の口)
+// 各行列 = 逆バインド行列 × 骨の今の世界の行列。MaxJoints は、C++ 側の MaxSkinJoints(Renderer.cpp)と同じにする
+static const uint MaxJoints = 128;
+cbuffer SkinPalette : register(b2)
+{
+    row_major float4x4 bones[MaxJoints];
+};
+
+// ローカルの位置・法線を、ワールド → 画面に変換する(骨なしの VSMain も、骨つきの VSSkinned も、最後にこれを通る)
+PSInput TransformVertex(float3 localPosition, float3 localNormal, float4 color, float2 uv)
 {
     PSInput output;
     // w = 1(位置)にしてから行列を掛ける → 拡大・回転・移動がすべて効く
-    float4 worldPosition = mul(float4(input.position, 1.0), world); // ① ローカル → ワールド
-    output.position = mul(worldPosition, viewProjection);           // ② ワールド → カメラ → 画面
+    float4 worldPosition = mul(float4(localPosition, 1.0), world); // ① ローカル → ワールド
+    output.position = mul(worldPosition, viewProjection);          // ② ワールド → カメラ → 画面
     // この後 GPU が自動で x, y を w(奥行き)で割る → 遠い物ほど小さく映る
     output.worldPosition = worldPosition.xyz;
 
     // 法線は「向き」なので、w = 0 にして行列を掛ける → 回転と拡大だけが効き、移動は効かない
     // (長さは変わることがあるので、ピクセルシェーダーで 1 にそろえ直す)
-    output.worldNormal = mul(float4(input.normal, 0.0), world).xyz;
+    output.worldNormal = mul(float4(localNormal, 0.0), world).xyz;
 
-    output.color = input.color;
-    output.uv = input.uv;
+    output.color = color;
+    output.uv = uv;
     return output;
+}
+
+// 頂点シェーダー: 頂点1つにつき1回呼ばれ、「画面のどこに置くか」を決める
+PSInput VSMain(VSInput input)
+{
+    return TransformVertex(input.position, input.normal, input.color, input.uv);
+}
+
+// 骨つきの頂点シェーダーへの入力。VSInput に、骨の番号(4 つ)と重み(4 つ)を足した形
+struct VSSkinnedInput
+{
+    float3 position : POSITION;
+    float3 normal   : NORMAL;
+    float4 color    : COLOR;
+    float2 uv       : TEXCOORD;
+    uint4  joints   : BLENDINDICES; // 引っぱる骨の番号(パレットの何番目か)
+    float4 weights  : BLENDWEIGHT;  // それぞれの重み(合計 1)
+};
+
+// 骨つきの頂点シェーダー: 4 本の骨の行列を、重みで混ぜて、頂点を動かす → そのあとは、骨なしと同じ
+PSInput VSSkinned(VSSkinnedInput input)
+{
+    float4x4 skin = bones[input.joints.x] * input.weights.x
+                  + bones[input.joints.y] * input.weights.y
+                  + bones[input.joints.z] * input.weights.z
+                  + bones[input.joints.w] * input.weights.w;
+
+    // 位置(w = 1)も、法線(w = 0)も、混ぜた行列で、骨の動きの分だけ動かす
+    float3 skinnedPosition = mul(float4(input.position, 1.0), skin).xyz;
+    float3 skinnedNormal = mul(float4(input.normal, 0.0), skin).xyz;
+    return TransformVertex(skinnedPosition, skinnedNormal, input.color, input.uv);
 }
 
 // ピクセルシェーダー: 画素1つにつき1回呼ばれ、「何色に塗るか」を決める

@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <span>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -72,6 +73,16 @@ namespace KR
         // 実際の描画命令は EndFrame でまとめて作る
         // texture: 貼る画像。省略(無効な番号札)なら、白の 1×1(頂点の色のまま。画像を貼らない物は、今までと同じ見た目)
         void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, TextureHandle texture = {});
+
+        // 骨つきの形(MeshData::skin を持つ形)を、骨の行列の表(パレット)で動かして描く依頼を、描画リストに積む(OnRender で呼ぶ)
+        // palette: 骨ごとの「逆バインド行列 × 骨の今の世界の行列」(ComputeSkinMatrices で作る)。最大 MaxSkinJoints 本
+        // 骨なしの形を渡したり、骨つきの形を DrawMesh で描いたりすると、エラー(1 回)を出して、描かない
+        // 1 フレームに描ける、骨つきの物は MaxSkinnedDrawsPerFrame 個まで(超えた分は、警告を出して描かない)
+        void DrawSkinnedMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, std::span<const DirectX::XMFLOAT4X4> palette, TextureHandle texture = {});
+
+        // 骨の本数の上限(パレットの大きさ。シェーダーの MaxJoints と同じ)・1 フレームに描ける骨つきの物の数
+        static constexpr uint32_t MaxSkinJoints = 128;
+        static constexpr uint32_t MaxSkinnedDrawsPerFrame = 32;
 
         // デバッグ用の線を 1 本、積む(OnRender で呼ぶ)。座標は世界の座標。光・フォグはかからず、色のまま描く
         // DrawMesh と同じく、その場では描かず、EndFrame で、形のあとに、まとめて 1 回で描く(深度テストあり。物に隠れる)
@@ -143,6 +154,8 @@ namespace KR
             MeshHandle mesh;
             DirectX::XMFLOAT4X4 world;
             TextureHandle texture; // 無効なら、白の 1×1
+            bool skinned = false;          // 骨つきか(パレットを使う)
+            uint32_t paletteByteOffset = 0; // 骨つきのとき:パレットの表(m_PaletteStaging)の中での、この物のパレットの位置(バイト。256 の倍数)
         };
 
         std::unique_ptr<DX12Device> m_Device;
@@ -157,6 +170,7 @@ namespace KR
         std::unique_ptr<DX12Pipeline> m_Pipeline;
         std::unique_ptr<DX12Pipeline> m_SkyPipeline; // 空専用(画面全体を覆う三角形を、深度なしで描く)。Root Signature は m_Pipeline と共有
         std::unique_ptr<DX12Pipeline> m_LinePipeline; // デバッグの線専用(2 頂点で 1 本。光・フォグなし・深度あり)。Root Signature は m_Pipeline と共有
+        std::unique_ptr<DX12Pipeline> m_SkinnedPipeline; // 骨つきの形専用(頂点シェーダーが、パレットで頂点を動かす。あとは m_Pipeline と同じ)。Root Signature は m_Pipeline と共有
 
         std::unordered_map<uint32_t, std::unique_ptr<GpuMesh>> m_Meshes; // 一覧表(番号札 → 形の実体)
         uint32_t m_NextMeshId = 1;                                       // 次に発行する番号(使い回さない)
@@ -168,6 +182,11 @@ namespace KR
         std::vector<DrawCommand> m_DrawList;                             // 描画リスト(毎フレーム空にする)
         std::unordered_set<uint32_t> m_ReportedInvalidMeshes;            // エラーを出済みの無効な番号(1回だけ出すため)
         std::unordered_set<uint32_t> m_ReportedInvalidTextures;          // 同じく、画像の無効な番号
+
+        // 骨つきの物のパレット(DrawSkinnedMesh で、ここに積み、ExecuteDrawList で、GPU の箱に、まとめて書く。毎フレーム空にする)
+        std::vector<DirectX::XMFLOAT4X4> m_PaletteStaging;
+        std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_PaletteBuffers; // パレットを GPU に渡す箱。フレームの数だけ持つ(GPU が読んでいる途中で書き換えないため)
+        bool m_ReportedPaletteOverflow = false;                          // 骨つきの物の上限を超えた警告を出済みか(1 回だけ出すため)
 
         // デバッグの線(DrawLine で積み、EndFrame で、まとめて描く)
         std::vector<LineVertex> m_LineVertices;                          // 今のフレームで積んだ線の頂点(2 つで 1 本。毎フレーム空にする)

@@ -29,6 +29,8 @@ namespace KR
         std::unique_ptr<DX12UploadBuffer> vertexBuffer;
         std::unique_ptr<DX12UploadBuffer> indexBuffer;
         uint32_t indexCount = 0;
+        bool skinned = false;     // 骨つきの形か(頂点に、骨の番号と重みが付いている)
+        uint32_t vertexStride = 0; // 頂点 1 つの大きさ(バイト)。骨なしは sizeof(Vertex)・骨つきは sizeof(SkinnedGpuVertex)
     };
 
     namespace
@@ -63,6 +65,29 @@ namespace KR
             { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex, color),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
             { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, offsetof(Vertex, uv),       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
+
+        // 骨つきの形の頂点 1 つ分(GPU に入れる形)。Vertex のあとに、骨の番号と重みが続く(Basic.hlsl の VSSkinnedInput と対応)
+        struct SkinnedGpuVertex
+        {
+            Vertex vertex;
+            SkinVertex skin;
+        };
+
+        // 骨つきの頂点の入れ物の、どこに何が入っているか。先頭の 4 つは、骨なしと同じ
+        constexpr D3D12_INPUT_ELEMENT_DESC SkinnedInputLayout[] = {
+            { "POSITION",     0, DXGI_FORMAT_R32G32B32_FLOAT,    0, offsetof(SkinnedGpuVertex, vertex.position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "NORMAL",       0, DXGI_FORMAT_R32G32B32_FLOAT,    0, offsetof(SkinnedGpuVertex, vertex.normal),   D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "COLOR",        0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(SkinnedGpuVertex, vertex.color),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",     0, DXGI_FORMAT_R32G32_FLOAT,       0, offsetof(SkinnedGpuVertex, vertex.uv),       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT,  0, offsetof(SkinnedGpuVertex, skin.joints),     D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "BLENDWEIGHT",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(SkinnedGpuVertex, skin.weights),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        };
+
+        // パレットの 1 つ分の、最大の大きさ(バイト)。256 の倍数(定数バッファの住所は、256 バイト区切りにする決まり)
+        constexpr uint64_t MaxPaletteBytes = uint64_t(Renderer::MaxSkinJoints) * sizeof(XMFLOAT4X4);
+        static_assert(MaxPaletteBytes % 256 == 0);
+        // 1 フレーム分のパレットの箱の大きさ
+        constexpr uint64_t PaletteBufferSize = MaxPaletteBytes * Renderer::MaxSkinnedDrawsPerFrame;
 
         // 線の頂点(Renderer::LineVertex)の形式。位置と色だけ(Line.hlsl の VSInput と対応)
         // offsetof は private な型に使えないので、並び(位置 12 バイト → 色)を直接書く
@@ -128,6 +153,12 @@ namespace KR
         }
         m_LineVertices.reserve(MaxLineVertices);
 
+        // A-5: 骨つきの物のパレットの箱(フレームごとに 1 つ)
+        for (std::unique_ptr<DX12UploadBuffer>& buffer : m_PaletteBuffers)
+        {
+            buffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), PaletteBufferSize);
+        }
+
         // 6-3: 白の 1×1 の画像(R, G, B, A = 255)。画像を貼らない物に使う(白を掛けても、色は変わらない)
         constexpr uint8_t whitePixel[4] = { 255, 255, 255, 255 };
         m_WhiteTexture = CreateTextureFromPixels(1, 1, whitePixel);
@@ -157,6 +188,11 @@ namespace KR
         {
             buffer.reset();
         }
+        for (std::unique_ptr<DX12UploadBuffer>& buffer : m_PaletteBuffers)
+        {
+            buffer.reset();
+        }
+        m_SkinnedPipeline.reset();
         m_LinePipeline.reset();
         m_SkyPipeline.reset();
         m_Pipeline.reset();
@@ -254,11 +290,31 @@ namespace KR
             return false;
         }
 
-        // 古いパイプラインを GPU が使い終わってから差し替える(物・空・線は、同時に差し替える)
+        // A-5: 骨つきの形のパイプライン。頂点シェーダーだけ VSSkinned(Basic.hlsl の中)・ピクセルシェーダーは物と同じ
+        ComPtr<IDxcBlob> skinnedVertexShader = m_ShaderCompiler->Compile(shaderPath, L"VSSkinned", L"vs_6_0");
+        if (!skinnedVertexShader)
+        {
+            return false;
+        }
+
+        DX12PipelineDesc skinnedDesc;
+        skinnedDesc.vertexShader = { skinnedVertexShader->GetBufferPointer(), skinnedVertexShader->GetBufferSize() };
+        skinnedDesc.pixelShader = { pixelShader->GetBufferPointer(), pixelShader->GetBufferSize() };
+        skinnedDesc.inputLayout = SkinnedInputLayout;
+        skinnedDesc.sharedRootSignature = pipeline->GetRootSignature();
+
+        std::unique_ptr<DX12Pipeline> skinnedPipeline = DX12Pipeline::Create(m_Device->Get(), skinnedDesc);
+        if (!skinnedPipeline)
+        {
+            return false;
+        }
+
+        // 古いパイプラインを GPU が使い終わってから差し替える(物・空・線・骨つきは、同時に差し替える)
         m_Queue->Flush();
         m_Pipeline = std::move(pipeline);
         m_SkyPipeline = std::move(skyPipeline);
         m_LinePipeline = std::move(linePipeline);
+        m_SkinnedPipeline = std::move(skinnedPipeline);
         return true;
     }
 
@@ -398,12 +454,37 @@ namespace KR
             return {};
         }
 
-        const uint64_t vertexBytes = data.vertices.size() * sizeof(Vertex);
+        // 骨の設定があるなら、頂点と同じ数であること
+        const bool skinned = !data.skin.empty();
+        if (skinned && data.skin.size() != data.vertices.size())
+        {
+            KR_LOG_ERROR("CreateMesh: 骨の設定の数({})が、頂点の数({})と違います", data.skin.size(), data.vertices.size());
+            return {};
+        }
+
+        const uint32_t vertexStride = skinned ? sizeof(SkinnedGpuVertex) : sizeof(Vertex);
+        const uint64_t vertexBytes = data.vertices.size() * vertexStride;
         const uint64_t indexBytes = data.indices.size() * sizeof(uint32_t);
 
         auto mesh = std::make_unique<GpuMesh>();
+        mesh->skinned = skinned;
+        mesh->vertexStride = vertexStride;
         mesh->vertexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), vertexBytes);
-        mesh->vertexBuffer->Write(data.vertices.data(), vertexBytes);
+        if (skinned)
+        {
+            // 頂点と骨の設定を、1 頂点ずつ、並べ直して書く(頂点バッファは、1 つの並びで読まれるため)
+            std::vector<SkinnedGpuVertex> combined(data.vertices.size());
+            for (size_t i = 0; i < combined.size(); ++i)
+            {
+                combined[i].vertex = data.vertices[i];
+                combined[i].skin = data.skin[i];
+            }
+            mesh->vertexBuffer->Write(combined.data(), vertexBytes);
+        }
+        else
+        {
+            mesh->vertexBuffer->Write(data.vertices.data(), vertexBytes);
+        }
         mesh->indexBuffer = std::make_unique<DX12UploadBuffer>(m_Device->Get(), indexBytes);
         mesh->indexBuffer->Write(data.indices.data(), indexBytes);
         mesh->indexCount = static_cast<uint32_t>(data.indices.size());
@@ -498,6 +579,38 @@ namespace KR
         m_DrawList.push_back(command);
     }
 
+    // A-5: 骨つきの形。DrawMesh と同じく、依頼メモを積むだけ。パレットは、表(m_PaletteStaging)に、256 バイト区切りで積む
+    void Renderer::DrawSkinnedMesh(MeshHandle mesh, const XMMATRIX& world, std::span<const XMFLOAT4X4> palette, TextureHandle texture)
+    {
+        if (palette.empty() || palette.size() > MaxSkinJoints)
+        {
+            KR_LOG_ERROR("DrawSkinnedMesh: 骨の数は 1 〜 {} 本にしてください({} 本)", MaxSkinJoints, palette.size());
+            return;
+        }
+
+        // このパレットの位置(バイト)。1 つのパレットは、骨の数にかかわらず、最大の大きさ(MaxPaletteBytes)の枠を使う
+        const uint64_t byteOffset = m_PaletteStaging.size() * sizeof(XMFLOAT4X4);
+        if (byteOffset + MaxPaletteBytes > PaletteBufferSize)
+        {
+            if (!m_ReportedPaletteOverflow)
+            {
+                KR_LOG_WARN("DrawSkinnedMesh: 1 フレームの骨つきの物の上限({} 個)を超えました。超えた分は描きません", MaxSkinnedDrawsPerFrame);
+                m_ReportedPaletteOverflow = true;
+            }
+            return;
+        }
+        m_PaletteStaging.resize(m_PaletteStaging.size() + MaxSkinJoints); // 枠をとって(0 で埋まる)
+        std::copy(palette.begin(), palette.end(), m_PaletteStaging.end() - MaxSkinJoints); // 先頭から、骨の数だけ書く
+
+        DrawCommand command;
+        command.mesh = mesh;
+        command.texture = texture;
+        command.skinned = true;
+        command.paletteByteOffset = static_cast<uint32_t>(byteOffset);
+        XMStoreFloat4x4(&command.world, world);
+        m_DrawList.push_back(command);
+    }
+
     // 当たり判定: 線も、その場では描かず、頂点を 2 つ積むだけ(DrawMesh と同じ)
     void Renderer::DrawLine(const XMFLOAT3& start, const XMFLOAT3& end, const XMFLOAT4& color)
     {
@@ -538,6 +651,15 @@ namespace KR
         // リスト全体で1回だけ: パイプラインと「番号を3つずつ区切って三角形にする」設定(Root Signature は BeginFrame で設定済み)
         commandList->SetPipelineState(m_Pipeline->Get());
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        bool boundSkinned = false; // 今のパイプラインは、骨つき用か(最初は、骨なし)
+
+        // 積んだパレットを、今のフレームの箱に、まとめて書く(1 つ前のフレームの箱は、GPU が、まだ読んでいるかもしれない)
+        DX12UploadBuffer& paletteBuffer = *m_PaletteBuffers[m_FrameIndex];
+        if (!m_PaletteStaging.empty())
+        {
+            paletteBuffer.Write(m_PaletteStaging.data(), m_PaletteStaging.size() * sizeof(XMFLOAT4X4));
+            m_PaletteStaging.clear();
+        }
 
         uint32_t boundMeshId = 0; // 今、頂点バッファと番号バッファに設定している形
         uint32_t boundTextureId = m_WhiteTexture.id; // 今、t0 の口に置いている画像(BeginFrame で、白を置いてある)
@@ -555,6 +677,24 @@ namespace KR
             }
             const GpuMesh& mesh = *it->second;
 
+            // 骨つきの形は DrawSkinnedMesh で・骨なしの形は DrawMesh で描く。食い違いは、飛ばす(頂点の形が違うので、描くと壊れる)
+            if (mesh.skinned != command.skinned)
+            {
+                if (m_ReportedInvalidMeshes.insert(command.mesh.id).second)
+                {
+                    KR_LOG_ERROR("{}: 番号札 {} は、{}の形です。この描画を飛ばします", command.skinned ? "DrawSkinnedMesh" : "DrawMesh",
+                                 command.mesh.id, mesh.skinned ? "骨つき(DrawSkinnedMesh で描く)" : "骨なし(DrawMesh で描く)");
+                }
+                continue;
+            }
+
+            // 骨つきと骨なしで、パイプラインを切り替える
+            if (command.skinned != boundSkinned)
+            {
+                commandList->SetPipelineState(command.skinned ? m_SkinnedPipeline->Get() : m_Pipeline->Get());
+                boundSkinned = command.skinned;
+            }
+
             // 直前と同じ形なら、頂点バッファと番号バッファの設定を省く
             if (command.mesh.id != boundMeshId)
             {
@@ -562,7 +702,7 @@ namespace KR
                 D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
                 vertexBufferView.BufferLocation = mesh.vertexBuffer->GetGpuAddress();
                 vertexBufferView.SizeInBytes = static_cast<UINT>(mesh.vertexBuffer->GetSize());
-                vertexBufferView.StrideInBytes = sizeof(Vertex);
+                vertexBufferView.StrideInBytes = mesh.vertexStride;
                 commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 
                 // 番号リストの場所・全体の大きさ・番号の型(uint32_t)を伝える
@@ -594,6 +734,12 @@ namespace KR
             {
                 commandList->SetGraphicsRootDescriptorTable(TextureRootIndex, m_Textures.at(textureId)->GetGpuHandle());
                 boundTextureId = textureId;
+            }
+
+            // 骨つきなら、この物のパレットの住所(箱の先頭 + 位置)を b2 の口に伝える
+            if (command.skinned)
+            {
+                commandList->SetGraphicsRootConstantBufferView(PaletteRootIndex, paletteBuffer.GetGpuAddress() + command.paletteByteOffset);
             }
 
             // ワールド行列(数字16個)を b0 の箱に入れて、描く

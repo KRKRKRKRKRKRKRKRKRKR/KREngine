@@ -83,3 +83,5 @@ flowchart TD
 | `CreateCheckerPlaneMeshData` | 市松模様の平らな板(タイルごとに頂点 4 つ・法線は上向き) | 地面(自機に合わせて 4 m ずつずらして、無限に続いて見せる) |
 
 頂点の形は `Vertex { position, normal, color, uv }`(48 バイト)。C++ の `Vertex`、入力レイアウト、シェーダーの `VSInput` の 3 か所は、同じ形でそろえる(1 か所でも食い違うと、形が崩れる)。詳しくは [Lighting.md](Lighting.md)。
+
+**骨つきの形**(A-5):`MeshData::skin`(頂点ごとの、骨の番号 4 つ + 重み 4 つ)があると、`CreateMesh` が、頂点を「`Vertex` + 骨の番号(uint16 × 4)+ 重み(float × 4)」(72 バイト)に並べて GPU に入れる。骨なしの形は、今までどおり(48 バイト)。骨つきの形は `DrawSkinnedMesh` で、骨なしの形は `DrawMesh` で描く(食い違いは、エラーを出して、描かない)。
