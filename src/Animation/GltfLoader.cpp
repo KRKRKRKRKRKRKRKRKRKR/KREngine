@@ -50,6 +50,81 @@ namespace KR
             return result;
         }
 
+        // ---- 名前 ----
+
+        // cgltf は、JSON の \uXXXX(例:Blender が日本語の名前を、ボ のように書く)を、元の文字に戻さない。
+        // ここで UTF-8 の文字に戻す(2 つで 1 文字の、サロゲートペアにも対応)。名前が無ければ "(名前なし)"
+        std::string DecodeName(const char* raw)
+        {
+            if (!raw)
+            {
+                return "(名前なし)";
+            }
+
+            auto readHex4 = [](const char* p, uint32_t& value) -> bool
+            {
+                value = 0;
+                for (int i = 0; i < 4; ++i)
+                {
+                    const char c = p[i];
+                    uint32_t digit = 0;
+                    if (c >= '0' && c <= '9')      { digit = static_cast<uint32_t>(c - '0'); }
+                    else if (c >= 'a' && c <= 'f') { digit = static_cast<uint32_t>(c - 'a' + 10); }
+                    else if (c >= 'A' && c <= 'F') { digit = static_cast<uint32_t>(c - 'A' + 10); }
+                    else                           { return false; }
+                    value = value * 16 + digit;
+                }
+                return true;
+            };
+
+            std::string result;
+            const char* p = raw;
+            while (*p)
+            {
+                uint32_t code = 0;
+                if (p[0] == '\\' && p[1] == 'u' && readHex4(p + 2, code))
+                {
+                    p += 6;
+                    // 上位サロゲート(D800〜DBFF)のあとに、下位サロゲート(DC00〜DFFF)が続いたら、1 つの文字にまとめる
+                    uint32_t low = 0;
+                    if (code >= 0xD800 && code <= 0xDBFF && p[0] == '\\' && p[1] == 'u' && readHex4(p + 2, low) && low >= 0xDC00 && low <= 0xDFFF)
+                    {
+                        code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
+                        p += 6;
+                    }
+
+                    // コードポイントを、UTF-8 の 1〜4 バイトにする
+                    if (code < 0x80)
+                    {
+                        result += static_cast<char>(code);
+                    }
+                    else if (code < 0x800)
+                    {
+                        result += static_cast<char>(0xC0 | (code >> 6));
+                        result += static_cast<char>(0x80 | (code & 0x3F));
+                    }
+                    else if (code < 0x10000)
+                    {
+                        result += static_cast<char>(0xE0 | (code >> 12));
+                        result += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
+                        result += static_cast<char>(0x80 | (code & 0x3F));
+                    }
+                    else
+                    {
+                        result += static_cast<char>(0xF0 | (code >> 18));
+                        result += static_cast<char>(0x80 | ((code >> 12) & 0x3F));
+                        result += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
+                        result += static_cast<char>(0x80 | (code & 0x3F));
+                    }
+                }
+                else
+                {
+                    result += *p++;
+                }
+            }
+            return result;
+        }
+
         // ---- 読み込み ----
 
         // ファイルを、まるごと、メモリに読む(パスに日本語が入っていても、std::filesystem なら開ける)
@@ -211,7 +286,7 @@ namespace KR
             {
                 const cgltf_node* node = skin.joints[i];
                 Joint& joint = skeleton.joints[i];
-                joint.name = node->name ? node->name : "(名前なし)";
+                joint.name = DecodeName(node->name);
 
                 // 親:ノードの親が、スキンの joints の中の何番目か(joints の外なら、根として扱う)
                 for (cgltf_size j = 0; j < skin.joints_count; ++j)
@@ -296,7 +371,7 @@ namespace KR
             {
                 const cgltf_animation& animation = data.animations[a];
                 AnimationClip clip;
-                clip.name = animation.name ? animation.name : "(名前なし)";
+                clip.name = DecodeName(animation.name);
 
                 for (cgltf_size c = 0; c < animation.channels_count; ++c)
                 {
@@ -438,6 +513,13 @@ namespace KR
                 }
             }
         }
+        if (maxJoint >= static_cast<int>(model.skeleton.joints.size()))
+        {
+            // 頂点が、存在しない骨を指している。そのまま描くと、骨の表の外を読んで、形が崩れる
+            KR_LOG_ERROR("GltfLoader: {} の頂点が、存在しない骨(番号 {}。骨は {} 本)を指しています", file.string(), maxJoint, model.skeleton.joints.size());
+            return {};
+        }
+
         KR_LOG_INFO("GltfLoader: {} 頂点 {} 三角形 / 骨 {} 本 / 動き {} 個 / 頂点の骨つき: {}(使う骨の番号の最大 {})",
                     model.mesh.vertices.size(), model.mesh.indices.size() / 3, model.skeleton.joints.size(), model.clips.size(),
                     model.mesh.skin.empty() ? "なし" : "あり", maxJoint);
