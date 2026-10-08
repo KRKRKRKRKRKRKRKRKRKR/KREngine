@@ -21,7 +21,12 @@ include(FetchContent)
 # ゲームのアセット(モデル・コース・設定など)の場所。ゲームの CMakeLists.txt が、エンジンを取り込む前に、決める(set(KR_GAME_ASSETS_DIR ...))
 # 決めてなければ、最上位の Assets/ とする(サンプルのように、ゲームのアセットが、無いときは、あってもなくても、よい)
 if(NOT DEFINED KR_GAME_ASSETS_DIR)
-    set(KR_GAME_ASSETS_DIR "${CMAKE_SOURCE_DIR}/Assets")
+    if(KR_IS_TOP_LEVEL)
+        # エンジン単体のときは、サンプルのアセット(テスト用のモデルなど)
+        set(KR_GAME_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/Assets")
+    else()
+        set(KR_GAME_ASSETS_DIR "${CMAKE_SOURCE_DIR}/Assets")
+    endif()
 endif()
 
 # d3dx12.h などの DX12 ヘッダー(Git 不要の zip ダウンロード。ハッシュで改ざんを検出する)
@@ -66,6 +71,14 @@ FetchContent_Declare(stb
 )
 FetchContent_MakeAvailable(stb)
 
+# cgltf(glTF を読む。ヘッダー 1 つのライブラリ)。エンジンだけが使う。バージョンを固定(ハッシュで改ざんを検出)
+# cgltf も CMakeLists.txt の使い方が要らないので、取得だけして、下で、インクルードの場所を指定する
+FetchContent_Declare(cgltf
+    URL      https://github.com/jkuhlmann/cgltf/archive/refs/tags/v1.15.zip
+    URL_HASH SHA256=a2f5f6db978fd269a107e9284f4a7bac5d1132cd7cc5e6464e60c8aff81001d1
+)
+FetchContent_MakeAvailable(cgltf)
+
 set(ENGINE_FILES
     include/KR/KR.h
     include/KR/Core/Application.h
@@ -79,6 +92,9 @@ set(ENGINE_FILES
     include/KR/Renderer/Texture.h
     include/KR/Renderer/ModelLoader.h
     include/KR/Physics/Collision.h
+    include/KR/Animation/Skeleton.h
+    include/KR/Animation/AnimationClip.h
+    include/KR/Animation/GltfLoader.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -95,6 +111,7 @@ set(ENGINE_FILES
     src/Renderer/Image.h
     src/Renderer/Image.cpp
     src/Physics/Collision.cpp
+    src/Animation/GltfLoader.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
@@ -138,7 +155,7 @@ target_include_directories(KREngine
 )
 
 # stb_image は、Engine の中だけで使う(PRIVATE)。SYSTEM = 他人のコードの警告は出さない
-target_include_directories(KREngine SYSTEM PRIVATE ${stb_SOURCE_DIR})
+target_include_directories(KREngine SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR})
 
 target_compile_definitions(KREngine
     PUBLIC  $<$<CONFIG:Debug>:KR_DEBUG>
