@@ -162,7 +162,7 @@ bool hit = KR::Intersects(a, b);                           // 重なっている
 ## 6. エンジンを、ゲームと一緒に開発する(サブモジュール)
 | 場面 | 手順 |
 |---|---|
-| エンジンを直して、ゲームで、すぐ試す(push しない) | エンジンを、別の場所に clone して(例:`C:/dev/KREngine`)、ゲームの configure に `-DKR_ENGINE_PATH=C:/dev/KREngine` を付ける(自分の PC だけの設定。`CMakeUserPresets.json` に書くと、楽。コミットしない) |
+| エンジンを直して、ゲームで、すぐ試す(push しない) | エンジンを、別の場所に clone して(例:`C:/SchoolProgram/Game/KREngine`)、ゲームの configure に `-DKR_ENGINE_PATH=C:/SchoolProgram/Game/KREngine` を付ける(自分の PC だけの設定。`CMakeUserPresets.json` に書くと、楽。コミットしない) |
 | エンジンの変更を、ゲームの、正式な版に、する | **① エンジンのリポジトリで、コミット・push** → **② ゲームのリポジトリで、`External/KREngine` が、新しいコミットを指している変更を、コミット**(順番を守る。逆にすると、別の PC で、そのコミットが、見つからない) |
 | サブモジュールの中を、直す | サブモジュールの中は、特定のコミットに固定(`detached HEAD`)。直す前に、`git checkout main` |
 | 別の PC で、更新を、取り込む | ゲームで `git pull` したあと、`git submodule update` |
