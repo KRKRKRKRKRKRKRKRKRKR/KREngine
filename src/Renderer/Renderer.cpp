@@ -194,6 +194,8 @@ namespace KR
         {
             buffer.reset();
         }
+        m_OverlayLinePipeline.reset();
+        m_OverlayPipeline.reset();
         m_SkinnedPipeline.reset();
         m_LinePipeline.reset();
         m_SkyPipeline.reset();
@@ -311,8 +313,27 @@ namespace KR
             return false;
         }
 
-        // 古いパイプラインを GPU が使い終わってから差し替える(物・空・線・骨つきは、同時に差し替える)
+        // 手前に描く(overlay)パイプライン:物・線と同じで、深度テストだけなし(ほかの物の手前に、描く)
+        DX12PipelineDesc overlayDesc;
+        overlayDesc.vertexShader = { vertexShader->GetBufferPointer(), vertexShader->GetBufferSize() };
+        overlayDesc.pixelShader = { pixelShader->GetBufferPointer(), pixelShader->GetBufferSize() };
+        overlayDesc.inputLayout = VertexInputLayout;
+        overlayDesc.sharedRootSignature = pipeline->GetRootSignature();
+        overlayDesc.depthEnabled = false;
+        std::unique_ptr<DX12Pipeline> overlayPipeline = DX12Pipeline::Create(m_Device->Get(), overlayDesc);
+
+        DX12PipelineDesc overlayLineDesc = lineDesc;
+        overlayLineDesc.depthEnabled = false;
+        std::unique_ptr<DX12Pipeline> overlayLinePipeline = DX12Pipeline::Create(m_Device->Get(), overlayLineDesc);
+        if (!overlayPipeline || !overlayLinePipeline)
+        {
+            return false;
+        }
+
+        // 古いパイプラインを GPU が使い終わってから差し替える(物・空・線・骨つき・手前は、同時に差し替える)
         m_Queue->Flush();
+        m_OverlayPipeline = std::move(overlayPipeline);
+        m_OverlayLinePipeline = std::move(overlayLinePipeline);
         m_Pipeline = std::move(pipeline);
         m_SkyPipeline = std::move(skyPipeline);
         m_LinePipeline = std::move(linePipeline);
@@ -572,11 +593,12 @@ namespace KR
     }
 
     // 2-7 処理4: その場では描かず、依頼メモを描画リストに積むだけ
-    void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world, TextureHandle texture)
+    void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world, TextureHandle texture, bool overlay)
     {
         DrawCommand command;
         command.mesh = mesh;
         command.texture = texture;
+        command.overlay = overlay;
         XMStoreFloat4x4(&command.world, world); // 計算用の XMMATRIX を、保存用の XMFLOAT4X4 に書き出す
         m_DrawList.push_back(command);
     }
@@ -614,9 +636,10 @@ namespace KR
     }
 
     // 当たり判定: 線も、その場では描かず、頂点を 2 つ積むだけ(DrawMesh と同じ)
-    void Renderer::DrawLine(const XMFLOAT3& start, const XMFLOAT3& end, const XMFLOAT4& color)
+    void Renderer::DrawLine(const XMFLOAT3& start, const XMFLOAT3& end, const XMFLOAT4& color, bool overlay)
     {
-        if (m_LineVertices.size() + 2 > MaxLineVertices)
+        // 上限は、通常の線と、手前に描く線(overlay)の、合計(同じ箱に並べて書くため)
+        if (m_LineVertices.size() + m_OverlayLineVertices.size() + 2 > MaxLineVertices)
         {
             if (!m_ReportedLineOverflow)
             {
@@ -625,8 +648,9 @@ namespace KR
             }
             return;
         }
-        m_LineVertices.push_back({ start, color });
-        m_LineVertices.push_back({ end, color });
+        std::vector<LineVertex>& vertices = overlay ? m_OverlayLineVertices : m_LineVertices;
+        vertices.push_back({ start, color });
+        vertices.push_back({ end, color });
     }
 
     void Renderer::DrawWireBox(const OBB& box, const XMFLOAT4& color)
@@ -690,8 +714,17 @@ namespace KR
 
         uint32_t boundMeshId = 0; // 今、頂点バッファと番号バッファに設定している形
         uint32_t boundTextureId = m_WhiteTexture.id; // 今、t0 の口に置いている画像(BeginFrame で、白を置いてある)
+
+        // 描画リストの、overlay が一致する依頼を、1 つずつ GPU への命令にする(通常の物 → 通常の線 → 手前の物 → 手前の線の順に、2 回に分けて呼ぶ)
+        auto drawPass = [&](bool overlay)
+        {
         for (const DrawCommand& command : m_DrawList)
         {
+            if (command.overlay != overlay)
+            {
+                continue;
+            }
+
             // 番号札から形を探す。無効・捨てた後の番号札なら飛ばす(エラーは番号ごとに最初の1回だけ)
             auto it = m_Meshes.find(command.mesh.id);
             if (it == m_Meshes.end())
@@ -773,38 +806,71 @@ namespace KR
             commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &command.world, 0);
             commandList->DrawIndexedInstanced(mesh.indexCount, 1, 0, 0, 0);
         }
+        };
+
+        // ① 通常の物(深度テストあり)→ ② 通常の線(深度テストで、物の後ろの線は隠れる)
+        drawPass(false);
+        ExecuteLines(false);
+
+        // ③ 手前の物(overlay。深度テストなし。骨なしの形だけ)→ ④ 手前の線。①②で、頂点バッファ・パイプラインが変わっているので、設定し直す
+        commandList->SetPipelineState(m_OverlayPipeline->Get());
+        commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        boundSkinned = false;
+        boundMeshId = 0;
+        drawPass(true);
+        ExecuteLines(true);
 
         m_DrawList.clear();
-
-        // 形を描いたあとに、線を描く(深度テストで、物の後ろの線は隠れる)
-        ExecuteLines();
     }
 
-    void Renderer::ExecuteLines()
+    // 積んだ線を描く。overlay = false: 通常の線(深度テストあり)・true: 手前の線(深度テストなし)
+    // 通常の線と手前の線は、今のフレームの箱に、続けて書く(通常 → 手前の順)。箱への書き込みは、false のときに、まとめて 1 回
+    void Renderer::ExecuteLines(bool overlay)
     {
-        if (m_LineVertices.empty())
+        DX12UploadBuffer& buffer = *m_LineVertexBuffers[m_FrameIndex]; // 今のフレームの箱(1 つ前のフレームの箱は、GPU が、まだ読んでいるかもしれない)
+        const auto normalCount = static_cast<uint32_t>(m_LineVertices.size());
+        const auto overlayCount = static_cast<uint32_t>(m_OverlayLineVertices.size());
+
+        if (!overlay)
         {
-            return;
+            m_LineBufferNormalCount = normalCount;
+            if (normalCount + overlayCount == 0)
+            {
+                return;
+            }
+            // 通常の線 → 手前の線の順に、箱へ書く
+            if (normalCount > 0)
+            {
+                buffer.Write(m_LineVertices.data(), sizeof(LineVertex) * normalCount);
+            }
+            if (overlayCount > 0)
+            {
+                buffer.Write(m_OverlayLineVertices.data(), sizeof(LineVertex) * overlayCount, sizeof(LineVertex) * normalCount);
+            }
         }
 
-        // 今のフレームの箱に書く(1 つ前のフレームの箱は、GPU が、まだ読んでいるかもしれない)
-        DX12UploadBuffer& buffer = *m_LineVertexBuffers[m_FrameIndex];
-        const auto byteSize = static_cast<uint32_t>(sizeof(LineVertex) * m_LineVertices.size());
-        buffer.Write(m_LineVertices.data(), byteSize);
+        const uint32_t count = overlay ? overlayCount : normalCount;
+        const uint32_t start = overlay ? m_LineBufferNormalCount : 0;
+        if (count > 0)
+        {
+            D3D12_VERTEX_BUFFER_VIEW view = {};
+            view.BufferLocation = buffer.GetGpuAddress();
+            view.SizeInBytes = sizeof(LineVertex) * (m_LineBufferNormalCount + overlayCount);
+            view.StrideInBytes = sizeof(LineVertex);
 
-        D3D12_VERTEX_BUFFER_VIEW view = {};
-        view.BufferLocation = buffer.GetGpuAddress();
-        view.SizeInBytes = byteSize;
-        view.StrideInBytes = sizeof(LineVertex);
+            // 線のパイプラインに切り替えて、全部の線を 1 回で描く(Root Signature と b1 は、BeginFrame で設定済み・共有)
+            ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
+            commandList->SetPipelineState(overlay ? m_OverlayLinePipeline->Get() : m_LinePipeline->Get());
+            commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST); // 頂点を 2 つずつ、1 本の線にする
+            commandList->IASetVertexBuffers(0, 1, &view);
+            commandList->DrawInstanced(count, 1, start, 0);
+        }
 
-        // 線のパイプラインに切り替えて、全部の線を 1 回で描く(Root Signature と b1 は、BeginFrame で設定済み・共有)
-        ID3D12GraphicsCommandList* commandList = m_CommandList->Get();
-        commandList->SetPipelineState(m_LinePipeline->Get());
-        commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST); // 頂点を 2 つずつ、1 本の線にする
-        commandList->IASetVertexBuffers(0, 1, &view);
-        commandList->DrawInstanced(static_cast<UINT>(m_LineVertices.size()), 1, 0, 0);
-
-        m_LineVertices.clear();
+        if (overlay)
+        {
+            m_LineVertices.clear();
+            m_OverlayLineVertices.clear();
+        }
     }
 
     //フレーム終了

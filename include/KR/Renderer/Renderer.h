@@ -72,7 +72,8 @@ namespace KR
         // 「この形を、この行列で描いて」という依頼を描画リストに積む(OnRender で呼ぶ)
         // 実際の描画命令は EndFrame でまとめて作る
         // texture: 貼る画像。省略(無効な番号札)なら、白の 1×1(頂点の色のまま。画像を貼らない物は、今までと同じ見た目)
-        void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, TextureHandle texture = {});
+        // overlay: true なら、深度テストなしで、ほかの物の「手前」に描く(Blender の「In Front」。物の中にある骨を、見せるときなど)。骨つきの形(DrawSkinnedMesh)には使えない
+        void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, TextureHandle texture = {}, bool overlay = false);
 
         // 骨つきの形(MeshData::skin を持つ形)を、骨の行列の表(パレット)で動かして描く依頼を、描画リストに積む(OnRender で呼ぶ)
         // palette: 骨ごとの「逆バインド行列 × 骨の今の世界の行列」(ComputeSkinMatrices で作る)。最大 MaxSkinJoints 本
@@ -86,7 +87,8 @@ namespace KR
 
         // デバッグ用の線を 1 本、積む(OnRender で呼ぶ)。座標は世界の座標。光・フォグはかからず、色のまま描く
         // DrawMesh と同じく、その場では描かず、EndFrame で、形のあとに、まとめて 1 回で描く(深度テストあり。物に隠れる)
-        void DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end, const DirectX::XMFLOAT4& color);
+        // overlay: true なら、深度テストなしで、ほかの物の手前に描く(DrawMesh の overlay と同じ)
+        void DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end, const DirectX::XMFLOAT4& color, bool overlay = false);
 
         // OBB の 12 本の辺を、線で積む(当たり判定の箱の確認用)
         void DrawWireBox(const OBB& box, const DirectX::XMFLOAT4& color);
@@ -116,7 +118,7 @@ namespace KR
         void ExecuteDrawList();
 
         // 積んだ線を、今のフレームの頂点バッファに書いて、まとめて 1 回で描く(ExecuteDrawList の最後に呼ぶ)
-        void ExecuteLines();
+        void ExecuteLines(bool overlay);
 
         // RGBA8 のピクセルから、テクスチャを作る(CreateTexture と、白の 1×1 が使う)
         TextureHandle CreateTextureFromPixels(uint32_t width, uint32_t height, const uint8_t* rgbaPixels);
@@ -159,6 +161,7 @@ namespace KR
             TextureHandle texture; // 無効なら、白の 1×1
             bool skinned = false;          // 骨つきか(パレットを使う)
             uint32_t paletteByteOffset = 0; // 骨つきのとき:パレットの表(m_PaletteStaging)の中での、この物のパレットの位置(バイト。256 の倍数)
+            bool overlay = false;           // 深度テストなしで、ほかの物の手前に描くか
         };
 
         std::unique_ptr<DX12Device> m_Device;
@@ -174,6 +177,8 @@ namespace KR
         std::unique_ptr<DX12Pipeline> m_SkyPipeline; // 空専用(画面全体を覆う三角形を、深度なしで描く)。Root Signature は m_Pipeline と共有
         std::unique_ptr<DX12Pipeline> m_LinePipeline; // デバッグの線専用(2 頂点で 1 本。光・フォグなし・深度あり)。Root Signature は m_Pipeline と共有
         std::unique_ptr<DX12Pipeline> m_SkinnedPipeline; // 骨つきの形専用(頂点シェーダーが、パレットで頂点を動かす。あとは m_Pipeline と同じ)。Root Signature は m_Pipeline と共有
+        std::unique_ptr<DX12Pipeline> m_OverlayPipeline;     // 手前に描く物(overlay)専用。物と同じ、深度テストだけなし。Root Signature は m_Pipeline と共有
+        std::unique_ptr<DX12Pipeline> m_OverlayLinePipeline; // 手前に描く線(overlay)専用。線と同じ、深度テストだけなし。Root Signature は m_Pipeline と共有
 
         std::unordered_map<uint32_t, std::unique_ptr<GpuMesh>> m_Meshes; // 一覧表(番号札 → 形の実体)
         uint32_t m_NextMeshId = 1;                                       // 次に発行する番号(使い回さない)
@@ -193,6 +198,8 @@ namespace KR
 
         // デバッグの線(DrawLine で積み、EndFrame で、まとめて描く)
         std::vector<LineVertex> m_LineVertices;                          // 今のフレームで積んだ線の頂点(2 つで 1 本。毎フレーム空にする)
+        std::vector<LineVertex> m_OverlayLineVertices;                   // 手前に描く線(overlay)の頂点。通常の線のあとに、同じ箱へ並べて書く
+        uint32_t m_LineBufferNormalCount = 0;                            // 今のフレームの箱の先頭から、通常の線の頂点が、いくつあるか(overlay の線の、描き始めの位置)
         std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_LineVertexBuffers; // 線の頂点を GPU に渡す箱。GPU が読んでいる途中で書き換えないよう、フレームの数だけ持つ
         bool m_ReportedLineOverflow = false;                             // 線の上限を超えた警告を出済みか(1 回だけ出すため)
 
