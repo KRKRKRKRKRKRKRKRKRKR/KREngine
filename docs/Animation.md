@@ -160,3 +160,8 @@
 - **作った物**:`Sphere` と球の判定(Physics/Collision.h)/ `Hitbox`・`EvaluateHitboxes`・`GenerateDefaultHitboxes`(Animation/Hitbox.h)/ `Renderer::DrawWireSphere`。詳しくは [Collision.md](Collision.md) の最後。
 - **KRSkeleton**:判定の形が骨に追従して動く・テストの箱に触れると赤・ImGui で形を選んで、骨・形・中心・大きさを調整できる。
 - **今はやらないこと**:形の保存・読み込み(A-7 で決める)/ カプセル / 粗い判定による絞り込み。
+
+### 骨の表示を、Blender の形に(2026-10-08。ブランチ feature/bone-display)
+- **`DrawSkeleton`(1 ピクセルの線)を、`BoneRenderer`(八面体の骨)に置き換えた**:骨 1 本 = 親の関節から子の関節まで。根もとから 10% のところがいちばん太く(幅 10%)・先に向かって細くなる(Blender の骨と同じ割合)。塗りつぶし(光で陰影)+ 縁の線。子が無い関節(先端)には、親の骨の 3 割の短い骨。使い方:`Create` → 毎フレーム `Draw(..., Style)` → `Destroy`。
+- **選んだ骨は、色が変わる**(橙。ほかは青灰)。`Style::selectedJoint`。KRSkeleton の「Bone」スライダー(選んだ骨の判定の形も、連動して選ばれる = 黄色)。
+- **手前に描く(overlay)**:メッシュの中の骨が、隠れて見えなかったので、エンジンに「深度テストなしで、ほかの物の手前に描く」を足した(`DrawMesh(..., overlay)`・`DrawLine(..., overlay)`。Blender の「In Front」)。描く順:通常の物 → 通常の線 → 手前の物 → 手前の線。骨つきの形(`DrawSkinnedMesh`)には、使えない。KRSkeleton の「Bones in front」で切り替え。

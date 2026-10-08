@@ -69,6 +69,7 @@ protected:
         }
 
         m_Mesh = GetRenderer().CreateMesh(m_Model.mesh);
+        m_BoneRenderer.Create(GetRenderer());
         m_JointWorld = KR::GetBindPoseWorldMatrices(m_Model.skeleton);
 
         for (size_t i = 0; i < m_Model.skeleton.joints.size(); ++i)
@@ -171,7 +172,10 @@ protected:
         }
         if (m_ShowBones)
         {
-            KR::DrawSkeleton(GetRenderer(), m_Model.skeleton, pose, world, { 1.0f, 1.0f, 0.0f, 1.0f });
+            KR::BoneRenderer::Style style;
+            style.selectedJoint = m_SelectedBone; // 選んだ骨は、色が変わる
+            style.inFront = m_BonesInFront;
+            m_BoneRenderer.Draw(GetRenderer(), m_Model.skeleton, pose, world, style);
         }
 
         if (m_ShowHitboxes)
@@ -193,7 +197,10 @@ protected:
                 {
                     m_HitIndices.push_back(i);
                 }
-                const XMFLOAT4 color = hit ? XMFLOAT4{ 1.0f, 0.2f, 0.2f, 1.0f } : XMFLOAT4{ 0.2f, 1.0f, 0.2f, 1.0f };
+                // 当たり = 赤 / 選んでいる形 = 黄 / ほか = 緑
+                const bool isSelected = (i == m_SelectedHitbox);
+                const XMFLOAT4 color = hit ? XMFLOAT4{ 1.0f, 0.2f, 0.2f, 1.0f }
+                                     : isSelected ? XMFLOAT4{ 1.0f, 0.9f, 0.1f, 1.0f } : XMFLOAT4{ 0.2f, 1.0f, 0.2f, 1.0f };
                 if (shapes[i].shape == KR::HitShape::Box)
                 {
                     GetRenderer().DrawWireBox(shapes[i].box, color);
@@ -212,9 +219,24 @@ protected:
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         ImGui::Text("Joints: %zu / Clips: %zu", m_Model.skeleton.joints.size(), m_Model.clips.size());
         ImGui::Checkbox("Bones", &m_ShowBones);
+        ImGui::Checkbox("Bones in front", &m_BonesInFront); // 骨を、メッシュの手前に描く(メッシュの中の骨も見える)
         ImGui::Checkbox("Mesh", &m_ShowMesh);
         ImGui::Checkbox("Rotate", &m_Rotate);
         ImGui::Checkbox("Bind pose", &m_BindPose); // チェック:動きを使わず、基準姿勢(形が、骨なしの形と同じに見えるはず)
+
+        // 選んだ骨:色が変わる(橙)。その骨の判定の形も、連動して選ばれる(黄色)
+        const int lastJoint = static_cast<int>(m_Model.skeleton.joints.size()) - 1;
+        if (ImGui::SliderInt("Bone", &m_SelectedBone, 0, std::max(lastJoint, 0)))
+        {
+            for (size_t i = 0; i < m_Hitboxes.size(); ++i)
+            {
+                if (m_Hitboxes[i].jointIndex == m_SelectedBone)
+                {
+                    m_SelectedHitbox = i;
+                    break;
+                }
+            }
+        }
 
         if (!m_Model.clips.empty())
         {
@@ -241,11 +263,17 @@ protected:
         {
             // 形を 1 つ選んで、調整する(形は、骨の中の座標。骨が動いても、この数字は変わらない)
             int selected = static_cast<int>(m_SelectedHitbox);
-            ImGui::SliderInt("Hitbox", &selected, 0, static_cast<int>(m_Hitboxes.size()) - 1);
+            if (ImGui::SliderInt("Hitbox", &selected, 0, static_cast<int>(m_Hitboxes.size()) - 1))
+            {
+                m_SelectedBone = m_Hitboxes[static_cast<size_t>(selected)].jointIndex; // 形を選んだら、その形がくっついた骨も、選ぶ
+            }
             m_SelectedHitbox = static_cast<size_t>(selected);
             KR::Hitbox& hitbox = m_Hitboxes[m_SelectedHitbox];
 
-            ImGui::SliderInt("Joint", &hitbox.jointIndex, 0, static_cast<int>(m_Model.skeleton.joints.size()) - 1);
+            if (ImGui::SliderInt("Joint", &hitbox.jointIndex, 0, static_cast<int>(m_Model.skeleton.joints.size()) - 1))
+            {
+                m_SelectedBone = hitbox.jointIndex;
+            }
             int shape = (hitbox.shape == KR::HitShape::Box) ? 0 : 1;
             ImGui::Combo("Shape", &shape, "Box\0Sphere\0");
             hitbox.shape = (shape == 0) ? KR::HitShape::Box : KR::HitShape::Sphere;
@@ -264,6 +292,7 @@ protected:
 
     void OnShutdown() override
     {
+        m_BoneRenderer.Destroy(GetRenderer());
         if (m_Mesh.IsValid())
         {
             GetRenderer().DestroyMesh(m_Mesh);
@@ -276,7 +305,10 @@ private:
     std::vector<XMFLOAT4X4> m_JointWorld; // 基準姿勢での、各骨の世界の行列
     XMFLOAT3 m_Center = {};               // 形の中心
     float m_Angle = 0.0f;
+    KR::BoneRenderer m_BoneRenderer; // 骨を、八面体の形(Blender の骨に似せた形)で描く
+    int m_SelectedBone = 0;          // 選んだ骨(関節の番号)。色が変わる。選んだ形(判定)と連動する
     bool m_ShowBones = true;
+    bool m_BonesInFront = true;
     bool m_ShowMesh = true;
     bool m_Rotate = true;
     bool m_BindPose = false;
