@@ -15,6 +15,7 @@
 #include "FolderDialog.h"
 
 #include <imgui.h>
+#include <ImGuizmo.h>
 
 #include <algorithm>
 #include <cmath>
@@ -345,6 +346,7 @@ protected:
 
     void OnImGui() override
     {
+        ImGuizmo::BeginFrame(); // ギズモの 1 フレームの始まり(A3 で、ここから使う)
         ImGui::Begin("アニメーション調整ツール###AnimationEditor");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
