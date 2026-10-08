@@ -226,4 +226,9 @@ endfunction()
 if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
     add_subdirectory(samples/Minimal)
     add_subdirectory(samples/Skeleton)
+
+    # Visual Studio で、F5 で実行する物(指定しないと、実行できない ALL_BUILD になる)。エンジン単体のときだけ
+    if(KR_IS_TOP_LEVEL)
+        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT KRSkeleton)
+    endif()
 endif()
