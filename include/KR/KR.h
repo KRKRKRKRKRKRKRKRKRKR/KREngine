@@ -10,3 +10,6 @@
 #include "KR/Renderer/Mesh.h"
 #include "KR/Renderer/ModelLoader.h"
 #include "KR/Physics/Collision.h"
+#include "KR/Animation/Skeleton.h"
+#include "KR/Animation/AnimationClip.h"
+#include "KR/Animation/GltfLoader.h"

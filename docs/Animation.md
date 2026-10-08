@@ -121,3 +121,14 @@
 - [HLSL PaletteSkin(NVIDIA。パレットスキニング)](https://developer.download.nvidia.com/SDK/9.5/Samples/DEMOS/Direct3D9/src/HLSL_PaletteSkin/docs/HLSL_PaletteSkin.pdf)
 - [Collision shape following bones(Godot フォーラム)](https://forum.godotengine.org/t/collision-shape-following-bones/51274)
 - [Can character mesh or skeleton be used for collisions?(Unreal フォーラム)](https://forums.unrealengine.com/t/can-character-mesh-or-skeleton-be-used-for-collisions/417178)
+
+---
+
+## 進み具合(実装の記録)
+
+### A-1・A-2:glTF を読む(2026-10-08。ブランチ feature/gltf-loader)
+- **決めたこと**:ローダー = **cgltf v1.15**(MIT。CMake の FetchContent で、版とハッシュを固定。エンジンの中だけで使う = PRIVATE)/ 置き場所 = 役割ごとに **`Animation/`** を新設(公開: `include/KR/Animation/`、非公開: `src/Animation/`)。
+- **作った物**:`Skeleton.h`(骨の階層・基準姿勢・逆バインド行列)/ `AnimationClip.h`(骨ごとの、位置・向き・大きさのキー列)/ `GltfLoader.h`・`.cpp`(`LoadGltf(Assets/Models からの相対パス)` → `GltfModel { mesh, skeleton, clips }`)。公開のヘッダーに、cgltf の型は出さない(ローダーを替えても、ほかは変わらない)。
+- **座標系**:glTF(右手系)→ このエンジン(左手系)は、Z の符号を反転(位置・法線・骨の位置)。向き(クォータニオン)は x・y を反転。行列は、Z が片方だけ関わる要素を反転。三角形は 2 番目と 3 番目を入れ替える(OBJ と同じ決まり)。変換は GltfLoader.cpp の先頭の 3 つの関数に集めた。
+- **今はやらないこと**:骨の番号・重みを頂点に入れる(A-5)/ CUBICSPLINE の補間(警告して読み飛ばす)/ モーフ / メッシュのノードの変換 / 複数のスキン(最初の 1 つだけ)。
+- **確認**:サンプル KRMinimal の起動時に、頂点数・骨の階層・動きの長さが、ログに出る(`samples/Minimal/Assets/Models/Test/Test.glb`)。
