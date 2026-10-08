@@ -28,6 +28,20 @@ namespace KR
     // 1 本でも影にすき間があれば、当たっていない(そこで終わる)。全部の軸で影が重なっていれば、当たっている
     bool Intersects(const OBB& a, const OBB& b);
 
+    // 球。中心と半径だけ(向きを持たない)。回しても形が変わらないので、動く骨の先端などに向く
+    struct Sphere
+    {
+        DirectX::XMFLOAT3 center = { 0.0f, 0.0f, 0.0f }; // 中心(世界の座標。メートル)
+        float radius = 0.5f;                             // 半径(メートル)
+    };
+
+    // 2 つの球が重なっているか:中心どうしの距離 ≦ 半径の和(ちょうど接するときも、当たり)
+    bool Intersects(const Sphere& a, const Sphere& b);
+
+    // 球と箱が重なっているか:箱の上で、球の中心に一番近い点を求め、その点までの距離 ≦ 半径(箱の中に入っていても、当たり)
+    bool Intersects(const Sphere& sphere, const OBB& box);
+    bool Intersects(const OBB& box, const Sphere& sphere);
+
     // OBB の 8 つの角(中心 ± 右 × 半分 ± 上 × 半分 ± 前 × 半分)。箱を線で描くとき(Renderer::DrawWireBox)に使う
     // 番号の決め方: ビット 0 が右(1 なら +)、ビット 1 が上、ビット 2 が前
     std::array<DirectX::XMFLOAT3, 8> GetCorners(const OBB& box);

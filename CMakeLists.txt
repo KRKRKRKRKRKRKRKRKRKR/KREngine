@@ -98,6 +98,7 @@ set(ENGINE_FILES
     include/KR/Animation/SkeletonDebug.h
     include/KR/Animation/AnimationPose.h
     include/KR/Animation/SkinMatrices.h
+    include/KR/Animation/Hitbox.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -118,6 +119,7 @@ set(ENGINE_FILES
     src/Animation/SkeletonDebug.cpp
     src/Animation/AnimationPose.cpp
     src/Animation/SkinMatrices.cpp
+    src/Animation/Hitbox.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
