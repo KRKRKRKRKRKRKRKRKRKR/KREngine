@@ -172,3 +172,8 @@
 - **KRSkeleton を、`AnimatedModel` だけで書き直した**(部品を直接呼ばない。コードが短くなった)。動きの選択・ループ・一時停止・Save / Reload を足した。
 - **確認した**:Debug・Release のビルド(警告 0)/ 保存 → 読み込みの往復 / 名前・番号での骨の検索・見つからない形・壊れたファイル・版の違い / 日本語を含むフォルダーでの動作 / ゲーム(すれすれ飛行)を、手元のエンジンでビルド・起動(nlohmann/json の二重の宣言が、競合しない)。
 - **今はやらないこと**:動きのブレンド(切り替えを、なめらかに)/ 動きのイベント(「この時刻に何かする」)/ 判定の形の、粗い絞り込み。
+
+### 調整ツール KRAnimationEditor(2026-10-08。ブランチ feature/animation-editor)
+- 骨・判定の形の調整を、**専用のツール**にした(`tools/AnimationEditor/`)。サンプル KRSkeleton の中身を、ここに移して、拡張した(上の「KRSkeleton」は、これのこと)。ゲームは、保存された `.hitboxes.json` を、読むだけ。使い方は [AnimationEditor.md](AnimationEditor.md)。
+- 使い方の見本は、小さなサンプル `samples/Animated/`(KRAnimated)に分けた。
+- エンジンに足した物:`KR::SetAssetRoot` / `GetAssetRoot`(アセットのフォルダーを、実行時に切り替える。決めなければ、今までどおり)・`KR::GetCommandLineArguments`(起動の引数。日本語のパスも読める)。
