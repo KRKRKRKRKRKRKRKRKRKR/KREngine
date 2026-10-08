@@ -54,6 +54,37 @@ namespace
     }
 
     constexpr size_t MaxRecentFolders = 8;
+
+    // クリックとドラッグの見分け:押してから離すまでに、押した点から 4 ピクセル以上離れたら、ドラッグ(途中で戻ってきても、ドラッグ)
+    class ClickDetector
+    {
+    public:
+        static constexpr float DragThreshold = 4.0f;
+
+        void Press(float x, float y) { m_StartX = x; m_StartY = y; m_Dragged = false; }
+
+        void Move(float x, float y)
+        {
+            const float dx = x - m_StartX;
+            const float dy = y - m_StartY;
+            if (dx * dx + dy * dy >= DragThreshold * DragThreshold)
+            {
+                m_Dragged = true;
+            }
+        }
+
+        // ボタンを離した。ドラッグでなければ、クリック(true)
+        bool Release(float x, float y)
+        {
+            Move(x, y);
+            return !m_Dragged;
+        }
+
+    private:
+        float m_StartX = 0.0f;
+        float m_StartY = 0.0f;
+        bool m_Dragged = false;
+    };
 }
 
 class EditorApp : public KR::Application
@@ -150,9 +181,26 @@ protected:
             check("レイ×線分 レイ上の距離 t(t = 5)", distanceIs(rayT, 5.0f), true);
         }
 
+        // クリックとドラッグの見分け
+        {
+            ClickDetector detector;
+            detector.Press(100.0f, 100.0f);
+            check("クリック 動かない(クリック)", detector.Release(100.0f, 100.0f), true);
+            detector.Press(100.0f, 100.0f);
+            detector.Move(102.0f, 102.0f);
+            check("クリック 3 ピクセル弱の動き(クリック)", detector.Release(102.0f, 102.0f), true);
+            detector.Press(100.0f, 100.0f);
+            check("クリック 4 ピクセルの動き(ドラッグ)", detector.Release(104.0f, 100.0f), false);
+            detector.Press(100.0f, 100.0f);
+            detector.Move(130.0f, 100.0f);
+            check("クリック 遠くへ行って戻る(ドラッグ)", detector.Release(100.0f, 100.0f), false);
+            detector.Press(50.0f, 50.0f);
+            check("クリック 次の押下で、ドラッグの記憶が消える(クリック)", detector.Release(50.0f, 50.0f), true);
+        }
+
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・クリックの見分け)");
         }
     }
 
@@ -207,8 +255,36 @@ protected:
             m_Angle = std::fmod(m_Angle + deltaTime * 0.5f, 2.0f * std::numbers::pi_v<float>);
         }
         UpdateCamera();
+        UpdateClick();
         m_Model.Update(deltaTime); // 時刻を進めて、姿勢を求める
     }
+
+    // 左ボタンのクリック(ドラッグでない)を検出する。ImGui の上で押したものは、数えない
+    void UpdateClick()
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            m_ClickTracking = !io.WantCaptureMouse;
+            m_ClickDetector.Press(io.MousePos.x, io.MousePos.y);
+        }
+        if (!m_ClickTracking)
+        {
+            return;
+        }
+        m_ClickDetector.Move(io.MousePos.x, io.MousePos.y);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            m_ClickTracking = false;
+            if (m_ClickDetector.Release(io.MousePos.x, io.MousePos.y))
+            {
+                KR_LOG_INFO("  画面のクリック: ({:.0f}, {:.0f})", io.MousePos.x, io.MousePos.y); // A2-2 で、ここから形を選ぶ
+            }
+        }
+    }
+
+    ClickDetector m_ClickDetector;
+    bool m_ClickTracking = false;
 
     void OnRender() override
     {
