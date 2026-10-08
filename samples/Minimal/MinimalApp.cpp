@@ -26,9 +26,6 @@ protected:
     {
         // 形を作って、番号札をもらう(キューブのデータは、エンジンが、用意している)
         m_Cube = GetRenderer().CreateMesh(KR::CreateCubeMeshData());
-
-        // テスト用の glTF を読んで、骨と動きの中身を、ログに出す(確認用。画面には、まだ出さない)
-        LogGltfModel(KR::LoadGltf("Test/Test.glb"));
     }
 
     void OnUpdate(float deltaTime) override
@@ -63,24 +60,6 @@ protected:
     }
 
 private:
-    // 読んだ glTF の、骨の階層と、動きの長さを、ログに出す
-    static void LogGltfModel(const KR::GltfModel& model)
-    {
-        if (model.IsEmpty())
-        {
-            return; // 失敗は、LoadGltf がログに出している
-        }
-        for (size_t i = 0; i < model.skeleton.joints.size(); ++i)
-        {
-            const KR::Joint& joint = model.skeleton.joints[i];
-            KR_LOG_INFO("  骨 {}: {}(親 {})", i, joint.name, joint.parent);
-        }
-        for (const KR::AnimationClip& clip : model.clips)
-        {
-            KR_LOG_INFO("  動き {}: {:.3f} 秒 / 動く骨 {} 本", clip.name, clip.duration, clip.tracks.size());
-        }
-    }
-
     KR::MeshHandle m_Cube; // 6 色のキューブの番号札
     float m_Angle = 0.0f;  // 回転の角度(ラジアン)
 };
