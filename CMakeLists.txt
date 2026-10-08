@@ -149,6 +149,8 @@ set(ENGINE_FILES
     src/Behavior/Graph.cpp
     src/Behavior/NodeTypes.cpp
     src/Behavior/Context.cpp
+    src/Behavior/Condition.h
+    src/Behavior/Condition.cpp
     src/Behavior/GraphFile.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
