@@ -188,6 +188,50 @@ namespace KR
         return tMin;
     }
 
+    float RayToSegmentDistance(const Ray& ray, const XMFLOAT3& a, const XMFLOAT3& b, float* outRayT)
+    {
+        // レイの点 P = origin + t * d(t ≧ 0)・線分の点 Q = a + s * e(0 ≦ s ≦ 1)。|P − Q| が最小になる t, s を求める
+        const XMVECTOR d = XMLoadFloat3(&ray.direction);
+        const XMVECTOR e = XMVectorSubtract(XMLoadFloat3(&b), XMLoadFloat3(&a));
+        const XMVECTOR r = XMVectorSubtract(XMLoadFloat3(&ray.origin), XMLoadFloat3(&a));
+
+        const float ee = XMVectorGetX(XMVector3Dot(e, e));
+        const float dd = XMVectorGetX(XMVector3Dot(d, d)); // 長さ 1 なら 1
+        const float de = XMVectorGetX(XMVector3Dot(d, e));
+        const float dr = XMVectorGetX(XMVector3Dot(d, r));
+        const float er = XMVectorGetX(XMVector3Dot(e, r));
+
+        float s = 0.0f;
+        float t = 0.0f;
+        if (ee > 1e-12f) // 線分が、点に縮んでいなければ
+        {
+            const float denom = ee * dd - de * de; // 0 なら、レイと線分は平行
+            if (denom > 1e-9f)
+            {
+                s = std::clamp((dd * er - de * dr) / denom, 0.0f, 1.0f);
+            }
+            t = (de * s - dr) / dd;
+            if (t < 0.0f)
+            {
+                // レイの始点より後ろ → 始点に固定して、線分の上で一番近い点を選び直す
+                t = 0.0f;
+                s = std::clamp(er / ee, 0.0f, 1.0f);
+            }
+        }
+        else
+        {
+            t = std::max(-dr / dd, 0.0f);
+        }
+
+        const XMVECTOR p = XMVectorAdd(XMLoadFloat3(&ray.origin), XMVectorScale(d, t));
+        const XMVECTOR q = XMVectorAdd(XMLoadFloat3(&a), XMVectorScale(e, s));
+        if (outRayT)
+        {
+            *outRayT = t;
+        }
+        return XMVectorGetX(XMVector3Length(XMVectorSubtract(p, q)));
+    }
+
     std::array<XMFLOAT3, 8> GetCorners(const OBB& box)
     {
         const XMVECTOR center = XMLoadFloat3(&box.center);

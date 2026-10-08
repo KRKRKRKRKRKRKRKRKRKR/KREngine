@@ -137,9 +137,22 @@ protected:
             check("レイ×回した箱 x=1.2 は当たる(面は |x|+|z| = √2 → t = 5 − (√2 − 1.2))", hitAt(KR::Raycast(offset, rotated), 5.0f - (std::sqrt(2.0f) - 1.2f)), true);
         }
 
+        // レイ × 線分の最短距離:レイは (0,0,-5) から +Z へ
+        {
+            auto distanceIs = [](float actual, float expected) { return std::abs(actual - expected) < 1e-4f; };
+            const KR::Ray ray{ { 0.0f, 0.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+            check("レイ×線分 平行に離れる(距離 1)", distanceIs(KR::RayToSegmentDistance(ray, { 1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f }), 1.0f), true);
+            check("レイ×線分 交わる(距離 0)", distanceIs(KR::RayToSegmentDistance(ray, { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }), 0.0f), true);
+            check("レイ×線分 線分の端が一番近い(距離 3)", distanceIs(KR::RayToSegmentDistance(ray, { 0.0f, 3.0f, 0.0f }, { 0.0f, 5.0f, 0.0f }), 3.0f), true);
+            check("レイ×線分 後ろにある(始点が一番近い・距離 3)", distanceIs(KR::RayToSegmentDistance(ray, { 0.0f, 0.0f, -8.0f }, { 0.0f, 1.0f, -8.0f }), 3.0f), true);
+            float rayT = 0.0f;
+            KR::RayToSegmentDistance(ray, { -1.0f, 2.0f, 0.0f }, { 1.0f, 2.0f, 0.0f }, &rayT);
+            check("レイ×線分 レイ上の距離 t(t = 5)", distanceIs(rayT, 5.0f), true);
+        }
+
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分)");
         }
     }
 

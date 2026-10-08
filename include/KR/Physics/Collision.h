@@ -53,6 +53,10 @@ namespace KR
     // 戻り値は Raycast(球)と同じ(始点が箱の中なら、t = 0)
     std::optional<float> Raycast(const Ray& ray, const OBB& box);
 
+    // レイと線分(a から b)の最短距離(メートル)。細い物(骨の線・ギズモの矢印)を、マウスのレイで選ぶのに使う
+    // レイは始点から前だけ(後ろには伸びない)。outRayT を渡すと、レイの上で一番近い点までの距離 t も返す(手前の物を選ぶ目安)
+    float RayToSegmentDistance(const Ray& ray, const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b, float* outRayT = nullptr);
+
     // OBB の 8 つの角(中心 ± 右 × 半分 ± 上 × 半分 ± 前 × 半分)。箱を線で描くとき(Renderer::DrawWireBox)に使う
     // 番号の決め方: ビット 0 が右(1 なら +)、ビット 1 が上、ビット 2 が前
     std::array<DirectX::XMFLOAT3, 8> GetCorners(const OBB& box);
