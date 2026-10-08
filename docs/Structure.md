@@ -28,7 +28,7 @@ KREngine/
 │   ├─ KR.h                        まとめヘッダー(主なヘッダーを、まとめて取り込む)
 │   ├─ Core/                       Application, Log, Input(IsKeyDown / IsKeyPressed / IsKeyReleased), Assets(アセット・シェーダーの場所)
 │   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners。当たり判定)
-│   ├─ Animation/                  Skeleton(骨の階層)・AnimationClip(動き)・GltfLoader(LoadGltf。glTF を読む)・SkeletonDebug(骨を線で描く)
+│   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・SkeletonDebug(骨の表示)
 │   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
 ├─ src/                          【非公開】ゲームからは見えない
 │   ├─ Core/                       Application, EntryPoint(main), Log, Input(状態表), InputState(書き込み口), Assets

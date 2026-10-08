@@ -79,6 +79,16 @@ FetchContent_Declare(cgltf
 )
 FetchContent_MakeAvailable(cgltf)
 
+# nlohmann/json(JSON を読み書きするライブラリ。ヘッダーだけ)。判定の形(Hitbox)を、ファイルに保存・読み込みするために使う。エンジンの中だけ(PRIVATE)
+# ゲームも、同じ名前・同じ版で、取り込むことがある(Tiled のコースなど)。同じ宣言なので、競合しない(先に宣言した物が使われる)
+FetchContent_Declare(nlohmann_json
+    URL      https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+    URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
+)
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+set(JSON_Install OFF CACHE INTERNAL "")
+FetchContent_MakeAvailable(nlohmann_json)
+
 set(ENGINE_FILES
     include/KR/KR.h
     include/KR/Core/Application.h
@@ -99,6 +109,8 @@ set(ENGINE_FILES
     include/KR/Animation/AnimationPose.h
     include/KR/Animation/SkinMatrices.h
     include/KR/Animation/Hitbox.h
+    include/KR/Animation/HitboxFile.h
+    include/KR/Animation/AnimatedModel.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -120,6 +132,8 @@ set(ENGINE_FILES
     src/Animation/AnimationPose.cpp
     src/Animation/SkinMatrices.cpp
     src/Animation/Hitbox.cpp
+    src/Animation/HitboxFile.cpp
+    src/Animation/AnimatedModel.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
@@ -176,6 +190,9 @@ target_compile_definitions(KREngine
 
 # ImGui は PUBLIC でリンクする → Game も #include <imgui.h> で直接使える
 target_link_libraries(KREngine PUBLIC imgui)
+
+# JSON は、エンジンの中だけで使う(PRIVATE)。公開ヘッダーには、JSON の型を出さない
+target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
 
 # C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
 target_compile_features(KREngine PUBLIC cxx_std_23)

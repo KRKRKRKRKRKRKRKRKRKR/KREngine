@@ -165,3 +165,10 @@
 - **`DrawSkeleton`(1 ピクセルの線)を、`BoneRenderer`(八面体の骨)に置き換えた**:骨 1 本 = 親の関節から子の関節まで。根もとから 10% のところがいちばん太く(幅 10%)・先に向かって細くなる(Blender の骨と同じ割合)。塗りつぶし(光で陰影)+ 縁の線。子が無い関節(先端)には、親の骨の 3 割の短い骨。使い方:`Create` → 毎フレーム `Draw(..., Style)` → `Destroy`。
 - **選んだ骨は、色が変わる**(橙。ほかは青灰)。`Style::selectedJoint`。KRSkeleton の「Bone」スライダー(選んだ骨の判定の形も、連動して選ばれる = 黄色)。
 - **手前に描く(overlay)**:メッシュの中の骨が、隠れて見えなかったので、エンジンに「深度テストなしで、ほかの物の手前に描く」を足した(`DrawMesh(..., overlay)`・`DrawLine(..., overlay)`。Blender の「In Front」)。描く順:通常の物 → 通常の線 → 手前の物 → 手前の線。骨つきの形(`DrawSkinnedMesh`)には、使えない。KRSkeleton の「Bones in front」で切り替え。
+
+### A-7・A-8:ゲームで使いやすくする(2026-10-08。ブランチ feature/animated-model)
+- **`AnimatedModel`**(`Animation/AnimatedModel.h`):読み込み・再生・描画・判定の形を、1 つにまとめた窓口。部品(`LoadGltf`・`EvaluatePose`・`ComputeSkinMatrices`・`EvaluateHitboxes`)は、そのまま残し、窓口は、それを呼ぶだけ。使い方は [Usage.md](Usage.md) の 7。
+- **判定の形の保存**(`Animation/HitboxFile.h`):`<モデル名>.hitboxes.json`(JSON。nlohmann/json v3.12.0 を、エンジンの中だけで使う)。骨は、**名前**で探す(無ければ番号)。見つからない形は、警告して飛ばす。版が違う・壊れているファイルは、エラーを出して、骨ごとの既定の形に戻す。保存 → 読み込みの往復は、サンプルの起動時に、確認している。
+- **KRSkeleton を、`AnimatedModel` だけで書き直した**(部品を直接呼ばない。コードが短くなった)。動きの選択・ループ・一時停止・Save / Reload を足した。
+- **確認した**:Debug・Release のビルド(警告 0)/ 保存 → 読み込みの往復 / 名前・番号での骨の検索・見つからない形・壊れたファイル・版の違い / 日本語を含むフォルダーでの動作 / ゲーム(すれすれ飛行)を、手元のエンジンでビルド・起動(nlohmann/json の二重の宣言が、競合しない)。
+- **今はやらないこと**:動きのブレンド(切り替えを、なめらかに)/ 動きのイベント(「この時刻に何かする」)/ 判定の形の、粗い絞り込み。

@@ -169,3 +169,66 @@ bool hit = KR::Intersects(a, b);                           // 重なっている
 
 ## 日本語などを含むフォルダーに置いたとき(Debug)
 Debug ビルドは、エンジンの `shaders/` と、ゲームのアセット(`KR_GAME_ASSETS_DIR`)を、元のフォルダーから直接読む(場所は、CMake が文字列として埋め込む)。埋め込んだ文字列は UTF-8 なので、`GetAssetDirectory` / `GetEngineShaderDirectory`(`src/Core/Assets.cpp`)は、UTF-8 として `std::filesystem::path` にしている。そのため、フォルダー名に日本語が入っていても動く(以前は、日本語 Windows で、起動直後に `std::system_error` で落ちた)。
+
+## 7. 動くモデル(ボーンアニメーション)を使う
+
+Blender などで作った、骨つきのモデル(glTF = `.glb`)を、動かして、描いて、当たり判定に使う。**`KR::AnimatedModel` だけ**で、できる。見本は、サンプル `samples/Skeleton/`(KRSkeleton)。
+
+### 7-1. モデルの用意(Blender)
+- 書き出しの形式は **glTF Binary (.glb)**。骨(アーマチュア)とアニメーションを、含める設定にする。
+- 置き場所:ゲームのアセットの `Models/` の下(例 `Assets/Models/Boss/Boss.glb`)。コードでは、`Models/` からの相対パス(`"Boss/Boss.glb"`)で書く。
+- 骨の名前は、英数字がおすすめ(日本語でも動くが、ImGui の既定のフォントでは、表示が出ないことがある)。1 つの形(メッシュ)に付けられる骨は、最大 128 本。1 頂点が引っぱられる骨は、最大 4 本。
+
+### 7-2. コード(最小)
+```cpp
+class MyGame : public KR::Application
+{
+protected:
+    void OnInit() override
+    {
+        m_Boss.Load(GetRenderer(), "Boss/Boss.glb");   // 形・骨・動き・判定の形を読む。最初の動きを、ループで再生しはじめる
+        m_Boss.Play("Walk");                            // 動きを、名前か番号で選ぶ(ループしないなら、第 2 引数 false)
+    }
+    void OnUpdate(float deltaTime) override
+    {
+        m_Boss.Update(deltaTime);                       // 時刻を進めて、姿勢を求める
+    }
+    void OnRender() override
+    {
+        const XMMATRIX world = XMMatrixTranslation(0.0f, 0.0f, 20.0f); // モデル全体の置き方(位置・向き・拡大)
+        m_Boss.Draw(GetRenderer(), world);              // 今の姿勢で、描く(骨つき・骨なしは、自動で選ぶ)
+    }
+    void OnShutdown() override
+    {
+        m_Boss.Unload(GetRenderer());
+    }
+private:
+    KR::AnimatedModel m_Boss;
+};
+```
+
+| 呼び出し | 内容 |
+|---|---|
+| `Load(renderer, 相対パス)` | glTF を読む。失敗したら、エラーを出して `false` |
+| `Play(名前 or 番号, loop)`・`Stop()`・`Pause()`・`SetSpeed()`・`SetTime()` | 再生の操作。`IsFinished()`:ループしない動きが、最後まで来た |
+| `Update(deltaTime)` | 毎フレーム 1 回 |
+| `Draw(renderer, world, texture)` | 描く |
+| `GetWorldHitboxes(world)` | 今の姿勢での、判定の形(箱・球)。`Draw` に渡した `world` と同じ物を渡す |
+| `GetSkeleton()`・`GetPose()`・`GetBounds()` | 骨・今の姿勢・メッシュを囲む箱(デバッグの表示・カメラの位置などに) |
+
+### 7-3. 当たり判定(骨に追従する箱・球)
+```cpp
+const std::vector<KR::WorldHitbox> shapes = m_Boss.GetWorldHitboxes(world);
+for (const KR::WorldHitbox& shape : shapes)
+{
+    if (KR::Intersects(shape, playerShape)) { /* 当たった */ }   // 箱・球の、どの組み合わせでも、同じ関数
+}
+```
+- 判定の形は、**骨の中の座標**で持つ(骨が動いても、数字は変わらない。骨の今の位置・向きに、自動で追従する)。
+- 形は、`Boss.hitboxes.json`(モデルの隣)に、保存される。無ければ、骨ごとの、とりあえずの形(子がある骨 = 箱・先端 = 球)になる。
+- **調整のしかた**:サンプル KRSkeleton で、`GetHitboxes()` の形を、ImGui で動かして(骨・形・中心・大きさ)、「Save hitboxes」で保存する。ゲームでは、読み込むだけ。Debug では、元の `Assets` フォルダーに書かれる(Release では、exe の横の複製に書くので、元に残らない。調整は Debug で)。
+- 詳しくは [Animation.md](Animation.md)・[Collision.md](Collision.md)。
+
+### 7-4. 注意
+- ゲームの CMake は、そのままでよい(エンジンが、cgltf と nlohmann/json を取り込む)。ゲームが、同じ nlohmann/json(v3.12.0)を取り込んでいても、競合しない。
+- 骨つきの物は、1 フレームに 32 個まで描ける(`Renderer::MaxSkinnedDrawsPerFrame`)。骨なしの `DrawMesh` に、骨つきのメッシュを渡すと、エラーになる(`AnimatedModel::Draw` を使えば、自動で選ばれる)。
