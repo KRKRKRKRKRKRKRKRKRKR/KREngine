@@ -20,10 +20,10 @@
 
 using namespace DirectX;
 
-class SkeletonApp : public KR::Application
+class EditorApp : public KR::Application
 {
 public:
-    SkeletonApp() : Application(KR::ApplicationDesc{ .title = "KR Engine - Skeleton" }) {}
+    EditorApp() : Application(KR::ApplicationDesc{ .title = "KR Animation Editor" }) {}
 
 protected:
     // 当たり判定の確認:答えが分かっている例で、Intersects を調べる。全部合っていれば OK のログ・違えばエラーのログ
@@ -192,7 +192,7 @@ protected:
 
     void OnImGui() override
     {
-        ImGui::Begin("Skeleton");
+        ImGui::Begin("Animation Editor");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         if (!m_Model.IsLoaded())
         {
@@ -414,5 +414,5 @@ private:
 
 std::unique_ptr<KR::Application> KR::CreateApplication()
 {
-    return std::make_unique<SkeletonApp>();
+    return std::make_unique<EditorApp>();
 }

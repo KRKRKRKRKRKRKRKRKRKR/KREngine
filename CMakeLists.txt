@@ -16,6 +16,9 @@ endif()
 # サンプル(samples/)をビルドするか。単体のときは ON(エンジンの動作確認・新しいゲームの雛形)。ゲームの一部のときは OFF
 option(KR_BUILD_SAMPLES "KR エンジンのサンプルをビルドする" ${KR_IS_TOP_LEVEL})
 
+# ツール(tools/)をビルドするか。単体のときは ON。ゲームの一部のときは OFF
+option(KR_BUILD_TOOLS "KR エンジンのツール(アニメーションの調整ツールなど)をビルドする" ${KR_IS_TOP_LEVEL})
+
 include(FetchContent)
 
 # ゲームのアセット(モデル・コース・設定など)の場所。ゲームの CMakeLists.txt が、エンジンを取り込む前に、決める(set(KR_GAME_ASSETS_DIR ...))
@@ -95,6 +98,7 @@ set(ENGINE_FILES
     include/KR/Core/Log.h
     include/KR/Core/Input.h
     include/KR/Core/Assets.h
+    include/KR/Core/CommandLine.h
     include/KR/Renderer/Renderer.h
     include/KR/Renderer/Camera.h
     include/KR/Renderer/Lighting.h
@@ -117,6 +121,7 @@ set(ENGINE_FILES
     src/Core/Log.cpp
     src/Core/Input.cpp
     src/Core/Assets.cpp
+    src/Core/CommandLine.cpp
     src/Core/InputState.h
     src/Platform/Windows/Window.h
     src/Platform/Windows/Window.cpp
@@ -206,6 +211,7 @@ target_link_libraries(KREngine PRIVATE
     d3d12
     dxgi
     dxcompiler
+    shell32 # CommandLineToArgvW(GetCommandLineArguments)
 )
 
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
@@ -245,13 +251,22 @@ function(kr_copy_runtime_files target)
     endif()
 endfunction()
 
-# サンプル(エンジンの使い方の見本・動作確認)。KR_BUILD_SAMPLES が ON のときだけ(samples/ は、E-3 で足す)
+# サンプル(エンジンの使い方の見本・動作確認)。KR_BUILD_SAMPLES が ON のときだけ
 if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
     add_subdirectory(samples/Minimal)
-    add_subdirectory(samples/Skeleton)
+    add_subdirectory(samples/Animated)
+endif()
 
-    # Visual Studio で、F5 で実行する物(指定しないと、実行できない ALL_BUILD になる)。エンジン単体のときだけ
-    if(KR_IS_TOP_LEVEL)
-        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT KRSkeleton)
+# ツール(ゲームを作るための道具。アニメーションの調整ツールなど)。KR_BUILD_TOOLS が ON のときだけ
+if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/AnimationEditor/CMakeLists.txt")
+    add_subdirectory(tools/AnimationEditor)
+endif()
+
+# Visual Studio で、F5 で実行する物(指定しないと、実行できない ALL_BUILD になる)。エンジン単体のときだけ
+if(KR_IS_TOP_LEVEL)
+    if(TARGET KRAnimationEditor)
+        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT KRAnimationEditor)
+    elseif(TARGET KRMinimal)
+        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT KRMinimal)
     endif()
 endif()

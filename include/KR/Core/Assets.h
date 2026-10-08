@@ -10,6 +10,12 @@ namespace KR
     // 「Debug は元のフォルダー、Release は exe の横」という決まりを、ここ 1 か所にまとめてある(別々に書くと、直し忘れる)
     std::filesystem::path GetAssetDirectory(const std::filesystem::path& name);
 
+    // アセットのフォルダー(<root>/Models など、name フォルダーの親)を、実行時に決める。決めると、GetAssetDirectory は、Debug も Release も、<root>/<name> を返す
+    // 使うのは、別のゲームのデータを開いて、そのフォルダーに保存する道具(アニメーションの調整ツールなど)。ゲームは、呼ばなくてよい(呼ばなければ、今までどおり)
+    // 空の path を渡すと、解除(ビルドで決まった場所に戻る)
+    void SetAssetRoot(const std::filesystem::path& root);
+    const std::filesystem::path& GetAssetRoot(); // 決めていなければ、空
+
     // エンジンのシェーダーのフォルダーの場所を返す(シェーダーは、ゲームではなく、エンジンの物)
     //   Debug  : エンジンの shaders/ の元フォルダー(KR_SHADER_SOURCE_DIR)。保存した変更を、F10 で、再読み込みできる
     //   Release: exe の横の Shaders/(ビルド後に、エンジンの shaders/ から、自動でコピーされる)

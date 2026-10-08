@@ -32,8 +32,29 @@ namespace KR
     }
 #endif
 
+    namespace
+    {
+        // 実行時に決めた、アセットのフォルダー(SetAssetRoot)。空なら、使わない(ビルドで決まった場所を使う)
+        std::filesystem::path s_AssetRoot;
+    }
+
+    void SetAssetRoot(const std::filesystem::path& root)
+    {
+        s_AssetRoot = root;
+    }
+
+    const std::filesystem::path& GetAssetRoot()
+    {
+        return s_AssetRoot;
+    }
+
     std::filesystem::path GetAssetDirectory(const std::filesystem::path& name)
     {
+        // 実行時に決めたフォルダーがあれば、それを最優先する(Debug も Release も)
+        if (!s_AssetRoot.empty())
+        {
+            return s_AssetRoot / name;
+        }
 #ifdef KR_DEBUG
         return Utf8Path(KR_ASSETS_SOURCE_DIR) / name;
 #else
