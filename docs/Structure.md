@@ -18,6 +18,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | ボーンアニメーション(調べ物・実装の記録) | [Animation.md](Animation.md) |
 | **アニメーションの調整ツール**(骨・判定の形) | [AnimationEditor.md](AnimationEditor.md) |
 | **版(バージョン)の付け方** | [Versioning.md](Versioning.md)・[CHANGELOG.md](../CHANGELOG.md) |
+| **開発の経緯(なぜ、こう作ったか・選ばなかった案)** | [History.md](History.md) |
 | 調べ物:演出(爆発・シェーダーなど) | [Effects.md](Effects.md) |
 
 ---
