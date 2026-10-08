@@ -25,6 +25,7 @@
 #include <fstream>
 #include <memory>
 #include <numbers>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -111,9 +112,34 @@ protected:
             check("レイ 上端 → 上へ傾く(画面の y は、下向きに増える)", nearEnough(top.direction.y / top.direction.z, 0.57735f), true);
         }
 
+        // レイ × 球・箱:原点の球(半径 1)・箱(半分 1)に、(0,0,-5) から +Z へ撃つ
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            auto hitAt = [&](const std::optional<float>& t, float expected)
+            {
+                return t.has_value() && nearEnough(*t, expected);
+            };
+            const KR::Ray forward{ { 0.0f, 0.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+            const KR::Ray backward{ { 0.0f, 0.0f, -5.0f }, { 0.0f, 0.0f, -1.0f } };
+            const KR::Ray aside{ { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+
+            check("レイ×球 真ん中に当たる(t = 4)", hitAt(KR::Raycast(forward, sphere), 4.0f), true);
+            check("レイ×球 横にそれて外れる", KR::Raycast(aside, sphere).has_value(), false);
+            check("レイ×球 後ろ向きは外れ", KR::Raycast(backward, sphere).has_value(), false);
+            check("レイ×箱 真ん中に当たる(t = 4)", hitAt(KR::Raycast(forward, box), 4.0f), true);
+            check("レイ×箱 横にそれて外れる", KR::Raycast(aside, box).has_value(), false);
+            check("レイ×箱 後ろ向きは外れ", KR::Raycast(backward, box).has_value(), false);
+            // 45° 回した箱:正面の角が √2 ≒ 1.4142 まで出る → t = 5 − 1.4142
+            check("レイ×回した箱 角に当たる(t = 3.5858)", hitAt(KR::Raycast(forward, rotated), 5.0f - std::sqrt(2.0f)), true);
+            // x = 1.2 のレイ:軸にそろえた箱(幅 ±1)は外れ・45° 回した箱(角が ±1.414)は、斜めの面に当たる
+            const KR::Ray offset{ { 1.2f, 0.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+            check("レイ×箱 x=1.2 軸にそろえた箱は外れ", KR::Raycast(offset, box).has_value(), false);
+            check("レイ×回した箱 x=1.2 は当たる(面は |x|+|z| = √2 → t = 5 − (√2 − 1.2))", hitAt(KR::Raycast(offset, rotated), 5.0f - (std::sqrt(2.0f) - 1.2f)), true);
+        }
+
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱)");
         }
     }
 

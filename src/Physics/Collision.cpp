@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 using namespace DirectX;
 
@@ -123,6 +124,68 @@ namespace KR
     bool Intersects(const OBB& box, const Sphere& sphere)
     {
         return Intersects(sphere, box);
+    }
+
+    std::optional<float> Raycast(const Ray& ray, const Sphere& sphere)
+    {
+        // |origin + t * dir - center|² = r² を t について解く:t² + 2bt + c = 0(dir の長さは 1)
+        const XMVECTOR toOrigin = XMVectorSubtract(XMLoadFloat3(&ray.origin), XMLoadFloat3(&sphere.center));
+        const float b = XMVectorGetX(XMVector3Dot(toOrigin, XMLoadFloat3(&ray.direction)));
+        const float c = XMVectorGetX(XMVector3LengthSq(toOrigin)) - sphere.radius * sphere.radius;
+
+        if (c <= 0.0f)
+        {
+            return 0.0f; // 始点が球の中
+        }
+        if (b > 0.0f)
+        {
+            return std::nullopt; // 球は後ろ(外にいて、遠ざかっている)
+        }
+        const float discriminant = b * b - c;
+        if (discriminant < 0.0f)
+        {
+            return std::nullopt; // かすりもしない
+        }
+        return -b - std::sqrt(discriminant); // 手前の交点
+    }
+
+    std::optional<float> Raycast(const Ray& ray, const OBB& box)
+    {
+        const XMVECTOR toCenter = XMVectorSubtract(XMLoadFloat3(&box.center), XMLoadFloat3(&ray.origin));
+        const XMVECTOR direction = XMLoadFloat3(&ray.direction);
+        const float half[3] = { box.halfSize.x, box.halfSize.y, box.halfSize.z };
+
+        float tMin = 0.0f;
+        float tMax = std::numeric_limits<float>::max();
+        for (int i = 0; i < 3; ++i)
+        {
+            const XMVECTOR axis = XMLoadFloat3(&box.axes[i]);
+            const float distance = XMVectorGetX(XMVector3Dot(toCenter, axis));   // 始点から見た、箱の中心の、軸方向の位置
+            const float speed = XMVectorGetX(XMVector3Dot(direction, axis));     // レイが、軸方向に進む速さ
+
+            if (std::abs(speed) < 1e-8f)
+            {
+                // 軸と直角に進む:始点が 2 枚の面の間に無ければ、永久に入らない
+                if (std::abs(distance) > half[i])
+                {
+                    return std::nullopt;
+                }
+                continue;
+            }
+            float t1 = (distance - half[i]) / speed;
+            float t2 = (distance + half[i]) / speed;
+            if (t1 > t2)
+            {
+                std::swap(t1, t2);
+            }
+            tMin = std::max(tMin, t1);
+            tMax = std::min(tMax, t2);
+            if (tMin > tMax)
+            {
+                return std::nullopt;
+            }
+        }
+        return tMin;
     }
 
     std::array<XMFLOAT3, 8> GetCorners(const OBB& box)

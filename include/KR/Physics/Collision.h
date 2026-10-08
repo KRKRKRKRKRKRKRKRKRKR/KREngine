@@ -2,7 +2,10 @@
 
 #include <DirectXMath.h>
 
+#include "KR/Physics/Ray.h"
+
 #include <array>
+#include <optional>
 
 namespace KR
 {
@@ -41,6 +44,14 @@ namespace KR
     // 球と箱が重なっているか:箱の上で、球の中心に一番近い点を求め、その点までの距離 ≦ 半径(箱の中に入っていても、当たり)
     bool Intersects(const Sphere& sphere, const OBB& box);
     bool Intersects(const OBB& box, const Sphere& sphere);
+
+    // レイが球に当たるか:当たれば、始点から当たった点までの距離 t(0 以上。direction の長さが 1 ならメートル)を返す。外れれば nullopt
+    // 後ろ向き(球が始点の後ろ)は、外れ。始点が球の中なら、t = 0
+    std::optional<float> Raycast(const Ray& ray, const Sphere& sphere);
+
+    // レイが箱に当たるか:箱の軸ごとに、2 枚の面の間(スラブ)に入る t の範囲を求め、3 軸の範囲が重なれば当たり
+    // 戻り値は Raycast(球)と同じ(始点が箱の中なら、t = 0)
+    std::optional<float> Raycast(const Ray& ray, const OBB& box);
 
     // OBB の 8 つの角(中心 ± 右 × 半分 ± 上 × 半分 ± 前 × 半分)。箱を線で描くとき(Renderer::DrawWireBox)に使う
     // 番号の決め方: ビット 0 が右(1 なら +)、ビット 1 が上、ビット 2 が前
