@@ -172,7 +172,7 @@ Debug ビルドは、エンジンの `shaders/` と、ゲームのアセット(`
 
 ## 7. 動くモデル(ボーンアニメーション)を使う
 
-Blender などで作った、骨つきのモデル(glTF = `.glb`)を、動かして、描いて、当たり判定に使う。**`KR::AnimatedModel` だけ**で、できる。見本は、サンプル `samples/Skeleton/`(KRSkeleton)。
+Blender などで作った、骨つきのモデル(glTF = `.glb`)を、動かして、描いて、当たり判定に使う。**`KR::AnimatedModel` だけ**で、できる。見本は、サンプル `samples/Animated/`(KRAnimated。約 60 行)。判定の形の調整は、ツール [KRAnimationEditor](AnimationEditor.md) で行う。
 
 ### 7-1. モデルの用意(Blender)
 - 書き出しの形式は **glTF Binary (.glb)**。骨(アーマチュア)とアニメーションを、含める設定にする。
@@ -226,7 +226,7 @@ for (const KR::WorldHitbox& shape : shapes)
 ```
 - 判定の形は、**骨の中の座標**で持つ(骨が動いても、数字は変わらない。骨の今の位置・向きに、自動で追従する)。
 - 形は、`Boss.hitboxes.json`(モデルの隣)に、保存される。無ければ、骨ごとの、とりあえずの形(子がある骨 = 箱・先端 = 球)になる。
-- **調整のしかた**:サンプル KRSkeleton で、`GetHitboxes()` の形を、ImGui で動かして(骨・形・中心・大きさ)、「Save hitboxes」で保存する。ゲームでは、読み込むだけ。Debug では、元の `Assets` フォルダーに書かれる(Release では、exe の横の複製に書くので、元に残らない。調整は Debug で)。
+- **調整のしかた**:ツール **KRAnimationEditor**([AnimationEditor.md](AnimationEditor.md))で、ゲームのアセットのフォルダーを開いて、骨を選び、判定の形を動かして(中心・大きさ)、「Save hitboxes」で保存する。ツールは、開いたフォルダーに保存する(Release でも、元のフォルダーに残る)。ゲームでは、読み込むだけ。
 - 詳しくは [Animation.md](Animation.md)・[Collision.md](Collision.md)。
 
 ### 7-4. 注意

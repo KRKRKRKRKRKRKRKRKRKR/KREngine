@@ -15,7 +15,8 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | 入力(キーボード) | [Input.md](Input.md) |
 | 当たり判定(OBB・線の描画) | [Collision.md](Collision.md) |
 | デバッグ用の画面(ImGui) | [ImGui.md](ImGui.md) |
-| 調べ物:ボーンアニメーション | [Animation.md](Animation.md) |
+| ボーンアニメーション(調べ物・実装の記録) | [Animation.md](Animation.md) |
+| **アニメーションの調整ツール**(骨・判定の形) | [AnimationEditor.md](AnimationEditor.md) |
 | 調べ物:演出(爆発・シェーダーなど) | [Effects.md](Effects.md) |
 
 ---
@@ -26,7 +27,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 KREngine/
 ├─ include/KR/                   【公開】ゲームから見える
 │   ├─ KR.h                        まとめヘッダー(主なヘッダーを、まとめて取り込む)
-│   ├─ Core/                       Application, Log, Input(IsKeyDown / IsKeyPressed / IsKeyReleased), Assets(アセット・シェーダーの場所)
+│   ├─ Core/                       Application, Log, Input(IsKeyDown / IsKeyPressed / IsKeyReleased), Assets(アセット・シェーダーの場所。SetAssetRoot で、実行時に切り替え), CommandLine(起動の引数)
 │   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners。当たり判定)
 │   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・SkeletonDebug(骨の表示)
 │   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
@@ -50,7 +51,8 @@ KREngine/
 │       ├─ DX12Buffer                Upload ヒープのバッファ(頂点・番号・定数)
 │       └─ DX12Texture               画像(Default ヒープ + SRV の札。Upload 経由でコピー)
 ├─ shaders/                      シェーダー(実行時にコンパイル): Basic.hlsl(物)/ Sky.hlsl(空)/ Line.hlsl(線。当たり判定の箱)/ Common.hlsli(共通の b1 の宣言)
-├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Skeleton/(glTF の骨を線で描く)・Assets/(サンプル共通のアセット。テスト用のモデル)
+├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Animated/(動くモデル AnimatedModel の使い方の見本)・Assets/(サンプル共通のアセット。テスト用のモデル)
+├─ tools/AnimationEditor/        ツール KRAnimationEditor(骨・判定の形を、見て、調整して、保存する)
 ├─ docs/                         この資料
 ├─ CMakeLists.txt                エンジンのビルド(ライブラリ KREngine・関数 kr_copy_runtime_files・サンプル)
 └─ CMakePresets.json             エンジンを単体でビルドするときの設定(vs2026)

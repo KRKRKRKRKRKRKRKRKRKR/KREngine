@@ -1,0 +1,6 @@
+# 動くモデル(AnimatedModel)の、使い方の見本 KRAnimated(読み込み・再生・描画・当たり判定の形を線で描く)
+add_executable(KRAnimated AnimatedApp.cpp)
+target_link_libraries(KRAnimated PRIVATE KREngine)
+kr_copy_runtime_files(KRAnimated)
+set_target_properties(KRAnimated PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Samples)
+target_link_options(KRAnimated PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
