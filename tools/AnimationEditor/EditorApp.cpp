@@ -58,7 +58,7 @@ namespace
 class EditorApp : public KR::Application
 {
 public:
-    EditorApp() : Application(KR::ApplicationDesc{ .title = "KR Animation Editor" }) {}
+    EditorApp() : Application(KR::ApplicationDesc{ .title = "KR Animation Editor (KR Engine " + KR::GetVersionString() + ")" }) {}
 
 protected:
     // 当たり判定の確認:答えが分かっている例で、Intersects を調べる。全部合っていれば OK のログ・違えばエラーのログ

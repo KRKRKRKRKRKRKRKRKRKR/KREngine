@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
-project(KREngine LANGUAGES CXX)
+# エンジンの版:メジャー.マイナー.パッチ(決まりは docs/Versioning.md。更新の記録は CHANGELOG.md)。ここが、版の、唯一の置き場所
+project(KREngine VERSION 0.2.1 LANGUAGES CXX)
 
 # このフォルダーが、最上位(エンジン単体でビルドしている)か、ゲームの一部(ゲームが、add_subdirectory している)か
 # 単体のときは、C++ の規格・Visual Studio のフォルダー表示・サンプルを、ここで決める(ゲームの一部のときは、ゲーム側が決める)
@@ -99,6 +100,7 @@ set(ENGINE_FILES
     include/KR/Core/Input.h
     include/KR/Core/Assets.h
     include/KR/Core/CommandLine.h
+    include/KR/Core/Version.h
     include/KR/Renderer/Renderer.h
     include/KR/Renderer/Camera.h
     include/KR/Renderer/Lighting.h
@@ -122,6 +124,7 @@ set(ENGINE_FILES
     src/Core/Input.cpp
     src/Core/Assets.cpp
     src/Core/CommandLine.cpp
+    src/Core/Version.cpp
     src/Core/InputState.h
     src/Platform/Windows/Window.h
     src/Platform/Windows/Window.cpp
@@ -187,6 +190,8 @@ target_include_directories(KREngine SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOU
 target_compile_definitions(KREngine
     PUBLIC  $<$<CONFIG:Debug>:KR_DEBUG>
     PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
+            # エンジンの版(project の VERSION)。KR::GetVersion が返す
+            KR_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} KR_VERSION_MINOR=${PROJECT_VERSION_MINOR} KR_VERSION_PATCH=${PROJECT_VERSION_PATCH}
             # Debug ではホットリロードのため、編集中の元ファイルを直接読む
             KR_ASSETS_SOURCE_DIR="${KR_GAME_ASSETS_DIR}"
             # シェーダーは、エンジンの物(エンジンの shaders/)。Debug では、その元ファイルを、直接読む(F10 で再読み込みできる)

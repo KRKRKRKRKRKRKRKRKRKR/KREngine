@@ -160,6 +160,9 @@ bool hit = KR::Intersects(a, b);                           // 重なっている
 そのほかの、キー:**F11** ボーダーレスの切り替え。
 
 ## 6. エンジンを、ゲームと一緒に開発する(サブモジュール)
+
+**エンジンの版**:`メジャー.マイナー.パッチ`(例 0.2.1)。サブモジュールは、タグ(`git checkout v0.2.1`)で、指せる。進める前に、[CHANGELOG.md](../CHANGELOG.md) の「ゲーム側で必要な変更」を読む。決まりは [Versioning.md](Versioning.md)。
+
 | 場面 | 手順 |
 |---|---|
 | エンジンを直して、ゲームで、すぐ試す(push しない) | エンジンを、別の場所に clone して(例:`C:/SchoolProgram/Game/KREngine`)、ゲームの configure に `-DKR_ENGINE_PATH=C:/SchoolProgram/Game/KREngine` を付ける(自分の PC だけの設定。`CMakeUserPresets.json` に書くと、楽。コミットしない) |
