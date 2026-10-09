@@ -38,13 +38,14 @@ protected:
             m_Graph.nodes.push_back(node);
         };
         add(1, "Wait", 20, 100);
-        add(2, "PlayerWithin", 170, 100);
-        add(3, "MoveToPlayer", 440, 100);
-        add(4, "PlayerWithin", 640, 100);
-        add(5, "Attack", 930, 100);
+        add(2, "PlayerWithin", 340, 100);
+        add(3, "MoveToPlayer", 600, 100);
+        add(4, "PlayerWithin", 790, 100);
+        add(5, "Attack", 1050, 100);
         add(6, "PlayerOutside", 440, 330); // 攻撃のあと、離れたら、待機へ戻る(例)
+        add(7, "TimeElapsed", 340, 400);   // 待機から、秒がたったら、移動へ(分岐の 2 本目)
         m_Graph.startNode = 1;
-        m_Graph.links = { { 1, 2, 0 }, { 2, 3, 0 }, { 3, 4, 0 }, { 4, 5, 0 }, { 5, 6, 0 }, { 6, 1, 0 } };
+        m_Graph.links = { { 1, 2, 0 }, { 2, 3, 0 }, { 3, 4, 0 }, { 4, 5, 0 }, { 5, 6, 0 }, { 6, 1, 0 }, { 1, 7, 1 }, { 7, 3, 0 } };
     }
 
     void OnImGui() override

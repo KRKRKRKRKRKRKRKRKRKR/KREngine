@@ -32,3 +32,14 @@ namespace KR::Behavior
     // 消したら true(id が無ければ false)
     bool RemoveNode(Graph& graph, NodeId id);
 }
+
+namespace KR::Behavior
+{
+    // 開始ノードにする(状態だけ。条件・存在しない id は、false)
+    bool SetStartNode(Graph& graph, NodeId id);
+
+    // from から出る線のうち、to への線の順番(priority)を、1 つ上(direction = -1)か、1 つ下(+1)に動かす
+    // 先頭を上へ・最後を下へは、何も起きない(false)。同じ priority の線が複数あっても、今の並び(OutgoingLinks の順)のまま、
+    // 0, 1, 2 … と、振り直してから入れ替える(= 入れ替えたあとは、必ず 0 から連番)
+    bool MoveLinkPriority(Graph& graph, NodeId from, NodeId to, int direction);
+}

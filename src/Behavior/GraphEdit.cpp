@@ -3,6 +3,7 @@
 #include "KR/Behavior/NodeTypes.h"
 
 #include <algorithm>
+#include <vector>
 
 namespace KR::Behavior
 {
@@ -114,6 +115,50 @@ namespace KR::Behavior
         if (graph.startNode == id)
         {
             graph.startNode = 0;
+        }
+        return true;
+    }
+}
+
+namespace KR::Behavior
+{
+    bool SetStartNode(Graph& graph, NodeId id)
+    {
+        const Node* node = graph.FindNode(id);
+        if (node == nullptr || node->kind != NodeKind::State)
+        {
+            return false;
+        }
+        graph.startNode = id;
+        return true;
+    }
+
+    bool MoveLinkPriority(Graph& graph, NodeId from, NodeId to, int direction)
+    {
+        std::vector<Link> ordered = graph.OutgoingLinks(from); // priority 順(同じなら、links の並び)
+        const auto self = std::find_if(ordered.begin(), ordered.end(), [to](const Link& link) { return link.to == to; });
+        if (self == ordered.end() || (direction != -1 && direction != 1))
+        {
+            return false;
+        }
+        const auto index = self - ordered.begin();
+        const auto target = index + direction;
+        if (target < 0 || target >= static_cast<std::ptrdiff_t>(ordered.size()))
+        {
+            return false;
+        }
+        std::swap(ordered[static_cast<size_t>(index)], ordered[static_cast<size_t>(target)]);
+
+        // 並びの順に、0, 1, 2 … を振る
+        for (size_t position = 0; position < ordered.size(); ++position)
+        {
+            for (Link& link : graph.links)
+            {
+                if (link.from == from && link.to == ordered[position].to)
+                {
+                    link.priority = static_cast<int>(position);
+                }
+            }
         }
         return true;
     }

@@ -67,6 +67,8 @@ namespace KR::Behavior
         ImNodesContext* context = nullptr;
         std::set<NodeId> placed;       // 位置を、imnodes に渡した(= 以後は imnodes が持つ)ノード
         const Graph* lastGraph = nullptr;
+        NodeId hoveredNode = 0;        // 直前のフレームで、マウスが乗っていたノード(右クリックで、どのメニューを出すかの判定)
+        NodeId menuNode = 0;           // 「ノードのメニュー」を開いた、対象のノード
     };
 
     GraphEditor::GraphEditor()
@@ -99,11 +101,48 @@ namespace KR::Behavior
         ImNodes::BeginNodeEditor();
 
         // 右クリックのメニュー:登録された種類の一覧から、ノードを足す(押した場所に置く)
-        const bool openMenu = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImNodes::IsEditorHovered()
-            && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsAnyItemHovered();
-        if (openMenu)
+        // ノードの上で右クリックしたときは、そのノードのメニュー(ここから始める・消す)。何もない所なら、足すメニュー
+        const bool rightClicked = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImNodes::IsEditorHovered()
+            && ImGui::IsMouseReleased(ImGuiMouseButton_Right);
+        if (rightClicked && impl_->hoveredNode != 0)
+        {
+            impl_->menuNode = impl_->hoveredNode;
+            ImGui::OpenPopup("ノードのメニュー");
+        }
+        else if (rightClicked && !ImGui::IsAnyItemHovered())
         {
             ImGui::OpenPopup("ノードを足す");
+        }
+
+        if (ImGui::BeginPopup("ノードのメニュー"))
+        {
+            const Node* target = graph.FindNode(impl_->menuNode);
+            if (target == nullptr)
+            {
+                ImGui::CloseCurrentPopup();
+            }
+            else
+            {
+                const NodeId targetId = target->id;
+                if (target->kind == NodeKind::State)
+                {
+                    const bool isStart = targetId == graph.startNode;
+                    if (ImGui::MenuItem("ここから始める", nullptr, isStart, !isStart))
+                    {
+                        changed |= SetStartNode(graph, targetId);
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("(条件は、開始にできない)");
+                }
+                if (ImGui::MenuItem("このノードを消す"))
+                {
+                    changed |= RemoveNode(graph, targetId);
+                    impl_->placed.erase(targetId);
+                }
+            }
+            ImGui::EndPopup();
         }
         if (ImGui::BeginPopup("ノードを足す"))
         {
@@ -186,6 +225,36 @@ namespace KR::Behavior
             }
             ImGui::PopID();
 
+            // 分岐の順番:状態から出る線が 2 本以上のとき、調べる順(priority の小さい順)を、↑↓で入れ替える
+            if (isState)
+            {
+                const std::vector<Link> outgoing = graph.OutgoingLinks(node.id);
+                if (outgoing.size() >= 2)
+                {
+                    ImGui::PushID(node.id);
+                    ImGui::TextDisabled("分岐の順番(上から調べる)");
+                    for (size_t i = 0; i < outgoing.size(); ++i)
+                    {
+                        const Node* target = graph.FindNode(outgoing[i].to);
+                        const NodeTypeInfo* targetInfo = target ? FindNodeType(target->type) : nullptr;
+                        ImGui::PushID(static_cast<int>(i));
+                        if (ImGui::ArrowButton("##up", ImGuiDir_Up) && i > 0)
+                        {
+                            changed |= MoveLinkPriority(graph, node.id, outgoing[i].to, -1);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::ArrowButton("##down", ImGuiDir_Down) && i + 1 < outgoing.size())
+                        {
+                            changed |= MoveLinkPriority(graph, node.id, outgoing[i].to, 1);
+                        }
+                        ImGui::SameLine();
+                        ImGui::Text("%d. #%d %s", static_cast<int>(i) + 1, outgoing[i].to, targetInfo ? targetInfo->displayName.c_str() : "?");
+                        ImGui::PopID();
+                    }
+                    ImGui::PopID();
+                }
+            }
+
             ImNodes::BeginOutputAttribute(OutputPinId(node.id));
             ImGui::TextUnformatted("出力");
             ImNodes::EndOutputAttribute();
@@ -210,6 +279,9 @@ namespace KR::Behavior
         }
 
         ImNodes::EndNodeEditor();
+
+        int hovered = 0;
+        impl_->hoveredNode = ImNodes::IsNodeHovered(&hovered) ? hovered : 0;
 
         // 線の追加:ピンからピンへドラッグして離すと来る。出力ピン → 入力ピンの向きに直して、ルール(CanAddLink)に合うときだけ足す
         int startPin = 0;
