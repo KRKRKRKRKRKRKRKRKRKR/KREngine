@@ -547,7 +547,20 @@ protected:
 
     void OnImGui() override
     {
-        ImGuizmo::BeginFrame(); // ギズモの 1 フレームの始まり(A3 で、ここから使う)
+        ImGuizmo::BeginFrame(); // ギズモの 1 フレームの始まり
+
+        // W = 移動 / E = 大きさ(文字を入力している間は、効かせない)
+        if (!ImGui::GetIO().WantTextInput)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_W, false))
+            {
+                m_GizmoOperation = ImGuizmo::TRANSLATE;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_E, false))
+            {
+                m_GizmoOperation = ImGuizmo::SCALE;
+            }
+        }
         ImGui::Begin("アニメーション調整ツール###AnimationEditor");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
@@ -656,7 +669,7 @@ protected:
         }
     }
 
-    ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(A3-4 で、W / E キーも足す)
+    ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(ラジオボタン・W / E キー)
     bool m_GizmoBusy = false; // ギズモの上にマウスがある・ドラッグ中(カメラを回さない・クリックで選ばない)
 
     void OnShutdown() override
@@ -1123,9 +1136,9 @@ private:
 
             // ギズモの操作:移動 / 大きさ
             int operation = (m_GizmoOperation == ImGuizmo::SCALE) ? 1 : 0;
-            ImGui::RadioButton("移動", &operation, 0);
+            ImGui::RadioButton("移動 (W)", &operation, 0);
             ImGui::SameLine();
-            ImGui::RadioButton("大きさ", &operation, 1);
+            ImGui::RadioButton("大きさ (E)", &operation, 1);
             m_GizmoOperation = (operation == 1) ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
 
             // 変えたら「未保存」の印(m_Dirty)
