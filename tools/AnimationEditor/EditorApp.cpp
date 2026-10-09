@@ -332,6 +332,35 @@ protected:
                       && nearEnough(sphereWorld.sphere.center.z, mirroredSphere.sphere.center.z) && nearEnough(mirroredSphere.sphere.radius, 0.25f), true);
         }
 
+        // 対になる骨の名前
+        {
+            auto pairIs = [&](const char* name, const char* expected)
+            {
+                const std::optional<std::string> result = KR::MirrorBoneName(name);
+                check(name, result.has_value() && *result == expected, true);
+            };
+            pairIs("Arm.L", "Arm.R");
+            pairIs("Leg_R", "Leg_L");
+            pairIs("Arm.L.001", "Arm.R.001");
+            pairIs("mixamorig:LeftHand", "mixamorig:RightHand");
+            pairIs("RightFoot", "LeftFoot");
+            pairIs("左腕", "右腕");
+            check("対の名前 中央の骨(Spine)は、見つからない", KR::MirrorBoneName("Spine").has_value(), false);
+            check("対の名前 Hand_Bone(L や R で終わらない)は、見つからない", KR::MirrorBoneName("Hand_Bone").has_value(), false);
+
+            KR::Skeleton skeleton;
+            for (const char* name : { "Spine", "Arm.L", "Arm.R", "Head.L" })
+            {
+                KR::Joint joint;
+                joint.name = name;
+                skeleton.joints.push_back(joint);
+            }
+            check("対の骨 Arm.L → Arm.R(番号 2)", KR::FindMirrorJoint(skeleton, 1) == std::optional<int>(2), true);
+            check("対の骨 Arm.R → Arm.L(番号 1)", KR::FindMirrorJoint(skeleton, 2) == std::optional<int>(1), true);
+            check("対の骨 Head.L は、Head.R が骨に無いので、見つからない", KR::FindMirrorJoint(skeleton, 3).has_value(), false);
+            check("対の骨 Spine は、見つからない", KR::FindMirrorJoint(skeleton, 0).has_value(), false);
+        }
+
         // コピー・貼り付け
         {
             auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-5f; };
@@ -383,7 +412,7 @@ protected:
 
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・大きさ・左右反転・コピー貼り付け・クリックの見分け)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・大きさ・左右反転・対の骨の名前・コピー貼り付け・クリックの見分け)");
         }
     }
 

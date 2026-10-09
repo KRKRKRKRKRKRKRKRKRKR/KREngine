@@ -4,6 +4,9 @@
 
 #include <DirectXMath.h>
 
+#include <optional>
+#include <string>
+
 namespace KR
 {
     // 判定の形を、左右反転して、対になる骨に付け直す(調整ツールの「左右反転して貼り付け」で使う)
@@ -25,4 +28,14 @@ namespace KR
     // 戻り値の jointIndex は targetJoint になる
     Hitbox MirrorHitbox(const Hitbox& source, const DirectX::XMFLOAT4X4& sourceBoneWorld,
                         int targetJoint, const DirectX::XMFLOAT4X4& targetBoneWorld);
+
+    // 対になる骨の名前(左 ⇔ 右)。名前の決まりは、次の順に調べる(最初に当てはまった物):
+    //   ① 終わりが .L / .R・_L / _R(小文字の .l / _r も)。Blender の連番(.L.001)があっても、よい
+    //   ② Left / Right(left / right・LEFT / RIGHT も)を含む。例:LeftArm ⇔ RightArm・mixamorig:LeftHand ⇔ mixamorig:RightHand
+    //   ③ 左 / 右 を含む。例:左腕 ⇔ 右腕
+    // どれにも当てはまらなければ nullopt(中央の骨など。ツールでは、ユーザーが選ぶ)
+    std::optional<std::string> MirrorBoneName(const std::string& name);
+
+    // 骨 joint の、対になる骨(MirrorBoneName の名前の骨が、Skeleton の中にあれば、その番号)。無ければ nullopt
+    std::optional<int> FindMirrorJoint(const Skeleton& skeleton, int joint);
 }
