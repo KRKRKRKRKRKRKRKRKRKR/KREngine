@@ -13,3 +13,10 @@ target_link_libraries(KRGraphEditorProbe PRIVATE KREngine)
 kr_copy_runtime_files(KRGraphEditorProbe)
 set_target_properties(KRGraphEditorProbe PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Probes)
 target_link_options(KRGraphEditorProbe PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
+
+# DrawGraphDebug(動いている敵の今の状態を光らせる表示)の動作確認用
+add_executable(KRDebugDrawProbe DebugDrawProbe.cpp)
+target_link_libraries(KRDebugDrawProbe PRIVATE KREngine)
+kr_copy_runtime_files(KRDebugDrawProbe)
+set_target_properties(KRDebugDrawProbe PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Probes)
+target_link_options(KRDebugDrawProbe PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
