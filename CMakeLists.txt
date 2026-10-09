@@ -303,6 +303,11 @@ if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/AnimationEditor/
     add_subdirectory(tools/AnimationEditor)
 endif()
 
+# 敵の行動のツール KRBehaviorEditor(ノードで、行動のグラフを作る)
+if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/BehaviorEditor/CMakeLists.txt")
+    add_subdirectory(tools/BehaviorEditor)
+endif()
+
 # Visual Studio で、F5 で実行する物(指定しないと、実行できない ALL_BUILD になる)。エンジン単体のときだけ
 if(KR_IS_TOP_LEVEL)
     if(TARGET KRAnimationEditor)

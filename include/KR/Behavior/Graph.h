@@ -72,3 +72,10 @@ namespace KR::Behavior
     // 安全な既定のグラフ:待機 1 つ(読めなかったファイル・状態が無いグラフの代わり)
     GraphPtr MakeDefaultGraph();
 }
+
+namespace KR::Behavior
+{
+    // 見本のグラフ(依頼の例):待機 → [プレイヤーが半径 3 以内] → 移動 → [半径 1 以内] → 攻撃 → [攻撃が終わった] → 待機
+    // エディタの、はじめの画面・使い方の見本・確認に使う。登録されたノードの種類の、既定の値で作る
+    Graph MakeStarterGraph();
+}

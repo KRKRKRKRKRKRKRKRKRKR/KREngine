@@ -1,5 +1,7 @@
 #include "KR/Behavior/Graph.h"
 
+#include "GraphEdit.h"
+
 #include <algorithm>
 #include <utility>
 
@@ -51,5 +53,35 @@ namespace KR::Behavior
         graph.startNode = wait.id;
         graph.nodes.push_back(wait);
         return std::make_shared<const Graph>(std::move(graph));
+    }
+}
+
+namespace KR::Behavior
+{
+    Graph MakeStarterGraph()
+    {
+        Graph graph;
+        const NodeId wait = AddNode(graph, "Wait", 40.0f, 60.0f);
+        const NodeId near = AddNode(graph, "PlayerWithin", 260.0f, 60.0f);
+        const NodeId move = AddNode(graph, "MoveToPlayer", 510.0f, 60.0f);
+        const NodeId close = AddNode(graph, "PlayerWithin", 730.0f, 60.0f);
+        const NodeId attack = AddNode(graph, "Attack", 980.0f, 60.0f);
+        const NodeId finished = AddNode(graph, "AttackFinished", 510.0f, 330.0f);
+        if (Node* node = graph.FindNode(near))
+        {
+            node->params["radius"] = 3.0f;
+        }
+        if (Node* node = graph.FindNode(close))
+        {
+            node->params["radius"] = 1.0f;
+        }
+        AddLink(graph, wait, near);
+        AddLink(graph, near, move);
+        AddLink(graph, move, close);
+        AddLink(graph, close, attack);
+        AddLink(graph, attack, finished);
+        AddLink(graph, finished, wait);
+        graph.startNode = wait;
+        return graph;
     }
 }
