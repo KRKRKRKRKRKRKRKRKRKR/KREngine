@@ -24,6 +24,7 @@
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <numbers>
 #include <optional>
@@ -279,10 +280,68 @@ protected:
             m_ClickTracking = false;
             if (m_ClickDetector.Release(io.MousePos.x, io.MousePos.y))
             {
-                KR_LOG_INFO("  画面のクリック: ({:.0f}, {:.0f})", io.MousePos.x, io.MousePos.y); // A2-2 で、ここから形を選ぶ
+                PickHitbox(io.MousePos.x, io.MousePos.y);
             }
         }
     }
+
+    // モデル全体の置き方(形の中心を原点に動かして、Y 軸で回す)。描くときも、選ぶときも、同じ行列を使う
+    XMMATRIX GetModelWorld() const
+    {
+        return XMMatrixTranslation(-m_Center.x, -m_Center.y, -m_Center.z) * XMMatrixRotationY(m_Angle);
+    }
+
+    // 画面の点 (x, y) をクリックしたとき、一番手前に当たる判定の形を選ぶ(骨の選択と連動:その骨の、その形になる)
+    void PickHitbox(float x, float y)
+    {
+        if (!m_Model.IsLoaded() || !m_ShowHitboxes)
+        {
+            return; // 見えていない形は、選べない
+        }
+        const ImVec2 size = ImGui::GetIO().DisplaySize;
+        const KR::Ray ray = m_Camera.ScreenPointToRay(x, y, size.x, size.y);
+        const std::vector<KR::WorldHitbox> shapes = m_Model.GetWorldHitboxes(GetModelWorld());
+
+        size_t nearest = NoHitbox;
+        float nearestT = std::numeric_limits<float>::max();
+        for (size_t i = 0; i < shapes.size(); ++i)
+        {
+            const std::optional<float> t = (shapes[i].shape == KR::HitShape::Box) ? KR::Raycast(ray, shapes[i].box) : KR::Raycast(ray, shapes[i].sphere);
+            if (t && *t < nearestT)
+            {
+                nearest = i;
+                nearestT = *t;
+            }
+        }
+        if (nearest == NoHitbox)
+        {
+            KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 判定の形に当たらず", x, y);
+            return;
+        }
+
+        // 骨の選択に直す:その形の骨を選び、その骨の何番目の形か(m_SubHitbox)を決める
+        const std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
+        const int joint = hitboxes[nearest].jointIndex;
+        if (joint < 0 || joint >= static_cast<int>(m_Model.GetSkeleton().joints.size()))
+        {
+            KR_LOG_WARN("  クリック: 形 {} は、骨に付いていないので、選べません", nearest);
+            return;
+        }
+        int sub = 0;
+        for (size_t i = 0; i < nearest; ++i)
+        {
+            if (hitboxes[i].jointIndex == joint)
+            {
+                ++sub;
+            }
+        }
+        m_SelectedBone = joint;
+        m_SubHitbox = sub;
+        KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 形 {} を選びました(骨 {}「{}」の {} 番目・t = {:.2f})", x, y, nearest, joint,
+                    m_Model.GetSkeleton().joints[static_cast<size_t>(joint)].name, sub, nearestT);
+    }
+
+    KR::Camera m_Camera; // 今のフレームのカメラ(クリックの光線に使う)
 
     ClickDetector m_ClickDetector;
     bool m_ClickTracking = false;
@@ -295,7 +354,7 @@ protected:
         }
 
         // 形の中心を原点に動かしてから、Y 軸で回す
-        const XMMATRIX world = XMMatrixTranslation(-m_Center.x, -m_Center.y, -m_Center.z) * XMMatrixRotationY(m_Angle);
+        const XMMATRIX world = GetModelWorld();
 
         if (m_ShowMesh)
         {
@@ -590,12 +649,11 @@ private:
         }
 
         // 注目点のまわりを、回る位置にカメラを置く(yaw = 0 で、手前(−Z)から見る)
-        KR::Camera camera;
-        camera.SetPosition({ m_Target.x + m_Distance * std::sin(m_Yaw) * std::cos(m_Pitch),
-                             m_Target.y + m_Distance * std::sin(m_Pitch),
-                             m_Target.z - m_Distance * std::cos(m_Yaw) * std::cos(m_Pitch) });
-        camera.LookAt(m_Target);
-        GetRenderer().SetCamera(camera);
+        m_Camera.SetPosition({ m_Target.x + m_Distance * std::sin(m_Yaw) * std::cos(m_Pitch),
+                               m_Target.y + m_Distance * std::sin(m_Pitch),
+                               m_Target.z - m_Distance * std::cos(m_Yaw) * std::cos(m_Pitch) });
+        m_Camera.LookAt(m_Target);
+        GetRenderer().SetCamera(m_Camera);
     }
 
     // ---- ImGui の各区画 ----
