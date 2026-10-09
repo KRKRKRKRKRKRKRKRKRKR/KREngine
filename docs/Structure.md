@@ -55,7 +55,7 @@ KREngine/
 │       ├─ DX12Buffer                Upload ヒープのバッファ(頂点・番号・定数)
 │       └─ DX12Texture               画像(Default ヒープ + SRV の札。Upload 経由でコピー)
 ├─ shaders/                      シェーダー(実行時にコンパイル): Basic.hlsl(物)/ Sky.hlsl(空)/ Line.hlsl(線。当たり判定の箱)/ Common.hlsli(共通の b1 の宣言)
-├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Animated/(動くモデル AnimatedModel の使い方の見本)・Assets/(サンプル共通のアセット。テスト用のモデル)
+├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Animated/(動くモデル AnimatedModel の使い方の見本)・Behavior/(敵の行動 KR::Behavior の使い方の見本。Walker.json を読んで、敵 1 体を動かす・今の状態のノードを光らせる)・Assets/(サンプル共通のアセット。テスト用のモデル・Enemies/Walker.json)
 ├─ tools/AnimationEditor/        ツール KRAnimationEditor(骨・判定の形を、見て、調整して、保存する)
 ├─ tools/Common/                 ツールの共通の部品 KRToolCommon(フォルダーを選ぶ窓 FolderDialog。調整ツールどうしで共有)
 ├─ tools/BehaviorEditor/         ツール KRBehaviorEditor(敵の行動のグラフを、ノードで作る。作成中)
