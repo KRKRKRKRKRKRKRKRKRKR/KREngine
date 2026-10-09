@@ -21,4 +21,5 @@
 #include "KR/Animation/Hitbox.h"
 #include "KR/Animation/HitboxFile.h"
 #include "KR/Animation/HitboxMirror.h"
+#include "KR/Animation/FbxLoader.h"
 #include "KR/Animation/AnimatedModel.h"

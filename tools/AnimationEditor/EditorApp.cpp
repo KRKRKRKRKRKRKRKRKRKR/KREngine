@@ -419,6 +419,7 @@ protected:
     void OnInit() override
     {
         RunCollisionSelfTest();
+        KR::LoadFbx("Test/BossObstacle/BossObstacle.fbx"); // F2 の確認:ufbx で解析できるか(中身は、まだ読まない。F3 で、置き換える)
         m_BoneRenderer.Create(GetRenderer());
 
         // 開くフォルダー・モデルの決め方:コマンドラインの引数 → 前回の記憶 → 既定(ビルドで決まった、アセットのフォルダー)

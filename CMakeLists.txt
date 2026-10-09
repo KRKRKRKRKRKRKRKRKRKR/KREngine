@@ -93,6 +93,18 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 set(JSON_Install OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(nlohmann_json)
 
+# ufbx(FBX を読む)。エンジンの中だけで使う(PRIVATE)。**版を固定**(v0.23.1・指すコミット 26a482ae66871d7de36eb722aa060bce95bce274)
+# ufbx は、0.Y.Z の間は、マイナーが上がるたびに互換が壊れることがある。上げるときは、CHANGELOG を読んでから
+# 取得だけして(SOURCE_SUBDIR を、存在しない場所にして、add_subdirectory を避ける)、ライブラリは、third_party/ufbx で定義する
+FetchContent_Declare(ufbx
+    URL      https://github.com/ufbx/ufbx/archive/refs/tags/v0.23.1.zip
+    URL_HASH SHA256=3e5d8219f5b634fd374949808206eba1a1da49b2b2e3ee31ff0bd228c0abd469
+    SOURCE_SUBDIR do_not_add_subdirectory
+)
+FetchContent_MakeAvailable(ufbx)
+set(UFBX_SOURCE_DIR ${ufbx_SOURCE_DIR})
+add_subdirectory(third_party/ufbx)
+
 set(ENGINE_FILES
     include/KR/KR.h
     include/KR/Core/Application.h
@@ -117,6 +129,7 @@ set(ENGINE_FILES
     include/KR/Animation/Hitbox.h
     include/KR/Animation/HitboxFile.h
     include/KR/Animation/HitboxMirror.h
+    include/KR/Animation/FbxLoader.h
     include/KR/Animation/AnimatedModel.h
 
     src/Core/Application.cpp
@@ -143,6 +156,7 @@ set(ENGINE_FILES
     src/Animation/Hitbox.cpp
     src/Animation/HitboxFile.cpp
     src/Animation/HitboxMirror.cpp
+    src/Animation/FbxLoader.cpp
     src/Animation/AnimatedModel.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
@@ -205,6 +219,9 @@ target_link_libraries(KREngine PUBLIC imgui)
 
 # JSON は、エンジンの中だけで使う(PRIVATE)。公開ヘッダーには、JSON の型を出さない
 target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
+
+# ufbx も、エンジンの中だけ(PRIVATE)。公開ヘッダーには、ufbx の型を出さない
+target_link_libraries(KREngine PRIVATE ufbx)
 
 # C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
 target_compile_features(KREngine PUBLIC cxx_std_23)
