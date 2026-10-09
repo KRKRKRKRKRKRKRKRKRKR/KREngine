@@ -16,6 +16,7 @@ namespace KR::Behavior
         ParamValue defaultValue;
         float minValue = 0.0f;   // float・int のときの範囲(エディタの欄の範囲)
         float maxValue = 0.0f;   // minValue == maxValue なら、範囲なし
+        std::string visibleWhen; // 空でなければ、この名前の bool の値が true のときだけ、エディタに出す(例 keyY は includeVertical が true のときだけ)
     };
 
     // ノードの種類 1 つの説明

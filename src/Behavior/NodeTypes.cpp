@@ -37,7 +37,7 @@ namespace KR::Behavior
                     {"key", "横の距離のキー", std::string("distanceToPlayerX")},
                     {"radius", "半径", radius, 0.0f, 100.0f},
                     {"includeVertical", "縦も含める", false},
-                    {"keyY", "縦の距離のキー", std::string("distanceToPlayerY")},
+                    {"keyY", "縦の距離のキー", std::string("distanceToPlayerY"), 0.0f, 0.0f, "includeVertical"},
                 };
             };
 

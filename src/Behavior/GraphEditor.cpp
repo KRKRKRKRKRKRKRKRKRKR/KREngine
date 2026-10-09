@@ -5,7 +5,9 @@
 #include <imgui.h>
 #include <imnodes.h>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <set>
 #include <string>
 
@@ -22,6 +24,40 @@ namespace KR::Behavior
         constexpr ImU32 ConditionColor = IM_COL32(40, 150, 90, 255);
         constexpr ImU32 ConditionColorHover = IM_COL32(60, 180, 110, 255);
         constexpr ImU32 StartOutlineColor = IM_COL32(255, 160, 40, 255);
+        constexpr float FieldWidth = 130.0f; // 値の欄の幅
+
+        // 登録(spec)から、値の欄を 1 つ出す。値の型は spec の既定値の型で決まる。変えたら true
+        bool DrawParamField(ParamValue& value, const ParamSpec& spec)
+        {
+            const bool hasRange = spec.minValue != spec.maxValue;
+            const char* label = spec.displayName.c_str();
+            ImGui::SetNextItemWidth(FieldWidth);
+
+            if (float* number = std::get_if<float>(&value))
+            {
+                const float speed = hasRange ? std::max((spec.maxValue - spec.minValue) / 500.0f, 0.01f) : 0.05f;
+                return ImGui::DragFloat(label, number, speed, spec.minValue, spec.maxValue, "%.2f");
+            }
+            if (int* number = std::get_if<int>(&value))
+            {
+                return ImGui::DragInt(label, number, 0.2f, static_cast<int>(spec.minValue), static_cast<int>(spec.maxValue));
+            }
+            if (bool* flag = std::get_if<bool>(&value))
+            {
+                return ImGui::Checkbox(label, flag);
+            }
+            if (std::string* text = std::get_if<std::string>(&value))
+            {
+                char buffer[128];
+                std::snprintf(buffer, sizeof(buffer), "%s", text->c_str());
+                if (ImGui::InputText(label, buffer, sizeof(buffer)))
+                {
+                    *text = buffer;
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     struct GraphEditor::Impl
@@ -59,8 +95,10 @@ namespace KR::Behavior
 
         ImNodes::BeginNodeEditor();
 
-        for (const Node& node : graph.nodes)
+        bool changed = false;
+        for (size_t nodeIndex = 0; nodeIndex < graph.nodes.size(); ++nodeIndex)
         {
+            const Node& node = graph.nodes[nodeIndex];
             // 位置は、最初の 1 回だけ、グラフから渡す。そのあとは、ドラッグで動くので、imnodes が持つ
             if (impl_->placed.insert(node.id).second)
             {
@@ -92,6 +130,30 @@ namespace KR::Behavior
             ImGui::TextUnformatted("入力");
             ImNodes::EndInputAttribute();
 
+            // 登録された値の欄(型ごと)。ノードごとに、ImGui の id を分ける(同じ名前の欄が、複数のノードにあるため)
+            ImGui::PushID(node.id);
+            if (info != nullptr)
+            {
+                Node& editable = graph.nodes[nodeIndex];
+                for (const ParamSpec& spec : info->params)
+                {
+                    ParamValue& value = editable.params.try_emplace(spec.name, spec.defaultValue).first->second;
+                    if (!spec.visibleWhen.empty())
+                    {
+                        const auto condition = editable.params.find(spec.visibleWhen);
+                        const bool* shown = (condition != editable.params.end()) ? std::get_if<bool>(&condition->second) : nullptr;
+                        if (shown == nullptr || !*shown)
+                        {
+                            continue;
+                        }
+                    }
+                    ImGui::PushID(spec.name.c_str());
+                    changed |= DrawParamField(value, spec);
+                    ImGui::PopID();
+                }
+            }
+            ImGui::PopID();
+
             ImNodes::BeginOutputAttribute(OutputPinId(node.id));
             ImGui::TextUnformatted("出力");
             ImNodes::EndOutputAttribute();
@@ -118,7 +180,6 @@ namespace KR::Behavior
         ImNodes::EndNodeEditor();
 
         // ドラッグで動いた位置を、グラフに書き戻す(保存したとき、位置が残る)
-        bool changed = false;
         for (Node& node : graph.nodes)
         {
             const ImVec2 pos = ImNodes::GetNodeGridSpacePos(node.id);

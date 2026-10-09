@@ -17,7 +17,7 @@ namespace KR::Behavior
         GraphEditor(const GraphEditor&) = delete;
         GraphEditor& operator=(const GraphEditor&) = delete;
 
-        // グラフを描く(毎フレーム。ImGui の窓の中で呼ぶ)。graph を編集したら、true を返す(今は、ノードを動かしたときだけ)
+        // グラフを描く(毎フレーム。ImGui の窓の中で呼ぶ)。graph を編集したら、true を返す(ノードを動かした・値の欄を変えた)
         // 状態 = 青・条件 = 緑・開始ノード = 橙の枠と「開始」の印
         bool Draw(Graph& graph);
 
