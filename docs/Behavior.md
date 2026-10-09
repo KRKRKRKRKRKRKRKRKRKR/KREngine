@@ -184,6 +184,6 @@
 - **選ばなかった案**:`GetCurrentState()` が、値のコピー(`ParamMap`)を返す。毎フレームのコピーが無駄なので、指す形にした。
 ## 10. 進み具合(B1〜B6)
 済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2〜B2-3(条件の評価)・B2-4(Runner を作る・今の状態を読む)・B2-5〜B2-8(Update・分岐・SetGraph・Reset・共有)。= B2 は全部済。B3-1〜B3-3(imnodes の取り込み・相性の確認・ズームなしで進める判断)。
-済(続き):B4-1〜B4-6(GraphEditor:骨組み・値の欄・線・ノードの追加 / 削除・開始ノード・分岐の順番・検証の警告)・B4-7(ツール KRBehaviorEditor の骨組み = `docs/BehaviorEditor.md`)。
-これから:B4-8〜(ツール:開く・保存)→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
+済(続き):B4-1〜B4-6(GraphEditor:骨組み・値の欄・線・ノードの追加 / 削除・開始ノード・分岐の順番・検証の警告)・B4-7〜B4-8(ツール KRBehaviorEditor:骨組み・フォルダーを開く・一覧・開く = `docs/BehaviorEditor.md`)。
+これから:B4-9〜(ツール:保存・新規)→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
 使い方(`Usage.md` の 8)は、ゲームが呼べる形(Runner)ができてから書く(B6-3)。
