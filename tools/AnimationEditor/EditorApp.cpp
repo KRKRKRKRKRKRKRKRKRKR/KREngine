@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <numbers>
 #include <optional>
@@ -567,6 +568,75 @@ protected:
         else
         {
             KR_LOG_ERROR("  FBX 骨の確認 NG: 骨の数 glTF {} / FBX {}。{}", gs.joints.size(), fs.joints.size(), detail);
+        }
+
+        // 骨の重み(F5):頂点と同じ数・重みの合計が 1・骨の番号が範囲の中・骨ごとの重みの合計が、glTF と同じか
+        {
+            const KR::MeshData& gm = gltf.mesh;
+            const KR::MeshData& fm = fbx.mesh;
+            bool skinOk = fm.skin.size() == fm.vertices.size() && gm.skin.size() == gm.vertices.size() && !fm.skin.empty();
+            std::string skinDetail;
+            auto totals = [](const KR::MeshData& mesh, const KR::Skeleton& skeleton, float& worstSum, int& maxJoint)
+            {
+                std::map<std::string, float> perBone;
+                worstSum = 0.0f;
+                maxJoint = -1;
+                for (const KR::SkinVertex& v : mesh.skin)
+                {
+                    float sum = 0.0f;
+                    for (int k = 0; k < 4; ++k)
+                    {
+                        sum += v.weights[k];
+                        if (v.weights[k] > 0.0f)
+                        {
+                            maxJoint = std::max(maxJoint, static_cast<int>(v.joints[k]));
+                            if (v.joints[k] < skeleton.joints.size())
+                            {
+                                perBone[skeleton.joints[v.joints[k]].name] += v.weights[k];
+                            }
+                        }
+                    }
+                    worstSum = std::max(worstSum, std::abs(sum - 1.0f));
+                }
+                return perBone;
+            };
+            float gSum = 0.0f, fSum = 0.0f;
+            int gMax = -1, fMax = -1;
+            const std::map<std::string, float> gTotals = totals(gm, gs, gSum, gMax);
+            const std::map<std::string, float> fTotals = totals(fm, fs, fSum, fMax);
+            if (fSum > 1e-3f)
+            {
+                skinOk = false;
+                skinDetail += " 重みの合計が 1 でない頂点がある(最大のずれ " + std::to_string(fSum) + ")";
+            }
+            if (fMax >= static_cast<int>(fs.joints.size()))
+            {
+                skinOk = false;
+                skinDetail += " 骨の番号が範囲の外";
+            }
+            for (const auto& [name, weight] : gTotals)
+            {
+                const auto other = fTotals.find(name);
+                const float fw = other == fTotals.end() ? 0.0f : other->second;
+                if (std::abs(weight - fw) > 0.5f) // 頂点 1536 個の合計。丸めの誤差だけ許す
+                {
+                    skinOk = false;
+                    skinDetail += " 骨「" + name + "」の重みの合計が違う(glTF " + std::to_string(weight) + " / FBX " + std::to_string(fw) + ")";
+                }
+            }
+            if (skinOk)
+            {
+                std::string text;
+                for (const auto& [name, weight] : fTotals)
+                {
+                    text += (text.empty() ? "" : "・") + name + " " + std::to_string(static_cast<int>(weight + 0.5f));
+                }
+                KR_LOG_INFO("  FBX 重みの確認: OK(頂点 {} 個・重みの合計 1(最大のずれ {:.6f})・骨ごとの重みの合計が glTF と一致:{})", fm.skin.size(), fSum, text);
+            }
+            else
+            {
+                KR_LOG_ERROR("  FBX 重みの確認 NG:{}", skinDetail);
+            }
         }
     }
 

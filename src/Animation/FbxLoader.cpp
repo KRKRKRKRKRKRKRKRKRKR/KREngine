@@ -120,12 +120,72 @@ namespace KR
             return true;
         }
 
+        // スキンの重みを読んだときの、集計(ログに出す。あとから、8 本対応を判断する材料:Q9)
+        struct SkinStats
+        {
+            size_t vertexCount = 0;      // 骨つきの頂点の数
+            size_t overFourCount = 0;    // 5 本以上の骨が付いていた頂点の数(4 本に絞った)
+            size_t maxInfluences = 0;    // 1 頂点に付いていた骨の、最大の本数
+            size_t noWeightCount = 0;    // 重みが 1 つも無かった頂点の数(骨 0・重み 1 にした)
+        };
+
+        // 頂点 1 つの、骨の番号と重み。大きい順に 4 本まで・合計 1 に直す(5 本以上は、小さい物を捨てて、残りの合計を 1 に直す)
+        //   jointOfCluster:このスキンの、クラスターの番号 → Skeleton の骨の番号
+        SkinVertex ReadSkinVertex(const ufbx_skin_deformer& deformer, uint32_t vertexIndex, const std::vector<int>& jointOfCluster, SkinStats& stats)
+        {
+            struct Influence
+            {
+                int joint;
+                float weight;
+            };
+            const ufbx_skin_vertex range = deformer.vertices.data[vertexIndex];
+            std::vector<Influence> influences;
+            for (uint32_t i = 0; i < range.num_weights; ++i)
+            {
+                const ufbx_skin_weight weight = deformer.weights.data[range.weight_begin + i];
+                const int joint = weight.cluster_index < jointOfCluster.size() ? jointOfCluster[weight.cluster_index] : -1;
+                if (joint >= 0 && weight.weight > 0.0)
+                {
+                    influences.push_back({ joint, static_cast<float>(weight.weight) });
+                }
+            }
+            std::sort(influences.begin(), influences.end(), [](const Influence& a, const Influence& b) { return a.weight > b.weight; });
+
+            ++stats.vertexCount;
+            stats.maxInfluences = std::max(stats.maxInfluences, influences.size());
+            if (influences.size() > 4)
+            {
+                ++stats.overFourCount;
+                influences.resize(4);
+            }
+
+            SkinVertex skinVertex;
+            float sum = 0.0f;
+            for (const Influence& influence : influences)
+            {
+                sum += influence.weight;
+            }
+            if (sum <= 0.0f)
+            {
+                ++stats.noWeightCount; // 重みが無い頂点:骨 0 に、全部の重み(glTF の読み込みと同じ)
+                return skinVertex;
+            }
+            for (size_t k = 0; k < 4; ++k)
+            {
+                skinVertex.joints[k] = k < influences.size() ? static_cast<uint16_t>(influences[k].joint) : 0;
+                skinVertex.weights[k] = k < influences.size() ? influences[k].weight / sum : 0.0f;
+            }
+            return skinVertex;
+        }
+
         // メッシュ:三角形にして、全部、1 つの MeshData にまとめる(glTF と同じ)
         // 読むメッシュ:シーンに、骨に付いたメッシュ(スキンつき)が 1 つでもあれば、**骨に付いたメッシュだけ**(骨に付いていない物 = 判定用の立方体などは、ログで知らせて、読み飛ばす)。
         //   骨に付いたメッシュが 1 つも無ければ(動かない物)、全部のメッシュを読む。(Ryusei の決定。2026-10-09)
         // 頂点は、面の角ごとに作る(法線・UV が、角ごとに違うため)。メッシュのノードの変換(置き場所・向き)を、掛ける
-        void ReadMeshes(const ufbx_scene& scene, MeshData& mesh)
+        // 骨つきのメッシュは、頂点ごとに、骨の番号と重み(mesh.skin)も、読む(最初のスキンだけ)。モーフ(ブレンドシェイプ)は、警告を 1 回出して、読み飛ばす
+        void ReadMeshes(const ufbx_scene& scene, const FbxSkeleton& skeleton, MeshData& mesh, SkinStats& stats)
         {
+            bool warnedMorph = false;
             bool anySkinned = false;
             for (const ufbx_node* node : scene.nodes)
             {
@@ -147,6 +207,28 @@ namespace KR
                 {
                     KR_LOG_INFO("FbxLoader: 骨に付いていないメッシュ「{}」(三角形 {})を、読み飛ばします", node->name.data, source->num_triangles);
                     continue;
+                }
+
+                if (source->blend_deformers.count > 0 && !warnedMorph)
+                {
+                    warnedMorph = true;
+                    KR_LOG_WARN("FbxLoader: モーフ(ブレンドシェイプ)は読みません(メッシュ「{}」)", node->name.data);
+                }
+
+                // 骨つきなら:クラスターの番号 → 骨の番号(骨のノードで、探す)
+                const ufbx_skin_deformer* deformer = source->skin_deformers.count > 0 ? source->skin_deformers.data[0] : nullptr;
+                std::vector<int> jointOfCluster;
+                if (deformer)
+                {
+                    if (source->skin_deformers.count > 1)
+                    {
+                        KR_LOG_WARN("FbxLoader: メッシュ「{}」に、スキンが {} 個あります。最初の 1 つだけ読みます", node->name.data, source->skin_deformers.count);
+                    }
+                    for (const ufbx_skin_cluster* cluster : deformer->clusters)
+                    {
+                        const auto found = std::find(skeleton.nodes.begin(), skeleton.nodes.end(), cluster->bone_node);
+                        jointOfCluster.push_back(found != skeleton.nodes.end() ? static_cast<int>(found - skeleton.nodes.begin()) : -1);
+                    }
                 }
 
                 triangleCorners.resize(source->max_face_triangles * 3);
@@ -180,6 +262,10 @@ namespace KR
                                 vertex.uv = { static_cast<float>(uv.x), 1.0f - static_cast<float>(uv.y) }; // FBX の v は、下が 0。このエンジンは、左上が (0, 0)
                             }
                             mesh.vertices.push_back(vertex);
+                            if (anySkinned)
+                            {
+                                mesh.skin.push_back(ReadSkinVertex(*deformer, source->vertex_indices.data[corner], jointOfCluster, stats));
+                            }
                         }
                         // 番号(3つで三角形1つ)。2番目と3番目を入れ替える(座標系の変換で、表裏が逆になるため)
                         mesh.indices.push_back(base);
@@ -218,8 +304,9 @@ namespace KR
         }
 
         GltfModel model;
-        ReadMeshes(*scene, model.mesh);
         FbxSkeleton skeleton = ReadSkeleton(*scene);
+        SkinStats skinStats;
+        ReadMeshes(*scene, skeleton, model.mesh, skinStats);
         model.skeleton = std::move(skeleton.skeleton);
         ufbx_free_scene(scene);
 
@@ -227,6 +314,33 @@ namespace KR
         {
             KR_LOG_WARN("FbxLoader: {} に、読めるメッシュがありません", file.string());
             return {};
+        }
+
+        // 骨つきなら、頂点の重みの集計を出す(5 本以上の骨が付いた頂点は、4 本に絞った。あとから、8 本対応を判断する材料)
+        int maxJoint = -1;
+        for (const SkinVertex& skinVertex : model.mesh.skin)
+        {
+            for (int k = 0; k < 4; ++k)
+            {
+                if (skinVertex.weights[k] > 0.0f)
+                {
+                    maxJoint = std::max(maxJoint, static_cast<int>(skinVertex.joints[k]));
+                }
+            }
+        }
+        if (maxJoint >= static_cast<int>(model.skeleton.joints.size()))
+        {
+            KR_LOG_ERROR("FbxLoader: {} の頂点が、存在しない骨(番号 {}。骨は {} 本)を指しています", file.string(), maxJoint, model.skeleton.joints.size());
+            return {};
+        }
+        if (skinStats.vertexCount > 0)
+        {
+            KR_LOG_INFO("FbxLoader: 骨の重み: 骨つきの頂点 {} 個・1 頂点に付く骨の最大 {} 本・5 本以上の頂点 {} 個(4 本に絞りました)・重みが無い頂点 {} 個・使う骨の番号の最大 {}",
+                        skinStats.vertexCount, skinStats.maxInfluences, skinStats.overFourCount, skinStats.noWeightCount, maxJoint);
+            if (skinStats.overFourCount > 0)
+            {
+                KR_LOG_WARN("FbxLoader: {} 個の頂点に、5 本以上の骨が付いていました(最大 {} 本)。重みの大きい 4 本に絞りました", skinStats.overFourCount, skinStats.maxInfluences);
+            }
         }
 
         // 大きさ(最小・最大の角の差。メートル)
@@ -237,7 +351,7 @@ namespace KR
             minimum = { std::min(minimum.x, vertex.position.x), std::min(minimum.y, vertex.position.y), std::min(minimum.z, vertex.position.z) };
             maximum = { std::max(maximum.x, vertex.position.x), std::max(maximum.y, vertex.position.y), std::max(maximum.z, vertex.position.z) };
         }
-        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨 {} 本(重み・動きは、まだ読みません)",
+        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨 {} 本(動きは、まだ読みません)",
                     model.mesh.vertices.size(), model.mesh.indices.size() / 3, maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z,
                     minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z, model.skeleton.joints.size());
         return model;
