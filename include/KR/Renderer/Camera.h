@@ -1,5 +1,7 @@
 #pragma once
 
+#include "KR/Physics/Ray.h"
+
 #include <DirectXMath.h>
 
 namespace KR
@@ -26,6 +28,10 @@ namespace KR
         // プロジェクション行列: カメラから見た座標 → 画面の座標(遠近感と縦横比の補正)
         // 縦横比はウィンドウの大きさで決まるので、Renderer から受け取る
         DirectX::XMMATRIX GetProjectionMatrix(float aspectRatio) const;
+
+        // 画面の点(x, y。左上が (0, 0)・単位は画素)から、世界へ伸びる光線を作る(マウスで、3D の物を選ぶのに使う)
+        // width / height は、描いている画面(ビューポート)の大きさ(画素)。始点は、カメラの前の面(near)の上の点・向きは、長さ 1
+        Ray ScreenPointToRay(float x, float y, float width, float height) const;
 
     private:
         DirectX::XMFLOAT3 m_Position = { 0.0f, 2.0f, -5.0f }; // 2メートル上、5メートル手前

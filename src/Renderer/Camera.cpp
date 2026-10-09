@@ -26,4 +26,19 @@ namespace KR
     {
         return XMMatrixPerspectiveFovLH(XMConvertToRadians(m_FieldOfViewDegrees), aspectRatio, m_NearZ, m_FarZ);
     }
+
+    Ray Camera::ScreenPointToRay(float x, float y, float width, float height) const
+    {
+        // 画面の点を、奥行き 0(いちばん手前 = near)と、奥行き 1(いちばん奥 = far)の 2 点で、世界の座標に戻す(Unproject)
+        // その 2 点を結んだ向きが、光線の向き
+        const XMMATRIX projection = GetProjectionMatrix(width / height);
+        const XMMATRIX view = GetViewMatrix();
+        const XMVECTOR nearPoint = XMVector3Unproject(XMVectorSet(x, y, 0.0f, 1.0f), 0.0f, 0.0f, width, height, 0.0f, 1.0f, projection, view, XMMatrixIdentity());
+        const XMVECTOR farPoint = XMVector3Unproject(XMVectorSet(x, y, 1.0f, 1.0f), 0.0f, 0.0f, width, height, 0.0f, 1.0f, projection, view, XMMatrixIdentity());
+
+        Ray ray;
+        XMStoreFloat3(&ray.origin, nearPoint);
+        XMStoreFloat3(&ray.direction, XMVector3Normalize(XMVectorSubtract(farPoint, nearPoint)));
+        return ray;
+    }
 }

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 using namespace DirectX;
 
@@ -123,6 +124,112 @@ namespace KR
     bool Intersects(const OBB& box, const Sphere& sphere)
     {
         return Intersects(sphere, box);
+    }
+
+    std::optional<float> Raycast(const Ray& ray, const Sphere& sphere)
+    {
+        // |origin + t * dir - center|² = r² を t について解く:t² + 2bt + c = 0(dir の長さは 1)
+        const XMVECTOR toOrigin = XMVectorSubtract(XMLoadFloat3(&ray.origin), XMLoadFloat3(&sphere.center));
+        const float b = XMVectorGetX(XMVector3Dot(toOrigin, XMLoadFloat3(&ray.direction)));
+        const float c = XMVectorGetX(XMVector3LengthSq(toOrigin)) - sphere.radius * sphere.radius;
+
+        if (c <= 0.0f)
+        {
+            return 0.0f; // 始点が球の中
+        }
+        if (b > 0.0f)
+        {
+            return std::nullopt; // 球は後ろ(外にいて、遠ざかっている)
+        }
+        const float discriminant = b * b - c;
+        if (discriminant < 0.0f)
+        {
+            return std::nullopt; // かすりもしない
+        }
+        return -b - std::sqrt(discriminant); // 手前の交点
+    }
+
+    std::optional<float> Raycast(const Ray& ray, const OBB& box)
+    {
+        const XMVECTOR toCenter = XMVectorSubtract(XMLoadFloat3(&box.center), XMLoadFloat3(&ray.origin));
+        const XMVECTOR direction = XMLoadFloat3(&ray.direction);
+        const float half[3] = { box.halfSize.x, box.halfSize.y, box.halfSize.z };
+
+        float tMin = 0.0f;
+        float tMax = std::numeric_limits<float>::max();
+        for (int i = 0; i < 3; ++i)
+        {
+            const XMVECTOR axis = XMLoadFloat3(&box.axes[i]);
+            const float distance = XMVectorGetX(XMVector3Dot(toCenter, axis));   // 始点から見た、箱の中心の、軸方向の位置
+            const float speed = XMVectorGetX(XMVector3Dot(direction, axis));     // レイが、軸方向に進む速さ
+
+            if (std::abs(speed) < 1e-8f)
+            {
+                // 軸と直角に進む:始点が 2 枚の面の間に無ければ、永久に入らない
+                if (std::abs(distance) > half[i])
+                {
+                    return std::nullopt;
+                }
+                continue;
+            }
+            float t1 = (distance - half[i]) / speed;
+            float t2 = (distance + half[i]) / speed;
+            if (t1 > t2)
+            {
+                std::swap(t1, t2);
+            }
+            tMin = std::max(tMin, t1);
+            tMax = std::min(tMax, t2);
+            if (tMin > tMax)
+            {
+                return std::nullopt;
+            }
+        }
+        return tMin;
+    }
+
+    float RayToSegmentDistance(const Ray& ray, const XMFLOAT3& a, const XMFLOAT3& b, float* outRayT)
+    {
+        // レイの点 P = origin + t * d(t ≧ 0)・線分の点 Q = a + s * e(0 ≦ s ≦ 1)。|P − Q| が最小になる t, s を求める
+        const XMVECTOR d = XMLoadFloat3(&ray.direction);
+        const XMVECTOR e = XMVectorSubtract(XMLoadFloat3(&b), XMLoadFloat3(&a));
+        const XMVECTOR r = XMVectorSubtract(XMLoadFloat3(&ray.origin), XMLoadFloat3(&a));
+
+        const float ee = XMVectorGetX(XMVector3Dot(e, e));
+        const float dd = XMVectorGetX(XMVector3Dot(d, d)); // 長さ 1 なら 1
+        const float de = XMVectorGetX(XMVector3Dot(d, e));
+        const float dr = XMVectorGetX(XMVector3Dot(d, r));
+        const float er = XMVectorGetX(XMVector3Dot(e, r));
+
+        float s = 0.0f;
+        float t = 0.0f;
+        if (ee > 1e-12f) // 線分が、点に縮んでいなければ
+        {
+            const float denom = ee * dd - de * de; // 0 なら、レイと線分は平行
+            if (denom > 1e-9f)
+            {
+                s = std::clamp((dd * er - de * dr) / denom, 0.0f, 1.0f);
+            }
+            t = (de * s - dr) / dd;
+            if (t < 0.0f)
+            {
+                // レイの始点より後ろ → 始点に固定して、線分の上で一番近い点を選び直す
+                t = 0.0f;
+                s = std::clamp(er / ee, 0.0f, 1.0f);
+            }
+        }
+        else
+        {
+            t = std::max(-dr / dd, 0.0f);
+        }
+
+        const XMVECTOR p = XMVectorAdd(XMLoadFloat3(&ray.origin), XMVectorScale(d, t));
+        const XMVECTOR q = XMVectorAdd(XMLoadFloat3(&a), XMVectorScale(e, s));
+        if (outRayT)
+        {
+            *outRayT = t;
+        }
+        return XMVectorGetX(XMVector3Length(XMVectorSubtract(p, q)));
     }
 
     std::array<XMFLOAT3, 8> GetCorners(const OBB& box)

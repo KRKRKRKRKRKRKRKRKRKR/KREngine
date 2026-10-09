@@ -10,6 +10,14 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 - 追加(作成中):`KR::Behavior`(敵の行動のノード)。グラフの型(`Graph`)・ノードの種類の登録(`NodeTypes`)・JSON の保存と読み込み(`SaveGraph` / `LoadGraph`)・状況の入れ物(`Context`)。詳しくは [docs/Behavior.md](docs/Behavior.md)
 - 追加:外部ライブラリ imnodes(MIT。ノードエディタの部品)を、エンジンの中だけ(PRIVATE)で取り込んだ。ゲームの CMake は、変えなくてよい
 
+## [0.3.0] — 2026-10-09
+調整ツール KRAnimationEditor を、画面の上で、直接操作できるように強化(機能の追加)。
+- 追加:**レイ**(`Physics/Ray.h`)・`Camera::ScreenPointToRay`(画面の点 → 世界のレイ)・`Raycast(Ray, Sphere)` / `Raycast(Ray, OBB)`(当たれば距離 t)・`RayToSegmentDistance`(レイと線分の最短距離)
+- 追加:**`MirrorHitbox`**(判定の形を、X = 0 で左右反転して、対の骨に付け直す)・`MirrorBoneName` / `FindMirrorJoint`(対の骨の名前。`.L/.R`・`_L/_R`・`Left/Right`・`左/右`)(`Animation/HitboxMirror.h`)
+- 追加:調整ツールの、**クリックで、判定の形・骨を選ぶ**・**ギズモ(ImGuizmo)で、形の移動・大きさ**(T = 移動 / S = 大きさ。Blender 準拠)・**コピー / 貼り付け**(Ctrl+C / V)・**左右反転して貼り付け**
+- 追加:外部ライブラリ **ImGuizmo**(調整ツールだけ。FetchContent・コミットの番号で固定。エンジン本体・ゲームには入らない)
+- ゲーム側で必要な変更:なし(追加だけ。`Collision.h` が `Ray.h` を取り込むようになったが、既存の物は変わらない)
+
 ## [0.2.1] — 2026-10-08
 版の仕組みを入れた版(機能は、0.2.0 と同じ)。
 - 追加:エンジンの版(`project(KREngine VERSION ...)`)・`KR::GetVersion()` / `GetVersionString()`・起動時のログに版を出す・調整ツールのタイトルに版を出す

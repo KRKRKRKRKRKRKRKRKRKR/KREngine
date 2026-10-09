@@ -20,6 +20,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | 敵の行動(ノードのグラフ・保存・読み込み。作成中) | [Behavior.md](Behavior.md) |
 | **敵の行動の調整ツール**(ノードで作る。作成中) | [BehaviorEditor.md](BehaviorEditor.md) |
 | **版(バージョン)の付け方** | [Versioning.md](Versioning.md)・[CHANGELOG.md](../CHANGELOG.md) |
+| **開発の経緯(なぜ、こう作ったか・選ばなかった案)** | [History.md](History.md) |
 | 調べ物:演出(爆発・シェーダーなど) | [Effects.md](Effects.md) |
 
 ---
@@ -31,8 +32,8 @@ KREngine/
 ├─ include/KR/                   【公開】ゲームから見える
 │   ├─ KR.h                        まとめヘッダー(主なヘッダーを、まとめて取り込む)
 │   ├─ Core/                       Application, Log, Input(IsKeyDown / IsKeyPressed / IsKeyReleased), Assets(アセット・シェーダーの場所。SetAssetRoot で、実行時に切り替え), CommandLine(起動の引数)
-│   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners。当たり判定)
-│   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・SkeletonDebug(骨の表示)
+│   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners・Raycast・RayToSegmentDistance。当たり判定)・Ray(光線)
+│   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・HitboxMirror(判定の形の左右反転・対の骨の名前)・SkeletonDebug(骨の表示)
 │   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
 ├─ src/                          【非公開】ゲームからは見えない
 │   ├─ Core/                       Application, EntryPoint(main), Log, Input(状態表), InputState(書き込み口), Assets

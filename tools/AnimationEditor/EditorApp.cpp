@@ -15,6 +15,7 @@
 #include "FolderDialog.h"
 
 #include <imgui.h>
+#include <ImGuizmo.h>
 
 #include <algorithm>
 #include <cmath>
@@ -23,8 +24,10 @@
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <numbers>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -53,6 +56,90 @@ namespace
     }
 
     constexpr size_t MaxRecentFolders = 8;
+
+    // 形の中心(骨の中の座標)を、世界で worldDelta だけ動かしたときの、新しい中心(骨の中の座標)
+    // 骨の中 → 世界の行列(骨の今の行列 × モデル全体の行列)で、世界の位置にして、動かして、逆行列で、骨の中に戻す
+    XMFLOAT3 MoveCenterByWorldDelta(const XMFLOAT3& localCenter, const XMMATRIX& boneToWorld, const XMFLOAT3& worldDelta)
+    {
+        const XMVECTOR world = XMVectorAdd(XMVector3Transform(XMLoadFloat3(&localCenter), boneToWorld), XMLoadFloat3(&worldDelta));
+        XMFLOAT3 result;
+        XMStoreFloat3(&result, XMVector3Transform(world, XMMatrixInverse(nullptr, boneToWorld)));
+        return result;
+    }
+
+    // コピーした形を、骨 targetJoint に貼る形にする:骨・名前だけ変えて、あとは、そのまま(骨の中の座標なので、別の骨でも、その骨の中で同じ位置)
+    // 同じ骨に貼るときは、重なって見えなくならないよう、骨の中の X に shift だけずらす
+    KR::Hitbox MakePastedHitbox(const KR::Hitbox& source, int targetJoint, const std::string& targetName, float shift)
+    {
+        KR::Hitbox pasted = source;
+        pasted.jointIndex = targetJoint;
+        pasted.name = targetName;
+        pasted.center.x += shift;
+        return pasted;
+    }
+
+    // 大きさのギズモ:世界の大きさが oldScale → newScale に変わったとき、骨の中の大きさ(半分の大きさ)の、新しい値
+    // 軸ごとに、比(new / old)を掛ける。小さくしすぎて、形が消えないよう、最小値で止める
+    constexpr float MinShapeSize = 0.01f;
+
+    XMFLOAT3 ScaleHalfSize(const XMFLOAT3& half, const XMFLOAT3& oldScale, const XMFLOAT3& newScale)
+    {
+        auto scaled = [](float value, float oldValue, float newValue)
+        {
+            return oldValue > 1e-9f ? std::max(value * newValue / oldValue, MinShapeSize) : value;
+        };
+        return { scaled(half.x, oldScale.x, newScale.x), scaled(half.y, oldScale.y, newScale.y), scaled(half.z, oldScale.z, newScale.z) };
+    }
+
+    // 球:半径は 1 つだけ。3 軸のうち、一番大きく変わった軸の比を使う(中心のつまみ = 3 軸いっしょ・1 軸の矢印 = その軸だけ変わる)
+    float ScaleRadius(float radius, float oldScale, const XMFLOAT3& newScale)
+    {
+        if (oldScale <= 1e-9f)
+        {
+            return radius;
+        }
+        float ratio = 1.0f;
+        for (const float value : { newScale.x, newScale.y, newScale.z })
+        {
+            const float r = value / oldScale;
+            if (std::abs(r - 1.0f) > std::abs(ratio - 1.0f))
+            {
+                ratio = r;
+            }
+        }
+        return std::max(radius * ratio, MinShapeSize);
+    }
+
+    // クリックとドラッグの見分け:押してから離すまでに、押した点から 4 ピクセル以上離れたら、ドラッグ(途中で戻ってきても、ドラッグ)
+    class ClickDetector
+    {
+    public:
+        static constexpr float DragThreshold = 4.0f;
+
+        void Press(float x, float y) { m_StartX = x; m_StartY = y; m_Dragged = false; }
+
+        void Move(float x, float y)
+        {
+            const float dx = x - m_StartX;
+            const float dy = y - m_StartY;
+            if (dx * dx + dy * dy >= DragThreshold * DragThreshold)
+            {
+                m_Dragged = true;
+            }
+        }
+
+        // ボタンを離した。ドラッグでなければ、クリック(true)
+        bool Release(float x, float y)
+        {
+            Move(x, y);
+            return !m_Dragged;
+        }
+
+    private:
+        float m_StartX = 0.0f;
+        float m_StartY = 0.0f;
+        bool m_Dragged = false;
+    };
 }
 
 class EditorApp : public KR::Application
@@ -91,9 +178,241 @@ protected:
         check("回した箱 角の先(当たり)", KR::Intersects(KR::Sphere{ { 1.7f, 0.0f, 0.0f }, 0.5f }, rotated), true);
         check("軸にそろえた箱 同じ点は外れ", KR::Intersects(KR::Sphere{ { 1.7f, 0.0f, 0.0f }, 0.5f }, box), false);
 
+        // 画面の点 → レイ:カメラは (0, 0, -10) から、原点を見る(視野 60°・画面 1600 × 900)
+        {
+            KR::Camera camera;
+            camera.SetPosition({ 0.0f, 0.0f, -10.0f });
+            camera.LookAt({ 0.0f, 0.0f, 0.0f });
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-3f; };
+
+            const KR::Ray center = camera.ScreenPointToRay(800.0f, 450.0f, 1600.0f, 900.0f);
+            check("レイ 画面の中心 → 正面", nearEnough(center.direction.x, 0.0f) && nearEnough(center.direction.y, 0.0f) && nearEnough(center.direction.z, 1.0f), true);
+            check("レイ 始点は、カメラの前(near の面)", nearEnough(center.origin.z, -9.9f), true);
+
+            // 縦の視野の半分の角度 30° の tan = 0.57735・横は、画面の縦横比 16:9 を掛ける
+            const KR::Ray right = camera.ScreenPointToRay(1600.0f, 450.0f, 1600.0f, 900.0f);
+            check("レイ 右端 → 右へ傾く(視野の端)", nearEnough(right.direction.x / right.direction.z, 0.57735f * 16.0f / 9.0f), true);
+            const KR::Ray left = camera.ScreenPointToRay(0.0f, 450.0f, 1600.0f, 900.0f);
+            check("レイ 左端 → 左へ傾く", nearEnough(left.direction.x / left.direction.z, -0.57735f * 16.0f / 9.0f), true);
+            const KR::Ray top = camera.ScreenPointToRay(800.0f, 0.0f, 1600.0f, 900.0f);
+            check("レイ 上端 → 上へ傾く(画面の y は、下向きに増える)", nearEnough(top.direction.y / top.direction.z, 0.57735f), true);
+        }
+
+        // レイ × 球・箱:原点の球(半径 1)・箱(半分 1)に、(0,0,-5) から +Z へ撃つ
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            auto hitAt = [&](const std::optional<float>& t, float expected)
+            {
+                return t.has_value() && nearEnough(*t, expected);
+            };
+            const KR::Ray forward{ { 0.0f, 0.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+            const KR::Ray backward{ { 0.0f, 0.0f, -5.0f }, { 0.0f, 0.0f, -1.0f } };
+            const KR::Ray aside{ { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+
+            check("レイ×球 真ん中に当たる(t = 4)", hitAt(KR::Raycast(forward, sphere), 4.0f), true);
+            check("レイ×球 横にそれて外れる", KR::Raycast(aside, sphere).has_value(), false);
+            check("レイ×球 後ろ向きは外れ", KR::Raycast(backward, sphere).has_value(), false);
+            check("レイ×箱 真ん中に当たる(t = 4)", hitAt(KR::Raycast(forward, box), 4.0f), true);
+            check("レイ×箱 横にそれて外れる", KR::Raycast(aside, box).has_value(), false);
+            check("レイ×箱 後ろ向きは外れ", KR::Raycast(backward, box).has_value(), false);
+            // 45° 回した箱:正面の角が √2 ≒ 1.4142 まで出る → t = 5 − 1.4142
+            check("レイ×回した箱 角に当たる(t = 3.5858)", hitAt(KR::Raycast(forward, rotated), 5.0f - std::sqrt(2.0f)), true);
+            // x = 1.2 のレイ:軸にそろえた箱(幅 ±1)は外れ・45° 回した箱(角が ±1.414)は、斜めの面に当たる
+            const KR::Ray offset{ { 1.2f, 0.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+            check("レイ×箱 x=1.2 軸にそろえた箱は外れ", KR::Raycast(offset, box).has_value(), false);
+            check("レイ×回した箱 x=1.2 は当たる(面は |x|+|z| = √2 → t = 5 − (√2 − 1.2))", hitAt(KR::Raycast(offset, rotated), 5.0f - (std::sqrt(2.0f) - 1.2f)), true);
+        }
+
+        // レイ × 線分の最短距離:レイは (0,0,-5) から +Z へ
+        {
+            auto distanceIs = [](float actual, float expected) { return std::abs(actual - expected) < 1e-4f; };
+            const KR::Ray ray{ { 0.0f, 0.0f, -5.0f }, { 0.0f, 0.0f, 1.0f } };
+            check("レイ×線分 平行に離れる(距離 1)", distanceIs(KR::RayToSegmentDistance(ray, { 1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f }), 1.0f), true);
+            check("レイ×線分 交わる(距離 0)", distanceIs(KR::RayToSegmentDistance(ray, { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }), 0.0f), true);
+            check("レイ×線分 線分の端が一番近い(距離 3)", distanceIs(KR::RayToSegmentDistance(ray, { 0.0f, 3.0f, 0.0f }, { 0.0f, 5.0f, 0.0f }), 3.0f), true);
+            check("レイ×線分 後ろにある(始点が一番近い・距離 3)", distanceIs(KR::RayToSegmentDistance(ray, { 0.0f, 0.0f, -8.0f }, { 0.0f, 1.0f, -8.0f }), 3.0f), true);
+            float rayT = 0.0f;
+            KR::RayToSegmentDistance(ray, { -1.0f, 2.0f, 0.0f }, { 1.0f, 2.0f, 0.0f }, &rayT);
+            check("レイ×線分 レイ上の距離 t(t = 5)", distanceIs(rayT, 5.0f), true);
+        }
+
+        // ギズモで動かした量 → 骨の中の座標の変化
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            // 骨が Y 軸に 90° 回って、(1, 2, 3) にある。形の中心は、骨の中の (1, 0, 0)
+            const XMMATRIX rotation = XMMatrixRotationY(XM_PIDIV2);
+            const XMMATRIX boneToWorld = rotation * XMMatrixTranslation(1.0f, 2.0f, 3.0f);
+            const XMFLOAT3 local{ 1.0f, 0.0f, 0.0f };
+
+            const XMFLOAT3 none = MoveCenterByWorldDelta(local, boneToWorld, { 0.0f, 0.0f, 0.0f });
+            check("ギズモ 動かさない → 中心は変わらない", nearEnough(none.x, 1.0f) && nearEnough(none.y, 0.0f) && nearEnough(none.z, 0.0f), true);
+
+            // 世界で (0.5, 0, 0) 動かす → 骨の中では、回転の逆(−90°)をかけた向きに、同じ長さだけ動く
+            const XMFLOAT3 delta{ 0.5f, 0.0f, 0.0f };
+            const XMFLOAT3 moved = MoveCenterByWorldDelta(local, boneToWorld, delta);
+            XMFLOAT3 expectedChange;
+            XMStoreFloat3(&expectedChange, XMVector3TransformNormal(XMLoadFloat3(&delta), XMMatrixInverse(nullptr, rotation)));
+            check("ギズモ 世界の +X 0.5 → 骨の中の変化 = 逆回転した向き",
+                  nearEnough(moved.x - local.x, expectedChange.x) && nearEnough(moved.y - local.y, expectedChange.y) && nearEnough(moved.z - local.z, expectedChange.z), true);
+            const float length = std::sqrt((moved.x - local.x) * (moved.x - local.x) + (moved.y - local.y) * (moved.y - local.y) + (moved.z - local.z) * (moved.z - local.z));
+            check("ギズモ 動いた長さは、世界でも骨の中でも 0.5", nearEnough(length, 0.5f), true);
+            // 90° 回した骨では、世界の +X は、骨の中の Z の向き(X は、変わらない)
+            check("ギズモ 回した骨では、骨の中の X は変わらない", nearEnough(moved.x, 1.0f), true);
+        }
+
+        // 左右反転:左の骨(x = +1・Y 軸に 90° 回っている)と、右の骨(x = −1・Y 軸に −90°)
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            XMFLOAT4X4 leftBone;
+            XMFLOAT4X4 rightBone;
+            XMStoreFloat4x4(&leftBone, XMMatrixRotationY(XM_PIDIV2) * XMMatrixTranslation(1.0f, 0.0f, 0.0f));
+            XMStoreFloat4x4(&rightBone, XMMatrixRotationY(-XM_PIDIV2) * XMMatrixTranslation(-1.0f, 0.0f, 0.0f));
+
+            KR::Hitbox box;
+            box.name = "Arm.L";
+            box.jointIndex = 0;
+            box.shape = KR::HitShape::Box;
+            box.center = { 0.2f, 0.5f, 0.1f };
+            XMStoreFloat4(&box.rotation, XMQuaternionRotationRollPitchYaw(0.3f, 0.5f, 0.2f)); // 斜めに回した箱(軸が、世界の軸に、そろわない)
+            box.halfSize = { 0.1f, 0.2f, 0.3f };
+
+            // 世界の形(骨の姿勢 = 左右の骨の行列・モデル全体の行列は、単位)
+            const std::vector<XMFLOAT4X4> pose = { leftBone, rightBone };
+            auto worldOf = [&](const KR::Hitbox& hitbox) { return KR::EvaluateHitboxes({ hitbox }, pose, XMMatrixIdentity())[0]; };
+
+            // 箱 b の 8 つの角のそれぞれが、箱 a の角を X 反転した点のどれかに重なるか(角の集合が、鏡映しで一致するか)
+            auto isMirrorImage = [&](const KR::OBB& a, const KR::OBB& b)
+            {
+                for (const XMFLOAT3& corner : KR::GetCorners(a))
+                {
+                    bool found = false;
+                    for (const XMFLOAT3& other : KR::GetCorners(b))
+                    {
+                        if (nearEnough(-corner.x, other.x) && nearEnough(corner.y, other.y) && nearEnough(corner.z, other.z))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            const KR::Hitbox mirrored = KR::MirrorHitbox(box, leftBone, 1, rightBone);
+            check("左右反転 箱:骨の番号が、対の骨になる", mirrored.jointIndex == 1, true);
+            check("左右反転 箱:世界の形が、X = 0 の鏡映し(角が、すべて一致)", isMirrorImage(worldOf(box).box, worldOf(mirrored).box), true);
+            const XMVECTOR q = XMLoadFloat4(&mirrored.rotation);
+            check("左右反転 箱:向きは、普通の回転(クォータニオンの長さ 1・軸の行列式 +1)",
+                  nearEnough(XMVectorGetX(XMVector4Length(q)), 1.0f) && XMVectorGetX(XMMatrixDeterminant(XMMatrixRotationQuaternion(q))) > 0.0f, true);
+            check("左右反転 箱:半分の大きさは、変わらない",
+                  nearEnough(mirrored.halfSize.x, 0.1f) && nearEnough(mirrored.halfSize.y, 0.2f) && nearEnough(mirrored.halfSize.z, 0.3f), true);
+
+            const KR::Hitbox back = KR::MirrorHitbox(mirrored, rightBone, 0, leftBone);
+            const KR::WorldHitbox original = worldOf(box);
+            const KR::WorldHitbox twice = worldOf(back);
+            check("左右反転 箱:2 回反転で、もとの場所に戻る(中心)",
+                  nearEnough(original.box.center.x, twice.box.center.x) && nearEnough(original.box.center.y, twice.box.center.y) && nearEnough(original.box.center.z, twice.box.center.z), true);
+            check("左右反転 箱:2 回反転で、もとの形に戻る(角が、すべて一致)", isMirrorImage(original.box, [&] { KR::OBB m = twice.box; m.center.x = -m.center.x; for (auto& a : m.axes) { a.x = -a.x; } return m; }()), true);
+            check("左右反転 箱:2 回反転で、骨の中の座標も戻る", nearEnough(back.center.x, box.center.x) && nearEnough(back.center.y, box.center.y) && nearEnough(back.center.z, box.center.z), true);
+
+            // 球:中心だけが鏡映し・半径は同じ。左の骨の x = 1 の先 → 世界 x = 1 + ... を、右の骨の中で
+            KR::Hitbox sphere;
+            sphere.jointIndex = 0;
+            sphere.shape = KR::HitShape::Sphere;
+            sphere.center = { 0.0f, 0.0f, 0.5f };
+            sphere.radius = 0.25f;
+            const KR::WorldHitbox sphereWorld = worldOf(sphere);
+            const KR::WorldHitbox mirroredSphere = worldOf(KR::MirrorHitbox(sphere, leftBone, 1, rightBone));
+            check("左右反転 球:中心が X = 0 の鏡映し・半径は同じ",
+                  nearEnough(-sphereWorld.sphere.center.x, mirroredSphere.sphere.center.x) && nearEnough(sphereWorld.sphere.center.y, mirroredSphere.sphere.center.y)
+                      && nearEnough(sphereWorld.sphere.center.z, mirroredSphere.sphere.center.z) && nearEnough(mirroredSphere.sphere.radius, 0.25f), true);
+        }
+
+        // 対になる骨の名前
+        {
+            auto pairIs = [&](const char* name, const char* expected)
+            {
+                const std::optional<std::string> result = KR::MirrorBoneName(name);
+                check(name, result.has_value() && *result == expected, true);
+            };
+            pairIs("Arm.L", "Arm.R");
+            pairIs("Leg_R", "Leg_L");
+            pairIs("Arm.L.001", "Arm.R.001");
+            pairIs("mixamorig:LeftHand", "mixamorig:RightHand");
+            pairIs("RightFoot", "LeftFoot");
+            pairIs("左腕", "右腕");
+            check("対の名前 中央の骨(Spine)は、見つからない", KR::MirrorBoneName("Spine").has_value(), false);
+            check("対の名前 Hand_Bone(L や R で終わらない)は、見つからない", KR::MirrorBoneName("Hand_Bone").has_value(), false);
+
+            KR::Skeleton skeleton;
+            for (const char* name : { "Spine", "Arm.L", "Arm.R", "Head.L" })
+            {
+                KR::Joint joint;
+                joint.name = name;
+                skeleton.joints.push_back(joint);
+            }
+            check("対の骨 Arm.L → Arm.R(番号 2)", KR::FindMirrorJoint(skeleton, 1) == std::optional<int>(2), true);
+            check("対の骨 Arm.R → Arm.L(番号 1)", KR::FindMirrorJoint(skeleton, 2) == std::optional<int>(1), true);
+            check("対の骨 Head.L は、Head.R が骨に無いので、見つからない", KR::FindMirrorJoint(skeleton, 3).has_value(), false);
+            check("対の骨 Spine は、見つからない", KR::FindMirrorJoint(skeleton, 0).has_value(), false);
+        }
+
+        // コピー・貼り付け
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-5f; };
+            KR::Hitbox source;
+            source.name = "Arm";
+            source.jointIndex = 1;
+            source.shape = KR::HitShape::Sphere;
+            source.center = { 0.5f, 1.0f, 2.0f };
+            source.radius = 0.3f;
+
+            const KR::Hitbox other = MakePastedHitbox(source, 2, "Hand", 0.0f);
+            check("貼り付け 別の骨:骨・名前が変わり、形・位置・大きさは同じ",
+                  other.jointIndex == 2 && other.name == "Hand" && other.shape == KR::HitShape::Sphere && nearEnough(other.center.x, 0.5f)
+                      && nearEnough(other.center.y, 1.0f) && nearEnough(other.center.z, 2.0f) && nearEnough(other.radius, 0.3f), true);
+            const KR::Hitbox same = MakePastedHitbox(source, 1, "Arm", 0.1f);
+            check("貼り付け 同じ骨:X だけ 0.1 ずれる", same.jointIndex == 1 && nearEnough(same.center.x, 0.6f) && nearEnough(same.center.y, 1.0f), true);
+            check("貼り付け もとの形は、変わらない", nearEnough(source.center.x, 0.5f) && source.jointIndex == 1 && source.name == "Arm", true);
+        }
+
+        // 大きさのギズモ:世界の大きさの変化 → 骨の中の大きさ
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            // 骨の中の半分の大きさ (1, 2, 3)・世界では 2 倍(モデルが 2 倍に拡大されている)→ 世界 X を 2 → 4 にすると、骨の中の X も 2 倍
+            const XMFLOAT3 half = ScaleHalfSize({ 1.0f, 2.0f, 3.0f }, { 2.0f, 4.0f, 6.0f }, { 4.0f, 4.0f, 6.0f });
+            check("大きさ 箱:X だけ 2 倍(他は不変)", nearEnough(half.x, 2.0f) && nearEnough(half.y, 2.0f) && nearEnough(half.z, 3.0f), true);
+            const XMFLOAT3 tiny = ScaleHalfSize({ 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, -1.0f, 0.001f });
+            check("大きさ 箱:小さくしすぎても、最小値(0.01)で止まる", nearEnough(tiny.x, MinShapeSize) && nearEnough(tiny.y, MinShapeSize) && nearEnough(tiny.z, MinShapeSize), true);
+            check("大きさ 球:3 軸いっしょに 1.5 倍 → 半径 1.5 倍", nearEnough(ScaleRadius(1.0f, 1.0f, { 1.5f, 1.5f, 1.5f }), 1.5f), true);
+            check("大きさ 球:1 軸だけ 0.5 倍 → 半径 0.5 倍", nearEnough(ScaleRadius(2.0f, 1.0f, { 1.0f, 0.5f, 1.0f }), 1.0f), true);
+            check("大きさ 球:小さくしすぎても、最小値で止まる", nearEnough(ScaleRadius(1.0f, 1.0f, { 0.0f, 1.0f, 1.0f }), MinShapeSize), true);
+        }
+
+        // クリックとドラッグの見分け
+        {
+            ClickDetector detector;
+            detector.Press(100.0f, 100.0f);
+            check("クリック 動かない(クリック)", detector.Release(100.0f, 100.0f), true);
+            detector.Press(100.0f, 100.0f);
+            detector.Move(102.0f, 102.0f);
+            check("クリック 3 ピクセル弱の動き(クリック)", detector.Release(102.0f, 102.0f), true);
+            detector.Press(100.0f, 100.0f);
+            check("クリック 4 ピクセルの動き(ドラッグ)", detector.Release(104.0f, 100.0f), false);
+            detector.Press(100.0f, 100.0f);
+            detector.Move(130.0f, 100.0f);
+            check("クリック 遠くへ行って戻る(ドラッグ)", detector.Release(100.0f, 100.0f), false);
+            detector.Press(50.0f, 50.0f);
+            check("クリック 次の押下で、ドラッグの記憶が消える(クリック)", detector.Release(50.0f, 50.0f), true);
+        }
+
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・大きさ・左右反転・対の骨の名前・コピー貼り付け・クリックの見分け)");
         }
     }
 
@@ -148,8 +467,157 @@ protected:
             m_Angle = std::fmod(m_Angle + deltaTime * 0.5f, 2.0f * std::numbers::pi_v<float>);
         }
         UpdateCamera();
+        UpdateClick();
         m_Model.Update(deltaTime); // 時刻を進めて、姿勢を求める
     }
+
+    // 左ボタンのクリック(ドラッグでない)を検出する。ImGui の上で押したものは、数えない
+    void UpdateClick()
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            m_ClickTracking = !io.WantCaptureMouse && !m_GizmoBusy;
+            m_ClickDetector.Press(io.MousePos.x, io.MousePos.y);
+        }
+        if (!m_ClickTracking)
+        {
+            return;
+        }
+        m_ClickDetector.Move(io.MousePos.x, io.MousePos.y);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            m_ClickTracking = false;
+            if (m_ClickDetector.Release(io.MousePos.x, io.MousePos.y))
+            {
+                PickHitbox(io.MousePos.x, io.MousePos.y);
+            }
+        }
+    }
+
+    // モデル全体の置き方(形の中心を原点に動かして、Y 軸で回す)。描くときも、選ぶときも、同じ行列を使う
+    XMMATRIX GetModelWorld() const
+    {
+        return XMMatrixTranslation(-m_Center.x, -m_Center.y, -m_Center.z) * XMMatrixRotationY(m_Angle);
+    }
+
+    // 画面の点 (x, y) をクリックしたとき、一番手前に当たる判定の形を選ぶ(骨の選択と連動:その骨の、その形になる)
+    void PickHitbox(float x, float y)
+    {
+        if (!m_Model.IsLoaded() || !m_ShowHitboxes)
+        {
+            return; // 見えていない形は、選べない
+        }
+        const ImVec2 size = ImGui::GetIO().DisplaySize;
+        const KR::Ray ray = m_Camera.ScreenPointToRay(x, y, size.x, size.y);
+        const std::vector<KR::WorldHitbox> shapes = m_Model.GetWorldHitboxes(GetModelWorld());
+
+        size_t nearest = NoHitbox;
+        float nearestT = std::numeric_limits<float>::max();
+        for (size_t i = 0; i < shapes.size(); ++i)
+        {
+            const std::optional<float> t = (shapes[i].shape == KR::HitShape::Box) ? KR::Raycast(ray, shapes[i].box) : KR::Raycast(ray, shapes[i].sphere);
+            if (t && *t < nearestT)
+            {
+                nearest = i;
+                nearestT = *t;
+            }
+        }
+        if (nearest == NoHitbox)
+        {
+            PickBone(ray, x, y); // 形に当たらなければ、骨を探す(形と骨が重なるときは、形を優先)
+            return;
+        }
+
+        // 骨の選択に直す:その形の骨を選び、その骨の何番目の形か(m_SubHitbox)を決める
+        const std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
+        const int joint = hitboxes[nearest].jointIndex;
+        if (joint < 0 || joint >= static_cast<int>(m_Model.GetSkeleton().joints.size()))
+        {
+            KR_LOG_WARN("  クリック: 形 {} は、骨に付いていないので、選べません", nearest);
+            return;
+        }
+        int sub = 0;
+        for (size_t i = 0; i < nearest; ++i)
+        {
+            if (hitboxes[i].jointIndex == joint)
+            {
+                ++sub;
+            }
+        }
+        m_SelectedBone = joint;
+        m_SubHitbox = sub;
+        KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 形 {} を選びました(骨 {}「{}」の {} 番目・t = {:.2f})", x, y, nearest, joint,
+                    m_Model.GetSkeleton().joints[static_cast<size_t>(joint)].name, sub, nearestT);
+    }
+
+    // クリックの光線に、一番近い骨を選ぶ(骨の線分への最短距離が、しきい値より近い物のうち、最も近い物)
+    // 骨は、描いているとおり、「親の関節 → 子の関節」の線分で、親の関節の骨になる。先端(子が無い)の骨は、親から来た向きの先に、3 割の長さ
+    void PickBone(const KR::Ray& ray, float x, float y)
+    {
+        const KR::Skeleton& skeleton = m_Model.GetSkeleton();
+        const std::vector<XMFLOAT4X4>& pose = m_Model.GetPose();
+        const size_t count = std::min(skeleton.joints.size(), pose.size());
+        const XMMATRIX world = GetModelWorld();
+
+        std::vector<XMVECTOR> position(count);
+        std::vector<bool> hasChild(count, false);
+        for (size_t i = 0; i < count; ++i)
+        {
+            position[i] = XMVector3Transform(XMLoadFloat4x4(&pose[i]).r[3], world);
+            const int parent = skeleton.joints[i].parent;
+            if (parent >= 0 && static_cast<size_t>(parent) < count)
+            {
+                hasChild[static_cast<size_t>(parent)] = true;
+            }
+        }
+
+        const float threshold = std::max(m_ModelRadius, 0.1f) * 0.06f; // 線から、この距離(メートル)以内なら、骨に触れたとみなす
+        int bestJoint = -1;
+        float bestDistance = threshold;
+        auto consider = [&](int joint, FXMVECTOR head, FXMVECTOR tail)
+        {
+            XMFLOAT3 a;
+            XMFLOAT3 b;
+            XMStoreFloat3(&a, head);
+            XMStoreFloat3(&b, tail);
+            const float distance = KR::RayToSegmentDistance(ray, a, b);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestJoint = joint;
+            }
+        };
+        for (size_t i = 0; i < count; ++i)
+        {
+            const int parent = skeleton.joints[i].parent;
+            if (parent < 0 || static_cast<size_t>(parent) >= count)
+            {
+                continue;
+            }
+            const size_t p = static_cast<size_t>(parent);
+            consider(parent, position[p], position[i]);
+            if (!hasChild[i])
+            {
+                consider(static_cast<int>(i), position[i], XMVectorAdd(position[i], XMVectorScale(XMVectorSubtract(position[i], position[p]), 0.3f)));
+            }
+        }
+
+        if (bestJoint < 0)
+        {
+            KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 判定の形にも骨にも当たらず", x, y);
+            return;
+        }
+        m_SelectedBone = bestJoint;
+        m_SubHitbox = 0;
+        KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 骨 {}「{}」を選びました(線までの距離 {:.3f})", x, y, bestJoint,
+                    skeleton.joints[static_cast<size_t>(bestJoint)].name, bestDistance);
+    }
+
+    KR::Camera m_Camera; // 今のフレームのカメラ(クリックの光線に使う)
+
+    ClickDetector m_ClickDetector;
+    bool m_ClickTracking = false;
 
     void OnRender() override
     {
@@ -159,7 +627,7 @@ protected:
         }
 
         // 形の中心を原点に動かしてから、Y 軸で回す
-        const XMMATRIX world = XMMatrixTranslation(-m_Center.x, -m_Center.y, -m_Center.z) * XMMatrixRotationY(m_Angle);
+        const XMMATRIX world = GetModelWorld();
 
         if (m_ShowMesh)
         {
@@ -210,6 +678,20 @@ protected:
 
     void OnImGui() override
     {
+        ImGuizmo::BeginFrame(); // ギズモの 1 フレームの始まり
+
+        // Blender に合わせる:T = 移動 / S = 大きさ(スケール)。文字を入力している間は、効かせない
+        if (!ImGui::GetIO().WantTextInput)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_T, false))
+            {
+                m_GizmoOperation = ImGuizmo::TRANSLATE;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_S, false))
+            {
+                m_GizmoOperation = ImGuizmo::SCALE;
+            }
+        }
         ImGui::Begin("アニメーション調整ツール###AnimationEditor");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
@@ -228,8 +710,100 @@ protected:
         }
         ImGui::End();
 
+        DrawGizmo();
         DrawUnsavedPopup();
     }
+
+    // 選んでいる判定の形の中心に、移動のギズモ(ImGuizmo)を出す(A3-1:表示だけ。ドラッグで動かすのは A3-2)
+    // ImGuizmo は、行列を OpenGL 形式(列が連続)の float[16] で受け取る。DirectXMath の行列(行が連続・行ベクトル)は、メモリの並びが同じなので、そのまま渡せる
+    // ただし、ImGuizmo は右手系を前提にしていて、このエンジンは左手系。軸の反転(AllowAxisFlip)が、視線の向きの判断を誤るので、切る
+    void DrawGizmo()
+    {
+        m_GizmoBusy = false;
+        if (!m_Model.IsLoaded() || !m_ShowHitboxes || m_SelectedHitbox == NoHitbox)
+        {
+            return;
+        }
+        const std::vector<KR::WorldHitbox> shapes = m_Model.GetWorldHitboxes(GetModelWorld());
+        if (m_SelectedHitbox >= shapes.size())
+        {
+            return;
+        }
+        const KR::WorldHitbox& shape = shapes[m_SelectedHitbox];
+        const XMFLOAT3 center = (shape.shape == KR::HitShape::Box) ? shape.box.center : shape.sphere.center;
+
+        const ImVec2 size = ImGui::GetIO().DisplaySize;
+        XMFLOAT4X4 view;
+        XMFLOAT4X4 projection;
+        XMStoreFloat4x4(&view, m_Camera.GetViewMatrix());
+        XMStoreFloat4x4(&projection, m_Camera.GetProjectionMatrix(size.x / size.y));
+        // ギズモに渡す行列。移動:位置だけ / 大きさ:軸(箱の向き)× 今の大きさ(世界)+ 位置(球は、軸を世界の軸にして、半径を掛ける)
+        const bool isScale = (m_GizmoOperation == ImGuizmo::SCALE);
+        const bool isBox = (shape.shape == KR::HitShape::Box);
+        const XMFLOAT3 oldScale = isBox ? shape.box.halfSize : XMFLOAT3{ shape.sphere.radius, shape.sphere.radius, shape.sphere.radius };
+        XMFLOAT4X4 matrix;
+        XMStoreFloat4x4(&matrix, XMMatrixTranslation(center.x, center.y, center.z));
+        if (isScale)
+        {
+            const XMFLOAT3 axes[3] = { isBox ? shape.box.axes[0] : XMFLOAT3{ 1, 0, 0 }, isBox ? shape.box.axes[1] : XMFLOAT3{ 0, 1, 0 }, isBox ? shape.box.axes[2] : XMFLOAT3{ 0, 0, 1 } };
+            const float scales[3] = { oldScale.x, oldScale.y, oldScale.z };
+            float* rows[3] = { &matrix._11, &matrix._21, &matrix._31 };
+            for (int i = 0; i < 3; ++i)
+            {
+                rows[i][0] = axes[i].x * scales[i];
+                rows[i][1] = axes[i].y * scales[i];
+                rows[i][2] = axes[i].z * scales[i];
+            }
+        }
+
+        ImGuizmo::SetOrthographic(false);
+        ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList()); // ImGui の窓より後ろ・3D の絵より手前に描く
+        ImGuizmo::SetRect(0.0f, 0.0f, size.x, size.y);
+        ImGuizmo::AllowAxisFlip(false);
+        const bool changed = ImGuizmo::Manipulate(&view._11, &projection._11, m_GizmoOperation, isScale ? ImGuizmo::LOCAL : ImGuizmo::WORLD, &matrix._11);
+        m_GizmoBusy = ImGuizmo::IsOver() || ImGuizmo::IsUsing(); // 次のフレームの、カメラ・クリックの判断に使う
+
+        if (changed && isScale)
+        {
+            // 行の長さ = 新しい大きさ(世界)。今の大きさとの比を、骨の中の大きさに掛ける(骨・モデルの拡大があっても、合う)
+            const XMFLOAT3 newScale{ std::sqrt(matrix._11 * matrix._11 + matrix._12 * matrix._12 + matrix._13 * matrix._13),
+                                     std::sqrt(matrix._21 * matrix._21 + matrix._22 * matrix._22 + matrix._23 * matrix._23),
+                                     std::sqrt(matrix._31 * matrix._31 + matrix._32 * matrix._32 + matrix._33 * matrix._33) };
+            KR::Hitbox& hitbox = m_Model.GetHitboxes()[m_SelectedHitbox];
+            if (isBox)
+            {
+                hitbox.halfSize = ScaleHalfSize(hitbox.halfSize, oldScale, newScale);
+            }
+            else
+            {
+                hitbox.radius = ScaleRadius(hitbox.radius, oldScale.x, newScale);
+            }
+            m_Dirty = true;
+        }
+        else if (changed)
+        {
+            // ギズモが動かした世界の位置 → 骨の中の座標に直して、center にする(形は、骨の中の座標で持つ)
+            std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
+            KR::Hitbox& hitbox = hitboxes[m_SelectedHitbox];
+            const std::vector<XMFLOAT4X4>& pose = m_Model.GetPose();
+            if (hitbox.jointIndex < 0 || static_cast<size_t>(hitbox.jointIndex) >= pose.size())
+            {
+                return;
+            }
+            const XMMATRIX boneToWorld = XMLoadFloat4x4(&pose[static_cast<size_t>(hitbox.jointIndex)]) * GetModelWorld();
+            const XMFLOAT3 delta{ matrix._41 - center.x, matrix._42 - center.y, matrix._43 - center.z };
+            const XMFLOAT3 before = hitbox.center;
+            hitbox.center = MoveCenterByWorldDelta(hitbox.center, boneToWorld, delta);
+            m_Dirty = true;
+            KR_LOG_TRACE("  ギズモ: 世界で ({:.3f}, {:.3f}, {:.3f}) 動かした → center ({:.3f}, {:.3f}, {:.3f}) → ({:.3f}, {:.3f}, {:.3f})",
+                         delta.x, delta.y, delta.z, before.x, before.y, before.z, hitbox.center.x, hitbox.center.y, hitbox.center.z);
+        }
+    }
+
+    std::optional<KR::Hitbox> m_Clipboard; // コピーした判定の形(貼り付けるまで、覚えている)
+    int m_MirrorTarget = 0; // 左右反転の貼り付け先の骨(対の骨が、名前から決まらないときに、ユーザーが選ぶ)
+    ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(ラジオボタン・T / S キー。Blender に合わせた)
+    bool m_GizmoBusy = false; // ギズモの上にマウスがある・ドラッグ中(カメラを回さない・クリックで選ばない)
 
     void OnShutdown() override
     {
@@ -432,7 +1006,7 @@ private:
     {
         // ImGui の窓の上・ImGui を操作している間は、カメラを動かさない
         const ImGuiIO& io = ImGui::GetIO();
-        if (!io.WantCaptureMouse)
+        if (!io.WantCaptureMouse && !m_GizmoBusy)
         {
             if (io.MouseDown[0]) // 左ドラッグ:回す
             {
@@ -453,12 +1027,11 @@ private:
         }
 
         // 注目点のまわりを、回る位置にカメラを置く(yaw = 0 で、手前(−Z)から見る)
-        KR::Camera camera;
-        camera.SetPosition({ m_Target.x + m_Distance * std::sin(m_Yaw) * std::cos(m_Pitch),
-                             m_Target.y + m_Distance * std::sin(m_Pitch),
-                             m_Target.z - m_Distance * std::cos(m_Yaw) * std::cos(m_Pitch) });
-        camera.LookAt(m_Target);
-        GetRenderer().SetCamera(camera);
+        m_Camera.SetPosition({ m_Target.x + m_Distance * std::sin(m_Yaw) * std::cos(m_Pitch),
+                               m_Target.y + m_Distance * std::sin(m_Pitch),
+                               m_Target.z - m_Distance * std::cos(m_Yaw) * std::cos(m_Pitch) });
+        m_Camera.LookAt(m_Target);
+        GetRenderer().SetCamera(m_Camera);
     }
 
     // ---- ImGui の各区画 ----
@@ -694,6 +1267,13 @@ private:
             m_SelectedHitbox = onBone[static_cast<size_t>(m_SubHitbox)];
             KR::Hitbox& hitbox = hitboxes[m_SelectedHitbox];
 
+            // ギズモの操作:移動 / 大きさ
+            int operation = (m_GizmoOperation == ImGuizmo::SCALE) ? 1 : 0;
+            ImGui::RadioButton("移動 (T)", &operation, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("大きさ (S)", &operation, 1);
+            m_GizmoOperation = (operation == 1) ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
+
             // 変えたら「未保存」の印(m_Dirty)
             int shape = (hitbox.shape == KR::HitShape::Box) ? 0 : 1;
             if (ImGui::Combo("形の種類", &shape, "箱\0球\0"))
@@ -734,6 +1314,90 @@ private:
                 m_SelectedHitbox = NoHitbox;
                 m_SubHitbox = 0;
                 m_Dirty = true;
+            }
+        }
+
+        // コピー・貼り付け(Ctrl + C / Ctrl + V でも)。貼り付けは、選んでいる骨に、形を 1 つ増やす
+        const bool keys = !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl;
+        const bool copyRequested = ImGui::Button("コピー") || (keys && ImGui::IsKeyPressed(ImGuiKey_C, false));
+        ImGui::SameLine();
+        const bool pasteRequested = ImGui::Button("貼り付け") || (keys && ImGui::IsKeyPressed(ImGuiKey_V, false));
+        if (m_Clipboard)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(コピー済み:%s)", m_Clipboard->name.c_str());
+        }
+        if (copyRequested && m_SelectedHitbox != NoHitbox)
+        {
+            m_Clipboard = hitboxes[m_SelectedHitbox];
+            KR_LOG_INFO("  判定の形をコピー: {}(骨 {})", m_Clipboard->name, m_Clipboard->jointIndex);
+        }
+        if (pasteRequested && m_Clipboard)
+        {
+            const size_t before = hitboxes.size();
+            const bool sameBone = (m_Clipboard->jointIndex == m_SelectedBone);
+            hitboxes.push_back(MakePastedHitbox(*m_Clipboard, m_SelectedBone, skeleton.joints[static_cast<size_t>(m_SelectedBone)].name,
+                                                sameBone ? m_ModelRadius * 0.05f : 0.0f));
+            m_SubHitbox = static_cast<int>(onBone.size()); // 貼り付けた形を、選ぶ
+            m_Dirty = true;
+            KR_LOG_INFO("  判定の形を貼り付け: 骨 {}「{}」へ({}・形 {} → {} 個)", m_SelectedBone, hitboxes.back().name,
+                        sameBone ? "同じ骨なので、ずらした" : "別の骨", before, hitboxes.size());
+        }
+
+        // 左右反転して貼り付け:コピーした形を、X = 0 の鏡映しにして、対の骨に貼る(対の骨は、名前で自動。決まらなければ、一覧から選ぶ)
+        if (m_Clipboard)
+        {
+            const int jointTotal = static_cast<int>(skeleton.joints.size());
+            const int sourceJoint = m_Clipboard->jointIndex;
+            if (sourceJoint < 0 || sourceJoint >= jointTotal)
+            {
+                ImGui::TextDisabled("コピーした形は、骨に付いていないので、反転できません");
+            }
+            else
+            {
+                const std::optional<int> autoJoint = KR::FindMirrorJoint(skeleton, sourceJoint);
+                if (autoJoint)
+                {
+                    m_MirrorTarget = *autoJoint;
+                    ImGui::Text("反転先の骨:%s(名前から自動)", skeleton.joints[static_cast<size_t>(m_MirrorTarget)].name.c_str());
+                }
+                else
+                {
+                    m_MirrorTarget = std::clamp(m_MirrorTarget, 0, jointTotal - 1);
+                    ImGui::TextDisabled("対の骨が、名前から決まりません。反転先の骨を選んでください");
+                    if (ImGui::BeginCombo("反転先の骨", skeleton.joints[static_cast<size_t>(m_MirrorTarget)].name.c_str()))
+                    {
+                        for (int i = 0; i < jointTotal; ++i)
+                        {
+                            const std::string label = skeleton.joints[static_cast<size_t>(i)].name + "##mirror" + std::to_string(i);
+                            if (ImGui::Selectable(label.c_str(), i == m_MirrorTarget))
+                            {
+                                m_MirrorTarget = i;
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                }
+
+                if (ImGui::Button("左右反転して貼り付け"))
+                {
+                    // 骨の行列は、2 つとも基準姿勢のもの(動きを再生していても、反転の結果は、変わらない)
+                    const std::vector<XMFLOAT4X4> basePose = KR::EvaluatePose(skeleton, nullptr, 0.0f);
+                    const size_t before = hitboxes.size();
+                    KR::Hitbox mirrored = KR::MirrorHitbox(*m_Clipboard, basePose[static_cast<size_t>(sourceJoint)], m_MirrorTarget, basePose[static_cast<size_t>(m_MirrorTarget)]);
+                    mirrored.name = skeleton.joints[static_cast<size_t>(m_MirrorTarget)].name;
+
+                    int onTarget = 0; // 反転先の骨に、すでにある形の数(= 貼った形の「何番目」)
+                    for (const KR::Hitbox& hitbox : hitboxes)
+                    {
+                        onTarget += (hitbox.jointIndex == m_MirrorTarget) ? 1 : 0;
+                    }
+                    hitboxes.push_back(mirrored);
+                    m_SelectedBone = m_MirrorTarget; // 貼った形を、選ぶ
+                    m_SubHitbox = onTarget;
+                    m_Dirty = true;
+                    KR_LOG_INFO("  判定の形を左右反転して貼り付け: 骨 {} → 骨 {}「{}」(形 {} → {} 個)", sourceJoint, m_MirrorTarget, mirrored.name, before, hitboxes.size());
+                }
             }
         }
 
