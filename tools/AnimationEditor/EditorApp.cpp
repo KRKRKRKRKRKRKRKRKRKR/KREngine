@@ -702,6 +702,26 @@ protected:
                 KR_LOG_ERROR("  FBX 動きの確認 NG:{}", clipDetail);
             }
         }
+
+        // 振り分け(F7b):LoadModel が、拡張子で、glTF・FBX を選ぶ(大文字の拡張子でも)。LoadGltf / LoadFbx を直接呼んだ結果と、同じ形か
+        {
+            const KR::ModelData viaGlb = KR::LoadModel(std::filesystem::path(modelPath).concat(".glb"));
+            const KR::ModelData viaFbx = KR::LoadModel(std::filesystem::path(modelPath).concat(".fbx"));
+            const KR::ModelData viaUpper = KR::LoadModel(std::filesystem::path(modelPath).concat(".FBX"));
+            const bool dispatchOk = viaGlb.mesh.vertices.size() == gltf.mesh.vertices.size() && viaGlb.skeleton.joints.size() == gltf.skeleton.joints.size()
+                                 && viaFbx.mesh.vertices.size() == fbx.mesh.vertices.size() && viaFbx.skeleton.joints.size() == fbx.skeleton.joints.size()
+                                 && viaUpper.mesh.vertices.size() == fbx.mesh.vertices.size() && !viaGlb.IsEmpty() && !viaFbx.IsEmpty();
+            if (dispatchOk)
+            {
+                KR_LOG_INFO("  LoadModel の確認: OK(.glb → LoadGltf・.fbx / .FBX → LoadFbx と同じ結果:頂点 {} / {}・骨 {} / {})",
+                            viaGlb.mesh.vertices.size(), viaFbx.mesh.vertices.size(), viaGlb.skeleton.joints.size(), viaFbx.skeleton.joints.size());
+            }
+            else
+            {
+                KR_LOG_ERROR("  LoadModel の確認 NG: .glb の頂点 {}(LoadGltf {})・.fbx の頂点 {}(LoadFbx {})・.FBX の頂点 {}", viaGlb.mesh.vertices.size(),
+                             gltf.mesh.vertices.size(), viaFbx.mesh.vertices.size(), fbx.mesh.vertices.size(), viaUpper.mesh.vertices.size());
+            }
+        }
     }
 
     void OnInit() override

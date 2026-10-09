@@ -7,6 +7,7 @@
 #include <ufbx.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iterator>
@@ -395,6 +396,7 @@ namespace KR
 
     ModelData LoadFbx(const std::filesystem::path& relativePath)
     {
+        const auto startTime = std::chrono::steady_clock::now(); // 読み込みにかかった時間を、ログに出す(重い処理なので、測っておく)
         const std::filesystem::path file = GetAssetDirectory("Models") / relativePath;
 
         std::vector<uint8_t> bytes;
@@ -468,9 +470,10 @@ namespace KR
             minimum = { std::min(minimum.x, vertex.position.x), std::min(minimum.y, vertex.position.y), std::min(minimum.z, vertex.position.z) };
             maximum = { std::max(maximum.x, vertex.position.x), std::max(maximum.y, vertex.position.y), std::max(maximum.z, vertex.position.z) };
         }
-        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨 {} 本・動き {} 個({:.1f} fps で焼き付け)",
+        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨 {} 本・動き {} 個({:.1f} fps で焼き付け)/ {} ミリ秒",
                     model.mesh.vertices.size(), model.mesh.indices.size() / 3, maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z,
-                    minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z, model.skeleton.joints.size(), model.clips.size(), BakeFramesPerSecond);
+                    minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z, model.skeleton.joints.size(), model.clips.size(), BakeFramesPerSecond,
+                    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count());
         return model;
     }
 }

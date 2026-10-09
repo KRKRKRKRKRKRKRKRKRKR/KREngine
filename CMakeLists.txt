@@ -130,6 +130,7 @@ set(ENGINE_FILES
     include/KR/Animation/HitboxFile.h
     include/KR/Animation/HitboxMirror.h
     include/KR/Animation/FbxLoader.h
+    include/KR/Animation/LoadModel.h
     include/KR/Animation/AnimatedModel.h
 
     src/Core/Application.cpp
@@ -157,6 +158,7 @@ set(ENGINE_FILES
     src/Animation/HitboxFile.cpp
     src/Animation/HitboxMirror.cpp
     src/Animation/FbxLoader.cpp
+    src/Animation/LoadModel.cpp
     src/Animation/AnimatedModel.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
