@@ -9,6 +9,8 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 (次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
 - 追加(作成中):`KR::Behavior`(敵の行動のノード)。グラフの型(`Graph`)・ノードの種類の登録(`NodeTypes`)・JSON の保存と読み込み(`SaveGraph` / `LoadGraph`)・状況の入れ物(`Context`)。詳しくは [docs/Behavior.md](docs/Behavior.md)
 - 追加:外部ライブラリ imnodes(MIT。ノードエディタの部品)を、エンジンの中だけ(PRIVATE)で取り込んだ。ゲームの CMake は、変えなくてよい
+- 追加(作成中):敵の行動のツール `KRBehaviorEditor`(`tools/BehaviorEditor/`。ノードで作る・開く・保存する)。詳しくは [docs/BehaviorEditor.md](docs/BehaviorEditor.md)
+- 変更(ツールの中だけ。ゲームには影響なし):`FolderDialog` を `tools/AnimationEditor/` から `tools/Common/`(静的ライブラリ `KRToolCommon`)へ移し、2 つのツールで共有した
 
 ## [0.3.0] — 2026-10-09
 調整ツール KRAnimationEditor を、画面の上で、直接操作できるように強化(機能の追加)。

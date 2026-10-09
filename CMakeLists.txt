@@ -300,6 +300,11 @@ if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMak
     add_subdirectory(samples/Animated)
 endif()
 
+# ツールの共通の部品(フォルダーを選ぶ窓。調整ツールどうしで、共有)。KR_BUILD_TOOLS が ON のときだけ。下のツールより、先に
+if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/Common/CMakeLists.txt")
+    add_subdirectory(tools/Common)
+endif()
+
 # ツール(ゲームを作るための道具。アニメーションの調整ツールなど)。KR_BUILD_TOOLS が ON のときだけ
 if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/AnimationEditor/CMakeLists.txt")
     add_subdirectory(tools/AnimationEditor)

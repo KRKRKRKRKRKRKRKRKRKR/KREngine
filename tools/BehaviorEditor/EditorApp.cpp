@@ -8,6 +8,8 @@
 #include <KR/Behavior/GraphFile.h>
 #include <KR/Behavior/NodeTypes.h>
 
+#include "FolderDialog.h" // tools/Common/(調整ツールどうしで共有)
+
 #include <imgui.h>
 
 #include <algorithm>
@@ -15,6 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,6 +27,7 @@ using namespace KR::Behavior;
 namespace
 {
     constexpr const char* EnemiesFolderName = "Enemies"; // アセットのフォルダーの下の、敵の行動のグラフを置く場所
+    constexpr size_t MaxRecentFolders = 8;               // 「最近...」に残すフォルダーの数
 
     // path ⇔ UTF-8 の文字列(ImGui の文字欄・画面の表示は UTF-8。path(const char*) は、日本語 Windows で、CP932 として読まれて、例外になる)
     std::string ToUtf8(const std::filesystem::path& path)
@@ -222,6 +226,7 @@ private:
             }
             if (line.rfind("assets=", 0) == 0)     { m_SavedFolder = FromUtf8(line.substr(7)); }
             else if (line.rfind("graph=", 0) == 0) { m_SavedGraph = line.substr(6); }
+            else if (line.rfind("recent=", 0) == 0) { m_Recent.push_back(line.substr(7)); }
         }
     }
 
@@ -234,6 +239,10 @@ private:
         }
         stream << "assets=" << ToUtf8(m_Folder) << '\n';
         stream << "graph=" << m_CurrentName << '\n';
+        for (const std::string& recent : m_Recent)
+        {
+            stream << "recent=" << recent << '\n';
+        }
     }
 
     // ---- フォルダーと一覧 ----
@@ -255,6 +264,14 @@ private:
         std::snprintf(m_FolderText, sizeof(m_FolderText), "%s", ToUtf8(folder).c_str());
         RefreshFileList();
         KR_LOG_INFO("BehaviorEditor: アセットのフォルダー {}(グラフ {} 個)", ToUtf8(folder), m_Files.size());
+
+        // 最近使ったフォルダーの先頭に
+        std::erase(m_Recent, ToUtf8(folder));
+        m_Recent.insert(m_Recent.begin(), ToUtf8(folder));
+        if (m_Recent.size() > MaxRecentFolders)
+        {
+            m_Recent.resize(MaxRecentFolders);
+        }
         SaveSettings();
         return true;
     }
@@ -382,7 +399,37 @@ private:
         {
             RequestAction({ ActionKind::Folder, m_FolderText }); // Enter で開く
         }
-        ImGui::TextDisabled("(Enter で開く)");
+        // 参照(フォルダーを選ぶ窓)・最近(使ったフォルダーの一覧)。文字欄は、Enter で開く
+        if (ImGui::Button("参照..."))
+        {
+            if (const std::optional<std::filesystem::path> picked = PickFolder(m_Folder))
+            {
+                RequestAction({ ActionKind::Folder, ToUtf8(*picked) });
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("最近..."))
+        {
+            ImGui::OpenPopup("recent_popup");
+        }
+        if (ImGui::BeginPopup("recent_popup"))
+        {
+            if (m_Recent.empty())
+            {
+                ImGui::TextDisabled("履歴はありません");
+            }
+            for (size_t i = 0; i < m_Recent.size(); ++i)
+            {
+                const std::string label = m_Recent[i] + "##recent" + std::to_string(i);
+                if (ImGui::Selectable(label.c_str()))
+                {
+                    RequestAction({ ActionKind::Folder, m_Recent[i] });
+                }
+            }
+            ImGui::EndPopup();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(文字欄は Enter)");
 
         // 保存・新規・読み直し。名前を変えて保存すると、別のファイルになる
         ImGui::SeparatorText("このグラフ");
@@ -479,6 +526,7 @@ private:
     bool m_OpenConfirmPopup = false;
     std::filesystem::path m_SavedFolder; // 前回のフォルダー(設定から)
     std::string m_SavedGraph;            // 前回のグラフの名前(設定から)
+    std::vector<std::string> m_Recent;   // 最近使ったフォルダー(新しい順。UTF-8)
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()
