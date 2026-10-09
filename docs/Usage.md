@@ -138,6 +138,7 @@ KR::Input::IsKeyReleased(KR::Key::R)  // このフレームで、離した
 KR::OBB a = KR::MakeOBB(中心, 半分の大きさ, 回転の行列);   // 向きを持てる箱
 KR::OBB b = KR::MakeOBB(...);
 bool hit = KR::Intersects(a, b);                           // 重なっているか(分離軸定理)
+std::optional<float> t = KR::Raycast(ray, a);              // レイが当たるか(当たれば距離)。Ray は、Camera::ScreenPointToRay(x, y, 幅, 高さ) で作れる。球・線分は、[Collision.md](Collision.md)
 ```
 
 ### 4-5. ログ

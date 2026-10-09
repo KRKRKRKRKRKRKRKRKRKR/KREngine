@@ -20,6 +20,7 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 - **glTF は cgltf で読む**(`GltfLoader.cpp` の中だけ。公開ヘッダーに cgltf の型を出さない = ローダーを替えても、ほかは変わらない)。座標系(右手系 → 左手系)の変換は、`GltfLoader.cpp` の先頭の関数に、集めてある
 - **判定の形(`Hitbox`)は、骨の中の座標で持つ**。保存は `<モデル名>.hitboxes.json`(nlohmann/json は、エンジンの中だけ = PRIVATE)。骨は**名前**で探す(無ければ番号)
 - **調整は、ツール `KRAnimationEditor`(`tools/AnimationEditor/`)で行い、ゲームは、読み込むだけ**。ツールは、開いたゲームの `Assets` フォルダーに保存する(`KR::SetAssetRoot`)。**`SetAssetRoot` は、ツール用。ゲームは、呼ばない**
+- 調整ツールの、画面の上の操作(クリックで選ぶ・ギズモで動かす・コピー・左右反転)は、`docs/AnimationEditor.md`。ギズモは、外部ライブラリ ImGuizmo(**ツールだけ**。エンジン本体・ゲームには入れない)。T = 移動 / S = 大きさ(Blender 準拠)
 - 使い方の見本は `samples/Animated/`(KRAnimated)。骨つきのメッシュは、1 フレームに 32 個・骨は 128 本まで(`Renderer::MaxSkinnedDrawsPerFrame` / `MaxSkinJoints`)
 - 手前に描く(`overlay`。深度テストなし)は、骨つきの形には使えない
 
