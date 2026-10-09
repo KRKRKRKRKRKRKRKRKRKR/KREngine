@@ -549,14 +549,14 @@ protected:
     {
         ImGuizmo::BeginFrame(); // ギズモの 1 フレームの始まり
 
-        // W = 移動 / E = 大きさ(文字を入力している間は、効かせない)
+        // Blender に合わせる:T = 移動 / S = 大きさ(スケール)。文字を入力している間は、効かせない
         if (!ImGui::GetIO().WantTextInput)
         {
-            if (ImGui::IsKeyPressed(ImGuiKey_W, false))
+            if (ImGui::IsKeyPressed(ImGuiKey_T, false))
             {
                 m_GizmoOperation = ImGuizmo::TRANSLATE;
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_E, false))
+            if (ImGui::IsKeyPressed(ImGuiKey_S, false))
             {
                 m_GizmoOperation = ImGuizmo::SCALE;
             }
@@ -669,7 +669,7 @@ protected:
         }
     }
 
-    ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(ラジオボタン・W / E キー)
+    ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(ラジオボタン・T / S キー。Blender に合わせた)
     bool m_GizmoBusy = false; // ギズモの上にマウスがある・ドラッグ中(カメラを回さない・クリックで選ばない)
 
     void OnShutdown() override
@@ -1136,9 +1136,9 @@ private:
 
             // ギズモの操作:移動 / 大きさ
             int operation = (m_GizmoOperation == ImGuizmo::SCALE) ? 1 : 0;
-            ImGui::RadioButton("移動 (W)", &operation, 0);
+            ImGui::RadioButton("移動 (T)", &operation, 0);
             ImGui::SameLine();
-            ImGui::RadioButton("大きさ (E)", &operation, 1);
+            ImGui::RadioButton("大きさ (S)", &operation, 1);
             m_GizmoOperation = (operation == 1) ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
 
             // 変えたら「未保存」の印(m_Dirty)
