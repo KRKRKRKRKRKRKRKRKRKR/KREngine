@@ -19,6 +19,7 @@ option(KR_BUILD_SAMPLES "KR エンジンのサンプルをビルドする" ${KR_
 
 # ツール(tools/)をビルドするか。単体のときは ON。ゲームの一部のときは OFF
 option(KR_BUILD_TOOLS "KR エンジンのツール(アニメーションの調整ツールなど)をビルドする" ${KR_IS_TOP_LEVEL})
+option(KR_BUILD_PROBES "使い捨ての動作確認用 exe(KRBehaviorProbe など)をビルドする" OFF)
 
 include(FetchContent)
 
@@ -303,4 +304,9 @@ if(KR_IS_TOP_LEVEL)
     elseif(TARGET KRMinimal)
         set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT KRMinimal)
     endif()
+endif()
+
+# 動作確認用の使い捨て exe(ライブラリの相性の確認など)。KR_BUILD_PROBES が ON のときだけ
+if(KR_BUILD_PROBES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/probe/BehaviorProbe/CMakeLists.txt")
+    add_subdirectory(probe/BehaviorProbe)
 endif()
