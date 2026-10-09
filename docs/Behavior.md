@@ -77,7 +77,15 @@
 - `AttackFinished`:状況の `key`(既定 `attackFinished`)が true のとき真。
 - **キーが無いときは、偽 + 警告を、そのキーについて 1 回だけ**出す(静的な集合で覚える。毎フレーム出すと、ログが埋まるため)。**選ばなかった案**:条件ノードごとに 1 回。同じキーを見る条件が複数あっても、原因は 1 つ(ゲームが入れ忘れ)なので、キー単位にした。ゲームを再起動するまで、同じキーの警告は、2 回目以降は出ない。
 
-## 7. 進み具合(B1〜B6)
-済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2〜B2-3(条件の評価)。
-これから:B2-4〜(Runner)→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
+
+## 7. Runner(`Runner.h`。敵 1 体ぶんの「今の状態」)
+- `Runner runner(graph);` で、開始ノードの状態に入った状態で作る。`GetCurrentState()` が `StateView` を返す(読むだけ)。
+  - `StateView`:`GetNodeId()`・`GetType()`("Attack" など)・`GetTimeInState()`(入ってからの秒)・`EnteredThisFrame()`・値(`GetFloat("speed")` など。無い・型が違うときは既定値)。
+- 開始ノードが、無い・状態でないときは、最初の状態から。状態が 1 つも無い(または null の)グラフは、待機 1 つの既定のグラフ(`MakeDefaultGraph()`)に差し替える。= **どんなグラフを渡しても、`GetCurrentState()` は、必ず意味のある状態を返す**(ゲーム側で null チェックをしなくてよい)。
+- 作った直後は `EnteredThisFrame()` が true(最初の状態に「入った」ところ)。
+- **なぜ `StateView` は、読むだけの小さな型か**:ゲームが見るのは「種類・値・時間」だけ。`Node` そのものを返すと、ゲームがグラフの中身(線・位置)に依存してしまう。`StateView` は Runner の中のグラフを指しているので、Update・SetGraph のあとは、取り直す。
+- **選ばなかった案**:`GetCurrentState()` が、値のコピー(`ParamMap`)を返す。毎フレームのコピーが無駄なので、指す形にした。
+## 8. 進み具合(B1〜B6)
+済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2〜B2-3(条件の評価)・B2-4(Runner を作る・今の状態を読む)。
+これから:B2-5〜(Update:状態の移り変わり)→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
 使い方(`Usage.md` の 8)は、ゲームが呼べる形(Runner)ができてから書く(B6-3)。

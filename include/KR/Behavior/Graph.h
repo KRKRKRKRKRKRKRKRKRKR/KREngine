@@ -65,3 +65,9 @@ namespace KR::Behavior
 
     using GraphPtr = std::shared_ptr<const Graph>;
 }
+
+namespace KR::Behavior
+{
+    // 安全な既定のグラフ:待機 1 つ(読めなかったファイル・状態が無いグラフの代わり)
+    GraphPtr MakeDefaultGraph();
+}

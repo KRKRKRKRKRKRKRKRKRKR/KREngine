@@ -251,14 +251,6 @@ namespace KR::Behavior
             KR_LOG_ERROR("Behavior: グラフのファイルがありません: {}", file.string());
         }
 
-        // 安全な既定:待機 1 つ
-        Graph fallback;
-        Node wait;
-        wait.id = 1;
-        wait.kind = NodeKind::State;
-        wait.type = "Wait";
-        fallback.startNode = wait.id;
-        fallback.nodes.push_back(wait);
-        return std::make_shared<const Graph>(std::move(fallback));
+        return MakeDefaultGraph();
     }
 }

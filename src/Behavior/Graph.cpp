@@ -38,3 +38,18 @@ namespace KR::Behavior
         return result;
     }
 }
+
+namespace KR::Behavior
+{
+    GraphPtr MakeDefaultGraph()
+    {
+        Graph graph;
+        Node wait;
+        wait.id = 1;
+        wait.kind = NodeKind::State;
+        wait.type = "Wait";
+        graph.startNode = wait.id;
+        graph.nodes.push_back(wait);
+        return std::make_shared<const Graph>(std::move(graph));
+    }
+}
