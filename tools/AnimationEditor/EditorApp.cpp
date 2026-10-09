@@ -67,6 +67,17 @@ namespace
         return result;
     }
 
+    // コピーした形を、骨 targetJoint に貼る形にする:骨・名前だけ変えて、あとは、そのまま(骨の中の座標なので、別の骨でも、その骨の中で同じ位置)
+    // 同じ骨に貼るときは、重なって見えなくならないよう、骨の中の X に shift だけずらす
+    KR::Hitbox MakePastedHitbox(const KR::Hitbox& source, int targetJoint, const std::string& targetName, float shift)
+    {
+        KR::Hitbox pasted = source;
+        pasted.jointIndex = targetJoint;
+        pasted.name = targetName;
+        pasted.center.x += shift;
+        return pasted;
+    }
+
     // 大きさのギズモ:世界の大きさが oldScale → newScale に変わったとき、骨の中の大きさ(半分の大きさ)の、新しい値
     // 軸ごとに、比(new / old)を掛ける。小さくしすぎて、形が消えないよう、最小値で止める
     constexpr float MinShapeSize = 0.01f;
@@ -249,6 +260,25 @@ protected:
             check("ギズモ 回した骨では、骨の中の X は変わらない", nearEnough(moved.x, 1.0f), true);
         }
 
+        // コピー・貼り付け
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-5f; };
+            KR::Hitbox source;
+            source.name = "Arm";
+            source.jointIndex = 1;
+            source.shape = KR::HitShape::Sphere;
+            source.center = { 0.5f, 1.0f, 2.0f };
+            source.radius = 0.3f;
+
+            const KR::Hitbox other = MakePastedHitbox(source, 2, "Hand", 0.0f);
+            check("貼り付け 別の骨:骨・名前が変わり、形・位置・大きさは同じ",
+                  other.jointIndex == 2 && other.name == "Hand" && other.shape == KR::HitShape::Sphere && nearEnough(other.center.x, 0.5f)
+                      && nearEnough(other.center.y, 1.0f) && nearEnough(other.center.z, 2.0f) && nearEnough(other.radius, 0.3f), true);
+            const KR::Hitbox same = MakePastedHitbox(source, 1, "Arm", 0.1f);
+            check("貼り付け 同じ骨:X だけ 0.1 ずれる", same.jointIndex == 1 && nearEnough(same.center.x, 0.6f) && nearEnough(same.center.y, 1.0f), true);
+            check("貼り付け もとの形は、変わらない", nearEnough(source.center.x, 0.5f) && source.jointIndex == 1 && source.name == "Arm", true);
+        }
+
         // 大きさのギズモ:世界の大きさの変化 → 骨の中の大きさ
         {
             auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
@@ -281,7 +311,7 @@ protected:
 
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・クリックの見分け)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・大きさ・コピー貼り付け・クリックの見分け)");
         }
     }
 
@@ -669,6 +699,7 @@ protected:
         }
     }
 
+    std::optional<KR::Hitbox> m_Clipboard; // コピーした判定の形(貼り付けるまで、覚えている)
     ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(ラジオボタン・T / S キー。Blender に合わせた)
     bool m_GizmoBusy = false; // ギズモの上にマウスがある・ドラッグ中(カメラを回さない・クリックで選ばない)
 
@@ -1182,6 +1213,33 @@ private:
                 m_SubHitbox = 0;
                 m_Dirty = true;
             }
+        }
+
+        // コピー・貼り付け(Ctrl + C / Ctrl + V でも)。貼り付けは、選んでいる骨に、形を 1 つ増やす
+        const bool keys = !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl;
+        const bool copyRequested = ImGui::Button("コピー") || (keys && ImGui::IsKeyPressed(ImGuiKey_C, false));
+        ImGui::SameLine();
+        const bool pasteRequested = ImGui::Button("貼り付け") || (keys && ImGui::IsKeyPressed(ImGuiKey_V, false));
+        if (m_Clipboard)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(コピー済み:%s)", m_Clipboard->name.c_str());
+        }
+        if (copyRequested && m_SelectedHitbox != NoHitbox)
+        {
+            m_Clipboard = hitboxes[m_SelectedHitbox];
+            KR_LOG_INFO("  判定の形をコピー: {}(骨 {})", m_Clipboard->name, m_Clipboard->jointIndex);
+        }
+        if (pasteRequested && m_Clipboard)
+        {
+            const size_t before = hitboxes.size();
+            const bool sameBone = (m_Clipboard->jointIndex == m_SelectedBone);
+            hitboxes.push_back(MakePastedHitbox(*m_Clipboard, m_SelectedBone, skeleton.joints[static_cast<size_t>(m_SelectedBone)].name,
+                                                sameBone ? m_ModelRadius * 0.05f : 0.0f));
+            m_SubHitbox = static_cast<int>(onBone.size()); // 貼り付けた形を、選ぶ
+            m_Dirty = true;
+            KR_LOG_INFO("  判定の形を貼り付け: 骨 {}「{}」へ({}・形 {} → {} 個)", m_SelectedBone, hitboxes.back().name,
+                        sameBone ? "同じ骨なので、ずらした" : "別の骨", before, hitboxes.size());
         }
 
         // 保存・読み直し(<モデル名>.hitboxes.json。開いているアセットのフォルダーの、Models の下に書く)
