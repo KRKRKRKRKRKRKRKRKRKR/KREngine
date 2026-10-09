@@ -107,6 +107,122 @@ namespace KR
             return result;
         }
 
+        // 動きを焼き付ける間隔(1 秒に何回、姿勢を測るか)。FBX の動きは、曲線(補間の方法が、いろいろ)なので、一定の間隔で測って、Linear のキー列にする(Q5)。ここ 1 か所で変える
+        constexpr float BakeFramesPerSecond = 30.0f;
+
+        // 動き:アニメーションスタック(= テイク)1 つを、AnimationClip 1 つにする(名前は、スタックの名前)。レイヤーは、ufbx の評価に任せる(結果だけを焼き付ける)
+        // 骨ごとに、各時刻の、世界の行列を ufbx に求めてもらい(その時刻のシーンを評価する)、親の骨から見た位置・向き・大きさに直す
+        //   (基準姿勢と、同じ作り方:根は、世界の行列そのもの / 親がある骨は、親の世界の行列の逆を掛ける)。
+        // 基準姿勢から、まったく動かない骨は、トラックを作らない(基準姿勢のまま)。向きは、隣のキーと反対側(符号が逆)にならないよう、そろえる(slerp が、遠回りしない)
+        std::vector<AnimationClip> ReadClips(const ufbx_scene& scene, const FbxSkeleton& fbxSkeleton)
+        {
+            std::vector<AnimationClip> clips;
+            const Skeleton& skeleton = fbxSkeleton.skeleton;
+            const size_t jointCount = skeleton.joints.size();
+            if (jointCount == 0)
+            {
+                if (scene.anim_stacks.count > 0)
+                {
+                    KR_LOG_WARN("FbxLoader: 骨(スキン)が無いので、動きは読みません");
+                }
+                return clips;
+            }
+
+            for (const ufbx_anim_stack* stack : scene.anim_stacks)
+            {
+                AnimationClip clip;
+                clip.name = stack->name.data;
+                const double length = std::max(0.0, stack->time_end - stack->time_begin);
+                const size_t intervals = length > 0.0 ? static_cast<size_t>(std::ceil(length * BakeFramesPerSecond)) : 0;
+                const size_t sampleCount = intervals + 1;
+                clip.duration = static_cast<float>(length);
+
+                // 各時刻の、骨の世界の行列
+                std::vector<std::vector<XMFLOAT4X4>> worlds(sampleCount, std::vector<XMFLOAT4X4>(jointCount));
+                std::vector<float> times(sampleCount);
+                bool failed = false;
+                for (size_t s = 0; s < sampleCount && !failed; ++s)
+                {
+                    times[s] = std::min(static_cast<float>(s) / BakeFramesPerSecond, clip.duration);
+                    ufbx_error error;
+                    ufbx_scene* evaluated = ufbx_evaluate_scene(&scene, stack->anim, stack->time_begin + times[s], nullptr, &error);
+                    if (!evaluated)
+                    {
+                        KR_LOG_ERROR("FbxLoader: 動き「{}」を評価できません: {}", clip.name, error.description.data);
+                        failed = true;
+                        break;
+                    }
+                    for (size_t j = 0; j < jointCount; ++j)
+                    {
+                        worlds[s][j] = ConvertMatrix(evaluated->nodes.data[fbxSkeleton.nodes[j]->typed_id]->node_to_world);
+                    }
+                    ufbx_free_scene(evaluated);
+                }
+                if (failed)
+                {
+                    continue;
+                }
+
+                // 骨ごとに、親から見た位置・向き・大きさにして、キー列にする
+                for (size_t j = 0; j < jointCount; ++j)
+                {
+                    const Joint& joint = skeleton.joints[j];
+                    JointTrack track;
+                    track.jointIndex = static_cast<int>(j);
+                    bool moves = false;
+                    XMVECTOR previousRotation = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+                    for (size_t s = 0; s < sampleCount; ++s)
+                    {
+                        XMMATRIX local = XMLoadFloat4x4(&worlds[s][j]);
+                        if (joint.parent >= 0)
+                        {
+                            local = local * XMMatrixInverse(nullptr, XMLoadFloat4x4(&worlds[s][static_cast<size_t>(joint.parent)]));
+                        }
+                        XMVECTOR scale, rotation, translation;
+                        if (!XMMatrixDecompose(&scale, &rotation, &translation, local))
+                        {
+                            scale = XMLoadFloat3(&joint.scale);
+                            rotation = XMLoadFloat4(&joint.rotation);
+                            translation = XMLoadFloat3(&joint.translation);
+                        }
+                        if (s > 0 && XMVectorGetX(XMVector4Dot(previousRotation, rotation)) < 0.0f)
+                        {
+                            rotation = XMVectorNegate(rotation); // 隣のキーと、反対側の符号(同じ向き)なら、そろえる
+                        }
+                        previousRotation = rotation;
+
+                        Vec3Key translationKey;
+                        translationKey.time = times[s];
+                        XMStoreFloat3(&translationKey.value, translation);
+                        QuatKey rotationKey;
+                        rotationKey.time = times[s];
+                        XMStoreFloat4(&rotationKey.value, rotation);
+                        Vec3Key scaleKey;
+                        scaleKey.time = times[s];
+                        XMStoreFloat3(&scaleKey.value, scale);
+                        track.translations.push_back(translationKey);
+                        track.rotations.push_back(rotationKey);
+                        track.scales.push_back(scaleKey);
+
+                        // 基準姿勢と、違うか(向きは、符号が逆でも、同じ向き)
+                        auto differs = [](const XMFLOAT3& a, const XMFLOAT3& b) { return std::abs(a.x - b.x) > 1e-4f || std::abs(a.y - b.y) > 1e-4f || std::abs(a.z - b.z) > 1e-4f; };
+                        const XMVECTOR baseRotation = XMLoadFloat4(&joint.rotation);
+                        if (differs(translationKey.value, joint.translation) || differs(scaleKey.value, joint.scale)
+                            || std::abs(XMVectorGetX(XMVector4Dot(baseRotation, rotation))) < 1.0f - 1e-6f)
+                        {
+                            moves = true;
+                        }
+                    }
+                    if (moves)
+                    {
+                        clip.tracks.push_back(std::move(track));
+                    }
+                }
+                clips.push_back(std::move(clip));
+            }
+            return clips;
+        }
+
         // ファイルを、まるごと、メモリに読む。path は、std::filesystem::path のまま開く
         // (日本語のフォルダーでも、動く。ufbx に、パスの文字列を渡さず、メモリの中身を渡すのも、そのため)
         bool ReadFileBytes(const std::filesystem::path& path, std::vector<uint8_t>& bytes)
@@ -307,6 +423,7 @@ namespace KR
         FbxSkeleton skeleton = ReadSkeleton(*scene);
         SkinStats skinStats;
         ReadMeshes(*scene, skeleton, model.mesh, skinStats);
+        model.clips = ReadClips(*scene, skeleton); // 動きは、骨の基準姿勢(skeleton.skeleton)と比べるので、骨を、model に動かす前に読む
         model.skeleton = std::move(skeleton.skeleton);
         ufbx_free_scene(scene);
 
@@ -351,9 +468,9 @@ namespace KR
             minimum = { std::min(minimum.x, vertex.position.x), std::min(minimum.y, vertex.position.y), std::min(minimum.z, vertex.position.z) };
             maximum = { std::max(maximum.x, vertex.position.x), std::max(maximum.y, vertex.position.y), std::max(maximum.z, vertex.position.z) };
         }
-        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨 {} 本(動きは、まだ読みません)",
+        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨 {} 本・動き {} 個({:.1f} fps で焼き付け)",
                     model.mesh.vertices.size(), model.mesh.indices.size() / 3, maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z,
-                    minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z, model.skeleton.joints.size());
+                    minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z, model.skeleton.joints.size(), model.clips.size(), BakeFramesPerSecond);
         return model;
     }
 }

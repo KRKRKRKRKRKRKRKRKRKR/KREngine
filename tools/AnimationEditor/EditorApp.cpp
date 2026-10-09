@@ -638,6 +638,70 @@ protected:
                 KR_LOG_ERROR("  FBX 重みの確認 NG:{}", skinDetail);
             }
         }
+
+        // 動き(F6):数・長さ・動く骨の数が、glTF と同じか。いくつかの時刻の姿勢(骨の位置)が、glTF と近いか
+        // (FBX は、1 秒 30 回の Linear に焼き付けた物。glTF は、元のキー。補間のしかたの差だけ、許す)
+        {
+            bool clipOk = gltf.clips.size() == fbx.clips.size() && !fbx.clips.empty();
+            std::string clipDetail;
+            float worstDiff = 0.0f;
+            if (clipOk)
+            {
+                const KR::AnimationClip& gc = gltf.clips[0];
+                const KR::AnimationClip& fc = fbx.clips[0];
+                if (std::abs(gc.duration - fc.duration) > 0.05f)
+                {
+                    clipOk = false;
+                    clipDetail += " 長さ glTF " + std::to_string(gc.duration) + " / FBX " + std::to_string(fc.duration);
+                }
+                if (gc.tracks.size() != fc.tracks.size())
+                {
+                    clipOk = false;
+                    clipDetail += " 動く骨の数 glTF " + std::to_string(gc.tracks.size()) + " / FBX " + std::to_string(fc.tracks.size());
+                }
+                // 置き場所の違い(根の骨の、基準姿勢の位置の差)を、打ち消して、骨ごとの世界の位置を、比べる
+                const std::vector<XMFLOAT4X4> gBase = KR::EvaluatePose(gs, nullptr, 0.0f);
+                const std::vector<XMFLOAT4X4> fBase = KR::EvaluatePose(fs, nullptr, 0.0f);
+                const XMFLOAT3 offset = { fBase[static_cast<size_t>(fRoot)]._41 - gBase[static_cast<size_t>(gRoot)]._41,
+                                          fBase[static_cast<size_t>(fRoot)]._42 - gBase[static_cast<size_t>(gRoot)]._42,
+                                          fBase[static_cast<size_t>(fRoot)]._43 - gBase[static_cast<size_t>(gRoot)]._43 };
+                for (const float time : { 0.0f, 0.3f, 0.7f, 1.0f, 1.3f })
+                {
+                    const std::vector<XMFLOAT4X4> gp = KR::EvaluatePose(gs, &gc, time);
+                    const std::vector<XMFLOAT4X4> fp = KR::EvaluatePose(fs, &fc, time);
+                    for (size_t i = 0; i < gs.joints.size(); ++i)
+                    {
+                        const int j = indexOf(fs, gs.joints[i].name);
+                        if (j < 0)
+                        {
+                            continue;
+                        }
+                        const XMFLOAT4X4& a2 = gp[i];
+                        const XMFLOAT4X4& b2 = fp[static_cast<size_t>(j)];
+                        const float diff = std::max({ std::abs(a2._41 - (b2._41 - offset.x)), std::abs(a2._42 - (b2._42 - offset.y)), std::abs(a2._43 - (b2._43 - offset.z)) });
+                        worstDiff = std::max(worstDiff, diff);
+                    }
+                }
+                if (worstDiff > 0.15f)
+                {
+                    clipOk = false;
+                    clipDetail += " 骨の位置が、glTF と合わない(最大のずれ " + std::to_string(worstDiff) + " m)";
+                }
+            }
+            else
+            {
+                clipDetail += " 動きの数 glTF " + std::to_string(gltf.clips.size()) + " / FBX " + std::to_string(fbx.clips.size());
+            }
+            if (clipOk)
+            {
+                KR_LOG_INFO("  FBX 動きの確認: OK(動き {} 個「{}」・長さ {:.3f} 秒・動く骨 {} 本・5 つの時刻の骨の位置が glTF と一致(最大のずれ {:.4f} m))",
+                            fbx.clips.size(), fbx.clips[0].name, fbx.clips[0].duration, fbx.clips[0].tracks.size(), worstDiff);
+            }
+            else
+            {
+                KR_LOG_ERROR("  FBX 動きの確認 NG:{}", clipDetail);
+            }
+        }
     }
 
     void OnInit() override
