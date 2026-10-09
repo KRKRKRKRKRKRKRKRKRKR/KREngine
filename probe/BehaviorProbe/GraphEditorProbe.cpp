@@ -74,6 +74,7 @@ protected:
         ImGui::Text("edits=%d  radius(id2)=%s  vertical(id2)=%s  damage(id5)=%s  nodes=%d  links=%d  nextId=%d", m_Edits,
             number(2, "radius").c_str(), number(2, "includeVertical").c_str(), number(5, "damage").c_str(),
             static_cast<int>(m_Graph.nodes.size()), static_cast<int>(m_Graph.links.size()), m_Graph.nextNodeId);
+        m_Editor->DrawWarnings(m_Graph);
         if (m_Editor->Draw(m_Graph))
         {
             ++m_Edits;

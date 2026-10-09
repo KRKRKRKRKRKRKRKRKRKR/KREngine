@@ -1,6 +1,7 @@
 #include "KR/Behavior/GraphEditor.h"
 
 #include "GraphEdit.h"
+#include "KR/Behavior/GraphValidate.h"
 #include "KR/Behavior/NodeTypes.h"
 
 #include <imgui.h>
@@ -359,5 +360,24 @@ namespace KR::Behavior
             }
         }
         return changed;
+    }
+}
+
+namespace KR::Behavior
+{
+    void GraphEditor::DrawWarnings(const Graph& graph)
+    {
+        const std::vector<GraphWarning> warnings = ValidateGraph(graph);
+        if (warnings.empty())
+        {
+            ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.55f, 1.0f), "警告なし");
+            return;
+        }
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.25f, 1.0f), "警告 %d 件", static_cast<int>(warnings.size()));
+        for (const GraphWarning& warning : warnings)
+        {
+            ImGui::Bullet();
+            ImGui::TextWrapped("%s", warning.message.c_str());
+        }
     }
 }

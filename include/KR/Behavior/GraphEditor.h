@@ -26,6 +26,9 @@ namespace KR::Behavior
         // 状態から出る線が 2 本以上のとき、ノードの中の「分岐の順番」の ↑↓ で、調べる順を入れ替える
         bool Draw(Graph& graph);
 
+        // 検証の警告の一覧(ImGui の窓の中で呼ぶ。エディタの上か下に置く)。警告が無ければ「警告なし」。中身は ValidateGraph(GraphValidate.h)
+        void DrawWarnings(const Graph& graph);
+
         // 別のグラフを開いたとき(読み直し・新規など)に呼ぶ。ノードの位置を、グラフから、取り直す
         void Reset();
 
