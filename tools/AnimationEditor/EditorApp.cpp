@@ -487,7 +487,40 @@ protected:
         }
         ImGui::End();
 
+        DrawGizmo();
         DrawUnsavedPopup();
+    }
+
+    // 選んでいる判定の形の中心に、移動のギズモ(ImGuizmo)を出す(A3-1:表示だけ。ドラッグで動かすのは A3-2)
+    // ImGuizmo は、行列を OpenGL 形式(列が連続)の float[16] で受け取る。DirectXMath の行列(行が連続・行ベクトル)は、メモリの並びが同じなので、そのまま渡せる
+    // ただし、ImGuizmo は右手系を前提にしていて、このエンジンは左手系。軸の反転(AllowAxisFlip)が、視線の向きの判断を誤るので、切る
+    void DrawGizmo()
+    {
+        if (!m_Model.IsLoaded() || !m_ShowHitboxes || m_SelectedHitbox == NoHitbox)
+        {
+            return;
+        }
+        const std::vector<KR::WorldHitbox> shapes = m_Model.GetWorldHitboxes(GetModelWorld());
+        if (m_SelectedHitbox >= shapes.size())
+        {
+            return;
+        }
+        const KR::WorldHitbox& shape = shapes[m_SelectedHitbox];
+        const XMFLOAT3 center = (shape.shape == KR::HitShape::Box) ? shape.box.center : shape.sphere.center;
+
+        const ImVec2 size = ImGui::GetIO().DisplaySize;
+        XMFLOAT4X4 view;
+        XMFLOAT4X4 projection;
+        XMStoreFloat4x4(&view, m_Camera.GetViewMatrix());
+        XMStoreFloat4x4(&projection, m_Camera.GetProjectionMatrix(size.x / size.y));
+        XMFLOAT4X4 matrix;
+        XMStoreFloat4x4(&matrix, XMMatrixTranslation(center.x, center.y, center.z));
+
+        ImGuizmo::SetOrthographic(false);
+        ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList()); // ImGui の窓より後ろ・3D の絵より手前に描く
+        ImGuizmo::SetRect(0.0f, 0.0f, size.x, size.y);
+        ImGuizmo::AllowAxisFlip(false);
+        ImGuizmo::Manipulate(&view._11, &projection._11, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, &matrix._11);
     }
 
     void OnShutdown() override
