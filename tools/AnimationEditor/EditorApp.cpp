@@ -57,6 +57,16 @@ namespace
 
     constexpr size_t MaxRecentFolders = 8;
 
+    // 形の中心(骨の中の座標)を、世界で worldDelta だけ動かしたときの、新しい中心(骨の中の座標)
+    // 骨の中 → 世界の行列(骨の今の行列 × モデル全体の行列)で、世界の位置にして、動かして、逆行列で、骨の中に戻す
+    XMFLOAT3 MoveCenterByWorldDelta(const XMFLOAT3& localCenter, const XMMATRIX& boneToWorld, const XMFLOAT3& worldDelta)
+    {
+        const XMVECTOR world = XMVectorAdd(XMVector3Transform(XMLoadFloat3(&localCenter), boneToWorld), XMLoadFloat3(&worldDelta));
+        XMFLOAT3 result;
+        XMStoreFloat3(&result, XMVector3Transform(world, XMMatrixInverse(nullptr, boneToWorld)));
+        return result;
+    }
+
     // クリックとドラッグの見分け:押してから離すまでに、押した点から 4 ピクセル以上離れたら、ドラッグ(途中で戻ってきても、ドラッグ)
     class ClickDetector
     {
@@ -183,6 +193,30 @@ protected:
             check("レイ×線分 レイ上の距離 t(t = 5)", distanceIs(rayT, 5.0f), true);
         }
 
+        // ギズモで動かした量 → 骨の中の座標の変化
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            // 骨が Y 軸に 90° 回って、(1, 2, 3) にある。形の中心は、骨の中の (1, 0, 0)
+            const XMMATRIX rotation = XMMatrixRotationY(XM_PIDIV2);
+            const XMMATRIX boneToWorld = rotation * XMMatrixTranslation(1.0f, 2.0f, 3.0f);
+            const XMFLOAT3 local{ 1.0f, 0.0f, 0.0f };
+
+            const XMFLOAT3 none = MoveCenterByWorldDelta(local, boneToWorld, { 0.0f, 0.0f, 0.0f });
+            check("ギズモ 動かさない → 中心は変わらない", nearEnough(none.x, 1.0f) && nearEnough(none.y, 0.0f) && nearEnough(none.z, 0.0f), true);
+
+            // 世界で (0.5, 0, 0) 動かす → 骨の中では、回転の逆(−90°)をかけた向きに、同じ長さだけ動く
+            const XMFLOAT3 delta{ 0.5f, 0.0f, 0.0f };
+            const XMFLOAT3 moved = MoveCenterByWorldDelta(local, boneToWorld, delta);
+            XMFLOAT3 expectedChange;
+            XMStoreFloat3(&expectedChange, XMVector3TransformNormal(XMLoadFloat3(&delta), XMMatrixInverse(nullptr, rotation)));
+            check("ギズモ 世界の +X 0.5 → 骨の中の変化 = 逆回転した向き",
+                  nearEnough(moved.x - local.x, expectedChange.x) && nearEnough(moved.y - local.y, expectedChange.y) && nearEnough(moved.z - local.z, expectedChange.z), true);
+            const float length = std::sqrt((moved.x - local.x) * (moved.x - local.x) + (moved.y - local.y) * (moved.y - local.y) + (moved.z - local.z) * (moved.z - local.z));
+            check("ギズモ 動いた長さは、世界でも骨の中でも 0.5", nearEnough(length, 0.5f), true);
+            // 90° 回した骨では、世界の +X は、骨の中の Z の向き(X は、変わらない)
+            check("ギズモ 回した骨では、骨の中の X は変わらない", nearEnough(moved.x, 1.0f), true);
+        }
+
         // クリックとドラッグの見分け
         {
             ClickDetector detector;
@@ -202,7 +236,7 @@ protected:
 
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・クリックの見分け)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・クリックの見分け)");
         }
     }
 
@@ -267,7 +301,7 @@ protected:
         const ImGuiIO& io = ImGui::GetIO();
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
-            m_ClickTracking = !io.WantCaptureMouse;
+            m_ClickTracking = !io.WantCaptureMouse && !m_GizmoBusy;
             m_ClickDetector.Press(io.MousePos.x, io.MousePos.y);
         }
         if (!m_ClickTracking)
@@ -496,6 +530,7 @@ protected:
     // ただし、ImGuizmo は右手系を前提にしていて、このエンジンは左手系。軸の反転(AllowAxisFlip)が、視線の向きの判断を誤るので、切る
     void DrawGizmo()
     {
+        m_GizmoBusy = false;
         if (!m_Model.IsLoaded() || !m_ShowHitboxes || m_SelectedHitbox == NoHitbox)
         {
             return;
@@ -520,8 +555,30 @@ protected:
         ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList()); // ImGui の窓より後ろ・3D の絵より手前に描く
         ImGuizmo::SetRect(0.0f, 0.0f, size.x, size.y);
         ImGuizmo::AllowAxisFlip(false);
-        ImGuizmo::Manipulate(&view._11, &projection._11, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, &matrix._11);
+        const bool changed = ImGuizmo::Manipulate(&view._11, &projection._11, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, &matrix._11);
+        m_GizmoBusy = ImGuizmo::IsOver() || ImGuizmo::IsUsing(); // 次のフレームの、カメラ・クリックの判断に使う
+
+        if (changed)
+        {
+            // ギズモが動かした世界の位置 → 骨の中の座標に直して、center にする(形は、骨の中の座標で持つ)
+            std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
+            KR::Hitbox& hitbox = hitboxes[m_SelectedHitbox];
+            const std::vector<XMFLOAT4X4>& pose = m_Model.GetPose();
+            if (hitbox.jointIndex < 0 || static_cast<size_t>(hitbox.jointIndex) >= pose.size())
+            {
+                return;
+            }
+            const XMMATRIX boneToWorld = XMLoadFloat4x4(&pose[static_cast<size_t>(hitbox.jointIndex)]) * GetModelWorld();
+            const XMFLOAT3 delta{ matrix._41 - center.x, matrix._42 - center.y, matrix._43 - center.z };
+            const XMFLOAT3 before = hitbox.center;
+            hitbox.center = MoveCenterByWorldDelta(hitbox.center, boneToWorld, delta);
+            m_Dirty = true;
+            KR_LOG_TRACE("  ギズモ: 世界で ({:.3f}, {:.3f}, {:.3f}) 動かした → center ({:.3f}, {:.3f}, {:.3f}) → ({:.3f}, {:.3f}, {:.3f})",
+                         delta.x, delta.y, delta.z, before.x, before.y, before.z, hitbox.center.x, hitbox.center.y, hitbox.center.z);
+        }
     }
+
+    bool m_GizmoBusy = false; // ギズモの上にマウスがある・ドラッグ中(カメラを回さない・クリックで選ばない)
 
     void OnShutdown() override
     {
@@ -724,7 +781,7 @@ private:
     {
         // ImGui の窓の上・ImGui を操作している間は、カメラを動かさない
         const ImGuiIO& io = ImGui::GetIO();
-        if (!io.WantCaptureMouse)
+        if (!io.WantCaptureMouse && !m_GizmoBusy)
         {
             if (io.MouseDown[0]) // 左ドラッグ:回す
             {
