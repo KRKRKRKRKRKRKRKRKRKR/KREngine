@@ -315,7 +315,7 @@ protected:
         }
         if (nearest == NoHitbox)
         {
-            KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 判定の形に当たらず", x, y);
+            PickBone(ray, x, y); // 形に当たらなければ、骨を探す(形と骨が重なるときは、形を優先)
             return;
         }
 
@@ -339,6 +339,69 @@ protected:
         m_SubHitbox = sub;
         KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 形 {} を選びました(骨 {}「{}」の {} 番目・t = {:.2f})", x, y, nearest, joint,
                     m_Model.GetSkeleton().joints[static_cast<size_t>(joint)].name, sub, nearestT);
+    }
+
+    // クリックの光線に、一番近い骨を選ぶ(骨の線分への最短距離が、しきい値より近い物のうち、最も近い物)
+    // 骨は、描いているとおり、「親の関節 → 子の関節」の線分で、親の関節の骨になる。先端(子が無い)の骨は、親から来た向きの先に、3 割の長さ
+    void PickBone(const KR::Ray& ray, float x, float y)
+    {
+        const KR::Skeleton& skeleton = m_Model.GetSkeleton();
+        const std::vector<XMFLOAT4X4>& pose = m_Model.GetPose();
+        const size_t count = std::min(skeleton.joints.size(), pose.size());
+        const XMMATRIX world = GetModelWorld();
+
+        std::vector<XMVECTOR> position(count);
+        std::vector<bool> hasChild(count, false);
+        for (size_t i = 0; i < count; ++i)
+        {
+            position[i] = XMVector3Transform(XMLoadFloat4x4(&pose[i]).r[3], world);
+            const int parent = skeleton.joints[i].parent;
+            if (parent >= 0 && static_cast<size_t>(parent) < count)
+            {
+                hasChild[static_cast<size_t>(parent)] = true;
+            }
+        }
+
+        const float threshold = std::max(m_ModelRadius, 0.1f) * 0.06f; // 線から、この距離(メートル)以内なら、骨に触れたとみなす
+        int bestJoint = -1;
+        float bestDistance = threshold;
+        auto consider = [&](int joint, FXMVECTOR head, FXMVECTOR tail)
+        {
+            XMFLOAT3 a;
+            XMFLOAT3 b;
+            XMStoreFloat3(&a, head);
+            XMStoreFloat3(&b, tail);
+            const float distance = KR::RayToSegmentDistance(ray, a, b);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestJoint = joint;
+            }
+        };
+        for (size_t i = 0; i < count; ++i)
+        {
+            const int parent = skeleton.joints[i].parent;
+            if (parent < 0 || static_cast<size_t>(parent) >= count)
+            {
+                continue;
+            }
+            const size_t p = static_cast<size_t>(parent);
+            consider(parent, position[p], position[i]);
+            if (!hasChild[i])
+            {
+                consider(static_cast<int>(i), position[i], XMVectorAdd(position[i], XMVectorScale(XMVectorSubtract(position[i], position[p]), 0.3f)));
+            }
+        }
+
+        if (bestJoint < 0)
+        {
+            KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 判定の形にも骨にも当たらず", x, y);
+            return;
+        }
+        m_SelectedBone = bestJoint;
+        m_SubHitbox = 0;
+        KR_LOG_INFO("  クリック({:.0f}, {:.0f}): 骨 {}「{}」を選びました(線までの距離 {:.3f})", x, y, bestJoint,
+                    skeleton.joints[static_cast<size_t>(bestJoint)].name, bestDistance);
     }
 
     KR::Camera m_Camera; // 今のフレームのカメラ(クリックの光線に使う)
