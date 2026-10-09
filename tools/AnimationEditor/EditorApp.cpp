@@ -801,6 +801,7 @@ protected:
     }
 
     std::optional<KR::Hitbox> m_Clipboard; // コピーした判定の形(貼り付けるまで、覚えている)
+    int m_MirrorTarget = 0; // 左右反転の貼り付け先の骨(対の骨が、名前から決まらないときに、ユーザーが選ぶ)
     ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(ラジオボタン・T / S キー。Blender に合わせた)
     bool m_GizmoBusy = false; // ギズモの上にマウスがある・ドラッグ中(カメラを回さない・クリックで選ばない)
 
@@ -1341,6 +1342,63 @@ private:
             m_Dirty = true;
             KR_LOG_INFO("  判定の形を貼り付け: 骨 {}「{}」へ({}・形 {} → {} 個)", m_SelectedBone, hitboxes.back().name,
                         sameBone ? "同じ骨なので、ずらした" : "別の骨", before, hitboxes.size());
+        }
+
+        // 左右反転して貼り付け:コピーした形を、X = 0 の鏡映しにして、対の骨に貼る(対の骨は、名前で自動。決まらなければ、一覧から選ぶ)
+        if (m_Clipboard)
+        {
+            const int jointTotal = static_cast<int>(skeleton.joints.size());
+            const int sourceJoint = m_Clipboard->jointIndex;
+            if (sourceJoint < 0 || sourceJoint >= jointTotal)
+            {
+                ImGui::TextDisabled("コピーした形は、骨に付いていないので、反転できません");
+            }
+            else
+            {
+                const std::optional<int> autoJoint = KR::FindMirrorJoint(skeleton, sourceJoint);
+                if (autoJoint)
+                {
+                    m_MirrorTarget = *autoJoint;
+                    ImGui::Text("反転先の骨:%s(名前から自動)", skeleton.joints[static_cast<size_t>(m_MirrorTarget)].name.c_str());
+                }
+                else
+                {
+                    m_MirrorTarget = std::clamp(m_MirrorTarget, 0, jointTotal - 1);
+                    ImGui::TextDisabled("対の骨が、名前から決まりません。反転先の骨を選んでください");
+                    if (ImGui::BeginCombo("反転先の骨", skeleton.joints[static_cast<size_t>(m_MirrorTarget)].name.c_str()))
+                    {
+                        for (int i = 0; i < jointTotal; ++i)
+                        {
+                            const std::string label = skeleton.joints[static_cast<size_t>(i)].name + "##mirror" + std::to_string(i);
+                            if (ImGui::Selectable(label.c_str(), i == m_MirrorTarget))
+                            {
+                                m_MirrorTarget = i;
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                }
+
+                if (ImGui::Button("左右反転して貼り付け"))
+                {
+                    // 骨の行列は、2 つとも基準姿勢のもの(動きを再生していても、反転の結果は、変わらない)
+                    const std::vector<XMFLOAT4X4> basePose = KR::EvaluatePose(skeleton, nullptr, 0.0f);
+                    const size_t before = hitboxes.size();
+                    KR::Hitbox mirrored = KR::MirrorHitbox(*m_Clipboard, basePose[static_cast<size_t>(sourceJoint)], m_MirrorTarget, basePose[static_cast<size_t>(m_MirrorTarget)]);
+                    mirrored.name = skeleton.joints[static_cast<size_t>(m_MirrorTarget)].name;
+
+                    int onTarget = 0; // 反転先の骨に、すでにある形の数(= 貼った形の「何番目」)
+                    for (const KR::Hitbox& hitbox : hitboxes)
+                    {
+                        onTarget += (hitbox.jointIndex == m_MirrorTarget) ? 1 : 0;
+                    }
+                    hitboxes.push_back(mirrored);
+                    m_SelectedBone = m_MirrorTarget; // 貼った形を、選ぶ
+                    m_SubHitbox = onTarget;
+                    m_Dirty = true;
+                    KR_LOG_INFO("  判定の形を左右反転して貼り付け: 骨 {} → 骨 {}「{}」(形 {} → {} 個)", sourceJoint, m_MirrorTarget, mirrored.name, before, hitboxes.size());
+                }
+            }
         }
 
         // 保存・読み直し(<モデル名>.hitboxes.json。開いているアセットのフォルダーの、Models の下に書く)
