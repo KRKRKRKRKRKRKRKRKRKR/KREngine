@@ -137,8 +137,17 @@
   1. 別の部品に替える(imgui-node-editor は、ズームがあるが、ImGui の版との相性・取り込みの手間が、別に要る)。
   2. 自前で、ズームを足す(imnodes のソースを、触る = 固定したコミットから外れる)。
   3. ノードの文字を、`ImGui::SetWindowFontScale` などで、拡大する(ノードの大きさ・線の太さまでは、変わらない)。
+
+## 9. エディタの部品 GraphEditor(`GraphEditor.h`。B4-1〜)
+- グラフを、ImGui の窓の中に、ノードと線として描く部品。窓(`ImGui::Begin / End`)は、呼ぶ側が作る。`bool Draw(Graph&)` を毎フレーム呼ぶ。編集したら true(今は、ノードを動かしたとき)。別のグラフを開いたときは `Reset()`。
+- **imnodes の型は、公開ヘッダーに出さない**(pimpl。`struct Impl`)。`ImNodes::CreateContext` は、`GraphEditor` が自分で持つ(`ImGuiLayer` は、変えない)。ゲーム・ツールは、`GraphEditor` だけを使う。
+- 色:状態 = 青・条件 = 緑・開始ノード = 橙の太い枠 + タイトルに「[開始]」。種類の名前は、登録の日本語の名前(未登録の type は「(未登録)」)。
+- 位置:最初の 1 回だけ、グラフから imnodes に渡し、そのあとは imnodes が持つ。ドラッグで動いたら、`Node::posX/posY` に書き戻す(保存で位置が残る)。**選ばなかった案**:毎フレーム、グラフの位置を渡す(ドラッグが、効かなくなる)。
+- id:imnodes の id は、ノード・ピン・線で別の空間。ピンは `node.id * 4 + 1`(入力)・`+ 2`(出力)。線の id は、並びの番号 + 1(線の追加・削除は B4-3 で扱う)。
+- 確認用の `KRGraphEditorProbe`(`probe/BehaviorProbe/`。依頼の例のグラフを描く)。ツール `KRBehaviorEditor`(B4-7)ができたら、役目を終える。
 - **選ばなかった案**:`GetCurrentState()` が、値のコピー(`ParamMap`)を返す。毎フレームのコピーが無駄なので、指す形にした。
-## 9. 進み具合(B1〜B6)
+## 10. 進み具合(B1〜B6)
 済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2〜B2-3(条件の評価)・B2-4(Runner を作る・今の状態を読む)・B2-5〜B2-8(Update・分岐・SetGraph・Reset・共有)。= B2 は全部済。B3-1〜B3-3(imnodes の取り込み・相性の確認・ズームなしで進める判断)。
-これから:B4(エディタ)〜→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
+済(続き):B4-1(GraphEditor の骨組み)。
+これから:B4-2〜(エディタ)→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
 使い方(`Usage.md` の 8)は、ゲームが呼べる形(Runner)ができてから書く(B6-3)。

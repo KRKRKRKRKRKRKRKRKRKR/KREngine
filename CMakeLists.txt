@@ -134,6 +134,7 @@ set(ENGINE_FILES
     include/KR/Behavior/NodeTypes.h
     include/KR/Behavior/Context.h
     include/KR/Behavior/Runner.h
+    include/KR/Behavior/GraphEditor.h
     include/KR/Behavior/GraphFile.h
     include/KR/Animation/HitboxFile.h
     include/KR/Animation/AnimatedModel.h
@@ -166,6 +167,7 @@ set(ENGINE_FILES
     src/Behavior/NodeTypes.cpp
     src/Behavior/Context.cpp
     src/Behavior/Runner.cpp
+    src/Behavior/GraphEditor.cpp
     src/Behavior/Condition.h
     src/Behavior/Condition.cpp
     src/Behavior/GraphFile.cpp
