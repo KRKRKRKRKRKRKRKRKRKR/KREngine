@@ -416,10 +416,71 @@ protected:
         }
     }
 
+    // FBX のメッシュの確認(F3):同じモデルの .glb と .fbx を読んで、形が、そろっているか調べる(Models からの、拡張子なしの相対パス)
+    //   三角形の数・大きさ(幅・高さ・奥行き。メートル)・表裏(三角形の向きと、法線の向きが、そろっている三角形の割合)
+    // 置き場所(位置)は、比べない(FBX は、Blender の置き場所を、そのまま持つため。骨を読む F4 で、扱いを決める)
+    static void CheckFbxMesh(const std::filesystem::path& modelPath)
+    {
+        const KR::GltfModel gltf = KR::LoadGltf(std::filesystem::path(modelPath).concat(".glb"));
+        const KR::GltfModel fbx = KR::LoadFbx(std::filesystem::path(modelPath).concat(".fbx"));
+        if (gltf.IsEmpty() || fbx.IsEmpty())
+        {
+            KR_LOG_WARN("  FBX の確認: {} の .glb か .fbx が、読めないので、飛ばします", modelPath.string());
+            return;
+        }
+
+        struct Shape
+        {
+            XMFLOAT3 size;
+            float outwardRatio; // 三角形の向き(外積)と、頂点の法線が、同じ向きの三角形の割合(1 に近いほど、表裏が合っている)
+        };
+        auto measure = [](const KR::MeshData& mesh)
+        {
+            XMFLOAT3 minimum = mesh.vertices[0].position;
+            XMFLOAT3 maximum = minimum;
+            for (const KR::Vertex& vertex : mesh.vertices)
+            {
+                minimum = { std::min(minimum.x, vertex.position.x), std::min(minimum.y, vertex.position.y), std::min(minimum.z, vertex.position.z) };
+                maximum = { std::max(maximum.x, vertex.position.x), std::max(maximum.y, vertex.position.y), std::max(maximum.z, vertex.position.z) };
+            }
+            size_t same = 0;
+            const size_t triangles = mesh.indices.size() / 3;
+            for (size_t t = 0; t < triangles; ++t)
+            {
+                const KR::Vertex& a = mesh.vertices[mesh.indices[t * 3]];
+                const KR::Vertex& b = mesh.vertices[mesh.indices[t * 3 + 1]];
+                const KR::Vertex& c = mesh.vertices[mesh.indices[t * 3 + 2]];
+                const XMVECTOR normal = XMVector3Cross(XMVectorSubtract(XMLoadFloat3(&b.position), XMLoadFloat3(&a.position)),
+                                                       XMVectorSubtract(XMLoadFloat3(&c.position), XMLoadFloat3(&a.position)));
+                same += (XMVectorGetX(XMVector3Dot(normal, XMLoadFloat3(&a.normal))) > 0.0f) ? 1 : 0;
+            }
+            return Shape{ { maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z }, static_cast<float>(same) / static_cast<float>(std::max<size_t>(triangles, 1)) };
+        };
+
+        const Shape a = measure(gltf.mesh);
+        const Shape b = measure(fbx.mesh);
+        auto close = [](float x, float y) { return std::abs(x - y) < 0.01f; };
+        const bool trianglesMatch = gltf.mesh.indices.size() == fbx.mesh.indices.size();
+        const bool sizeMatch = close(a.size.x, b.size.x) && close(a.size.y, b.size.y) && close(a.size.z, b.size.z);
+        // 表裏:glTF の割合と、FBX の割合が、近ければ OK(どちらも、同じ決まりの表裏)。向きが逆なら、割合が、1 − ほぼ
+        const bool windingMatch = std::abs(a.outwardRatio - b.outwardRatio) < 0.05f;
+
+        if (trianglesMatch && sizeMatch && windingMatch)
+        {
+            KR_LOG_INFO("  FBX メッシュの確認: OK(glTF と一致:三角形 {}・大きさ {:.2f} × {:.2f} × {:.2f} m・表裏の割合 glTF {:.2f} / FBX {:.2f})",
+                        fbx.mesh.indices.size() / 3, b.size.x, b.size.y, b.size.z, a.outwardRatio, b.outwardRatio);
+        }
+        else
+        {
+            KR_LOG_ERROR("  FBX メッシュの確認 NG: 三角形 glTF {} / FBX {}・大きさ glTF ({:.3f}, {:.3f}, {:.3f}) / FBX ({:.3f}, {:.3f}, {:.3f})・表裏の割合 glTF {:.2f} / FBX {:.2f}",
+                         gltf.mesh.indices.size() / 3, fbx.mesh.indices.size() / 3, a.size.x, a.size.y, a.size.z, b.size.x, b.size.y, b.size.z, a.outwardRatio, b.outwardRatio);
+        }
+    }
+
     void OnInit() override
     {
         RunCollisionSelfTest();
-        KR::LoadFbx("Test/BossObstacle/BossObstacle.fbx"); // F2 の確認:ufbx で解析できるか(中身は、まだ読まない。F3 で、置き換える)
+        CheckFbxMesh("Test/BossObstacle/BossObstacle"); // F3 の確認:FBX のメッシュが、同じモデルの glTF と、そろっているか
         m_BoneRenderer.Create(GetRenderer());
 
         // 開くフォルダー・モデルの決め方:コマンドラインの引数 → 前回の記憶 → 既定(ビルドで決まった、アセットのフォルダー)
