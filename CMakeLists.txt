@@ -302,6 +302,7 @@ endfunction()
 if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
     add_subdirectory(samples/Minimal)
     add_subdirectory(samples/Animated)
+    add_subdirectory(samples/Behavior)
 endif()
 
 # ツールの共通の部品(フォルダーを選ぶ窓。調整ツールどうしで、共有)。KR_BUILD_TOOLS が ON のときだけ。下のツールより、先に

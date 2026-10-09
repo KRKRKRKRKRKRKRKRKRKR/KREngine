@@ -1,0 +1,148 @@
+{
+  "graph": "fsm",
+  "links": [
+    {
+      "from": 1,
+      "priority": 0,
+      "to": 2
+    },
+    {
+      "from": 2,
+      "priority": 0,
+      "to": 3
+    },
+    {
+      "from": 3,
+      "priority": 0,
+      "to": 4
+    },
+    {
+      "from": 4,
+      "priority": 0,
+      "to": 5
+    },
+    {
+      "from": 3,
+      "priority": 1,
+      "to": 7
+    },
+    {
+      "from": 7,
+      "priority": 0,
+      "to": 1
+    },
+    {
+      "from": 5,
+      "priority": 0,
+      "to": 6
+    },
+    {
+      "from": 6,
+      "priority": 0,
+      "to": 1
+    }
+  ],
+  "nextId": 8,
+  "nodes": [
+    {
+      "id": 1,
+      "kind": "state",
+      "params": {
+        "speed": 1.5
+      },
+      "pos": [
+        40.0,
+        60.0
+      ],
+      "type": "Patrol"
+    },
+    {
+      "id": 2,
+      "kind": "condition",
+      "params": {
+        "includeVertical": false,
+        "key": "distanceToPlayerX",
+        "keyY": "distanceToPlayerY",
+        "radius": 5.0
+      },
+      "pos": [
+        290.0,
+        60.0
+      ],
+      "type": "PlayerWithin"
+    },
+    {
+      "id": 3,
+      "kind": "state",
+      "params": {
+        "speed": 3.0
+      },
+      "pos": [
+        540.0,
+        60.0
+      ],
+      "type": "MoveToPlayer"
+    },
+    {
+      "id": 4,
+      "kind": "condition",
+      "params": {
+        "includeVertical": false,
+        "key": "distanceToPlayerX",
+        "keyY": "distanceToPlayerY",
+        "radius": 1.2
+      },
+      "pos": [
+        780.0,
+        60.0
+      ],
+      "type": "PlayerWithin"
+    },
+    {
+      "id": 5,
+      "kind": "state",
+      "params": {
+        "activeSeconds": 0.2,
+        "boxHeight": 0.8,
+        "boxWidth": 1.2,
+        "damage": 2,
+        "recoverySeconds": 0.6,
+        "windupSeconds": 0.5
+      },
+      "pos": [
+        1030.0,
+        40.0
+      ],
+      "type": "Attack"
+    },
+    {
+      "id": 6,
+      "kind": "condition",
+      "params": {
+        "key": "attackFinished"
+      },
+      "pos": [
+        780.0,
+        340.0
+      ],
+      "type": "AttackFinished"
+    },
+    {
+      "id": 7,
+      "kind": "condition",
+      "params": {
+        "includeVertical": false,
+        "key": "distanceToPlayerX",
+        "keyY": "distanceToPlayerY",
+        "radius": 8.0
+      },
+      "pos": [
+        540.0,
+        260.0
+      ],
+      "type": "PlayerOutside"
+    }
+  ],
+  "start": 1,
+  "version": 1
+}

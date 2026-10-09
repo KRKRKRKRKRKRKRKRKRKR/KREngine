@@ -12,6 +12,7 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 - 追加(作成中):敵の行動のツール `KRBehaviorEditor`(`tools/BehaviorEditor/`。ノードで作る・開く・保存する)。詳しくは [docs/BehaviorEditor.md](docs/BehaviorEditor.md)
 - 追加(作成中):`KR::Behavior::DrawGraphDebug`(動いている敵の「今の状態」のノードを、ゲームの ImGui の窓の中で光らせる。読むだけの表示)
 - 追加(作成中):`KR::Behavior::GraphAsset`(グラフのファイルが書き換わったら、約 0.5 秒おきに見て、自動で読み直す。壊れていたら、前のまま)
+- 追加(作成中):サンプル `KRBehavior`(`samples/Behavior/`。敵の行動の使い方の見本。グラフ `samples/Assets/Enemies/Walker.json`)
 - 変更(ツールの中だけ。ゲームには影響なし):`FolderDialog` を `tools/AnimationEditor/` から `tools/Common/`(静的ライブラリ `KRToolCommon`)へ移し、2 つのツールで共有した
 
 ## [0.3.0] — 2026-10-09
