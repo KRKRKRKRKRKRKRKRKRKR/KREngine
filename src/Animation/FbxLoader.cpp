@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,80 @@ namespace KR
         XMFLOAT3 ConvertPosition(const ufbx_vec3& v)
         {
             return { static_cast<float>(v.x), static_cast<float>(v.y), -static_cast<float>(v.z) };
+        }
+
+        // ufbx の行列(列ごとの 3 × 4:軸 3 本 + 位置。右手系)→ DirectXMath の行列(行ベクトルの形・左手系)
+        // 右手系 → 左手系は、Z を鏡にする:Z の添え字が「ひとつだけ」関わる要素(_13 _23 _31 _32 _43)の符号を反転する(GltfLoader の ConvertMatrix と同じ)
+        XMFLOAT4X4 ConvertMatrix(const ufbx_matrix& m)
+        {
+            XMFLOAT4X4 result;
+            result._11 = static_cast<float>(m.cols[0].x); result._12 = static_cast<float>(m.cols[0].y); result._13 = -static_cast<float>(m.cols[0].z); result._14 = 0.0f;
+            result._21 = static_cast<float>(m.cols[1].x); result._22 = static_cast<float>(m.cols[1].y); result._23 = -static_cast<float>(m.cols[1].z); result._24 = 0.0f;
+            result._31 = -static_cast<float>(m.cols[2].x); result._32 = -static_cast<float>(m.cols[2].y); result._33 = static_cast<float>(m.cols[2].z); result._34 = 0.0f;
+            result._41 = static_cast<float>(m.cols[3].x); result._42 = static_cast<float>(m.cols[3].y); result._43 = -static_cast<float>(m.cols[3].z); result._44 = 1.0f;
+            return result;
+        }
+
+        // 骨(Skeleton)と、骨の番号 → FBX のノード の対応(重みを読む F5・動きを読む F6 が、使う)
+        struct FbxSkeleton
+        {
+            Skeleton skeleton;
+            std::vector<const ufbx_node*> nodes; // skeleton.joints と、同じ並び
+        };
+
+        // 骨:スキン(ufbx_skin_deformer)の「クラスター」(= 骨 1 本の、影響の設定)が指すノードを、骨にする。番号は、クラスターの並び
+        //   (複数のスキンがあれば、順に足す。同じ骨は、1 回だけ)。重みの付いていない骨(先端の _end など)は、骨にならない(glTF の、スキンの joints と同じ考え方)
+        // 基準姿勢 = クラスターの bind_to_world(骨の、バインド時の世界の行列)。アニメーションの最初の時刻の姿勢ではなく、**バインド姿勢**
+        //   逆バインド行列 = bind_to_world の逆。親 = 祖先のうち、骨になっている、最も近い物(間のノードは、飛ばす。位置・向きは、世界の行列の差で、正しく出る)
+        //   根(親の骨が無い)は、基準姿勢 = 世界の行列そのもの・parentWorld は単位行列(モデルの座標 = FBX の世界の座標)
+        FbxSkeleton ReadSkeleton(const ufbx_scene& scene)
+        {
+            FbxSkeleton result;
+            std::vector<XMFLOAT4X4> bindWorld;
+            for (const ufbx_skin_deformer* deformer : scene.skin_deformers)
+            {
+                for (const ufbx_skin_cluster* cluster : deformer->clusters)
+                {
+                    if (!cluster->bone_node || std::find(result.nodes.begin(), result.nodes.end(), cluster->bone_node) != result.nodes.end())
+                    {
+                        continue;
+                    }
+                    result.nodes.push_back(cluster->bone_node);
+                    bindWorld.push_back(ConvertMatrix(cluster->bind_to_world));
+                }
+            }
+
+            result.skeleton.joints.resize(result.nodes.size());
+            for (size_t i = 0; i < result.nodes.size(); ++i)
+            {
+                Joint& joint = result.skeleton.joints[i];
+                joint.name = result.nodes[i]->name.data;
+
+                for (const ufbx_node* ancestor = result.nodes[i]->parent; ancestor && joint.parent < 0; ancestor = ancestor->parent)
+                {
+                    const auto found = std::find(result.nodes.begin(), result.nodes.end(), ancestor);
+                    if (found != result.nodes.end())
+                    {
+                        joint.parent = static_cast<int>(found - result.nodes.begin());
+                    }
+                }
+
+                const XMMATRIX world = XMLoadFloat4x4(&bindWorld[i]);
+                XMMATRIX local = world; // 根:世界の行列そのもの
+                if (joint.parent >= 0)
+                {
+                    local = world * XMMatrixInverse(nullptr, XMLoadFloat4x4(&bindWorld[static_cast<size_t>(joint.parent)]));
+                }
+                XMVECTOR scale, rotation, translation;
+                if (XMMatrixDecompose(&scale, &rotation, &translation, local))
+                {
+                    XMStoreFloat3(&joint.scale, scale);
+                    XMStoreFloat4(&joint.rotation, rotation);
+                    XMStoreFloat3(&joint.translation, translation);
+                }
+                XMStoreFloat4x4(&joint.inverseBind, XMMatrixInverse(nullptr, world));
+            }
+            return result;
         }
 
         // ファイルを、まるごと、メモリに読む。path は、std::filesystem::path のまま開く
@@ -144,6 +219,8 @@ namespace KR
 
         GltfModel model;
         ReadMeshes(*scene, model.mesh);
+        FbxSkeleton skeleton = ReadSkeleton(*scene);
+        model.skeleton = std::move(skeleton.skeleton);
         ufbx_free_scene(scene);
 
         if (model.mesh.vertices.empty())
@@ -160,9 +237,9 @@ namespace KR
             minimum = { std::min(minimum.x, vertex.position.x), std::min(minimum.y, vertex.position.y), std::min(minimum.z, vertex.position.z) };
             maximum = { std::max(maximum.x, vertex.position.x), std::max(maximum.y, vertex.position.y), std::max(maximum.z, vertex.position.z) };
         }
-        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨・動きは、まだ読みません",
+        KR_LOG_INFO("FbxLoader: {} 頂点 {} 三角形 / 大きさ {:.3f} × {:.3f} × {:.3f} m(範囲 x {:.2f}〜{:.2f}・y {:.2f}〜{:.2f}・z {:.2f}〜{:.2f})。骨 {} 本(重み・動きは、まだ読みません)",
                     model.mesh.vertices.size(), model.mesh.indices.size() / 3, maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z,
-                    minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z);
+                    minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z, model.skeleton.joints.size());
         return model;
     }
 }

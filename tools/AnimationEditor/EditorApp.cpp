@@ -475,6 +475,99 @@ protected:
             KR_LOG_ERROR("  FBX メッシュの確認 NG: 三角形 glTF {} / FBX {}・大きさ glTF ({:.3f}, {:.3f}, {:.3f}) / FBX ({:.3f}, {:.3f}, {:.3f})・表裏の割合 glTF {:.2f} / FBX {:.2f}",
                          gltf.mesh.indices.size() / 3, fbx.mesh.indices.size() / 3, a.size.x, a.size.y, a.size.z, b.size.x, b.size.y, b.size.z, a.outwardRatio, b.outwardRatio);
         }
+
+        // 骨(F4):数・名前・親が、glTF と同じか。基準姿勢が、逆バインド行列と合っているか。骨どうしの相対位置が、glTF と同じか
+        const KR::Skeleton& gs = gltf.skeleton;
+        const KR::Skeleton& fs = fbx.skeleton;
+        bool skeletonOk = gs.joints.size() == fs.joints.size();
+        std::string detail;
+        const std::vector<XMFLOAT4X4> gPose = KR::EvaluatePose(gs, nullptr, 0.0f);
+        const std::vector<XMFLOAT4X4> fPose = KR::EvaluatePose(fs, nullptr, 0.0f);
+        auto indexOf = [](const KR::Skeleton& s, const std::string& name) -> int
+        {
+            for (size_t i = 0; i < s.joints.size(); ++i)
+            {
+                if (s.joints[i].name == name)
+                {
+                    return static_cast<int>(i);
+                }
+            }
+            return -1;
+        };
+        auto rootOf = [](const KR::Skeleton& s) -> int
+        {
+            for (size_t i = 0; i < s.joints.size(); ++i)
+            {
+                if (s.joints[i].parent < 0)
+                {
+                    return static_cast<int>(i);
+                }
+            }
+            return -1;
+        };
+        const int gRoot = rootOf(gs);
+        const int fRoot = rootOf(fs);
+        if (skeletonOk && gRoot >= 0 && fRoot >= 0)
+        {
+            const XMFLOAT4X4& gr = gPose[static_cast<size_t>(gRoot)];
+            const XMFLOAT4X4& fr = fPose[static_cast<size_t>(fRoot)];
+            for (const KR::Joint& joint : gs.joints)
+            {
+                const int j = indexOf(fs, joint.name);
+                if (j < 0)
+                {
+                    skeletonOk = false;
+                    detail += " 骨「" + joint.name + "」が FBX に無い";
+                    continue;
+                }
+                const KR::Joint& other = fs.joints[static_cast<size_t>(j)];
+                const std::string gParent = joint.parent >= 0 ? gs.joints[static_cast<size_t>(joint.parent)].name : "";
+                const std::string fParent = other.parent >= 0 ? fs.joints[static_cast<size_t>(other.parent)].name : "";
+                if (gParent != fParent)
+                {
+                    skeletonOk = false;
+                    detail += " 「" + joint.name + "」の親が違う";
+                }
+                // 根の骨からの相対位置(置き場所の違いを、打ち消す)
+                const XMFLOAT4X4& gw = gPose[static_cast<size_t>(&joint - gs.joints.data())];
+                const XMFLOAT4X4& fw = fPose[static_cast<size_t>(j)];
+                if (!close(gw._41 - gr._41, fw._41 - fr._41) || !close(gw._42 - gr._42, fw._42 - fr._42) || !close(gw._43 - gr._43, fw._43 - fr._43))
+                {
+                    skeletonOk = false;
+                    detail += " 「" + joint.name + "」の相対位置が違う";
+                }
+            }
+        }
+        // 基準姿勢 × 逆バインド = 単位行列(骨の世界の行列と、逆バインドが、矛盾していない)
+        float worstBind = 0.0f;
+        for (size_t i = 0; i < fs.joints.size(); ++i)
+        {
+            const XMMATRIX product = XMLoadFloat4x4(&fPose[i]) * XMLoadFloat4x4(&fs.joints[i].inverseBind);
+            XMFLOAT4X4 p;
+            XMStoreFloat4x4(&p, product);
+            const float* e = &p._11;
+            for (int k = 0; k < 16; ++k)
+            {
+                worstBind = std::max(worstBind, std::abs(e[k] - ((k % 5 == 0) ? 1.0f : 0.0f)));
+            }
+        }
+        if (worstBind > 0.01f)
+        {
+            skeletonOk = false;
+            detail += " 基準姿勢 × 逆バインドが、単位行列と合わない(最大のずれ " + std::to_string(worstBind) + ")";
+        }
+
+        if (skeletonOk)
+        {
+            const XMFLOAT4X4& fr = fPose[static_cast<size_t>(fRoot)];
+            const XMFLOAT4X4& gr = gPose[static_cast<size_t>(gRoot)];
+            KR_LOG_INFO("  FBX 骨の確認: OK(骨 {} 本・名前と親が glTF と一致・骨どうしの相対位置が一致・基準姿勢 × 逆バインド = 単位行列(最大のずれ {:.5f}))。根の骨の置き場所:glTF ({:.2f}, {:.2f}, {:.2f}) / FBX ({:.2f}, {:.2f}, {:.2f})",
+                        fs.joints.size(), worstBind, gr._41, gr._42, gr._43, fr._41, fr._42, fr._43);
+        }
+        else
+        {
+            KR_LOG_ERROR("  FBX 骨の確認 NG: 骨の数 glTF {} / FBX {}。{}", gs.joints.size(), fs.joints.size(), detail);
+        }
     }
 
     void OnInit() override
