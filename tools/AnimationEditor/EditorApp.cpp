@@ -260,6 +260,78 @@ protected:
             check("ギズモ 回した骨では、骨の中の X は変わらない", nearEnough(moved.x, 1.0f), true);
         }
 
+        // 左右反転:左の骨(x = +1・Y 軸に 90° 回っている)と、右の骨(x = −1・Y 軸に −90°)
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            XMFLOAT4X4 leftBone;
+            XMFLOAT4X4 rightBone;
+            XMStoreFloat4x4(&leftBone, XMMatrixRotationY(XM_PIDIV2) * XMMatrixTranslation(1.0f, 0.0f, 0.0f));
+            XMStoreFloat4x4(&rightBone, XMMatrixRotationY(-XM_PIDIV2) * XMMatrixTranslation(-1.0f, 0.0f, 0.0f));
+
+            KR::Hitbox box;
+            box.name = "Arm.L";
+            box.jointIndex = 0;
+            box.shape = KR::HitShape::Box;
+            box.center = { 0.2f, 0.5f, 0.1f };
+            XMStoreFloat4(&box.rotation, XMQuaternionRotationRollPitchYaw(0.3f, 0.5f, 0.2f)); // 斜めに回した箱(軸が、世界の軸に、そろわない)
+            box.halfSize = { 0.1f, 0.2f, 0.3f };
+
+            // 世界の形(骨の姿勢 = 左右の骨の行列・モデル全体の行列は、単位)
+            const std::vector<XMFLOAT4X4> pose = { leftBone, rightBone };
+            auto worldOf = [&](const KR::Hitbox& hitbox) { return KR::EvaluateHitboxes({ hitbox }, pose, XMMatrixIdentity())[0]; };
+
+            // 箱 b の 8 つの角のそれぞれが、箱 a の角を X 反転した点のどれかに重なるか(角の集合が、鏡映しで一致するか)
+            auto isMirrorImage = [&](const KR::OBB& a, const KR::OBB& b)
+            {
+                for (const XMFLOAT3& corner : KR::GetCorners(a))
+                {
+                    bool found = false;
+                    for (const XMFLOAT3& other : KR::GetCorners(b))
+                    {
+                        if (nearEnough(-corner.x, other.x) && nearEnough(corner.y, other.y) && nearEnough(corner.z, other.z))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            const KR::Hitbox mirrored = KR::MirrorHitbox(box, leftBone, 1, rightBone);
+            check("左右反転 箱:骨の番号が、対の骨になる", mirrored.jointIndex == 1, true);
+            check("左右反転 箱:世界の形が、X = 0 の鏡映し(角が、すべて一致)", isMirrorImage(worldOf(box).box, worldOf(mirrored).box), true);
+            const XMVECTOR q = XMLoadFloat4(&mirrored.rotation);
+            check("左右反転 箱:向きは、普通の回転(クォータニオンの長さ 1・軸の行列式 +1)",
+                  nearEnough(XMVectorGetX(XMVector4Length(q)), 1.0f) && XMVectorGetX(XMMatrixDeterminant(XMMatrixRotationQuaternion(q))) > 0.0f, true);
+            check("左右反転 箱:半分の大きさは、変わらない",
+                  nearEnough(mirrored.halfSize.x, 0.1f) && nearEnough(mirrored.halfSize.y, 0.2f) && nearEnough(mirrored.halfSize.z, 0.3f), true);
+
+            const KR::Hitbox back = KR::MirrorHitbox(mirrored, rightBone, 0, leftBone);
+            const KR::WorldHitbox original = worldOf(box);
+            const KR::WorldHitbox twice = worldOf(back);
+            check("左右反転 箱:2 回反転で、もとの場所に戻る(中心)",
+                  nearEnough(original.box.center.x, twice.box.center.x) && nearEnough(original.box.center.y, twice.box.center.y) && nearEnough(original.box.center.z, twice.box.center.z), true);
+            check("左右反転 箱:2 回反転で、もとの形に戻る(角が、すべて一致)", isMirrorImage(original.box, [&] { KR::OBB m = twice.box; m.center.x = -m.center.x; for (auto& a : m.axes) { a.x = -a.x; } return m; }()), true);
+            check("左右反転 箱:2 回反転で、骨の中の座標も戻る", nearEnough(back.center.x, box.center.x) && nearEnough(back.center.y, box.center.y) && nearEnough(back.center.z, box.center.z), true);
+
+            // 球:中心だけが鏡映し・半径は同じ。左の骨の x = 1 の先 → 世界 x = 1 + ... を、右の骨の中で
+            KR::Hitbox sphere;
+            sphere.jointIndex = 0;
+            sphere.shape = KR::HitShape::Sphere;
+            sphere.center = { 0.0f, 0.0f, 0.5f };
+            sphere.radius = 0.25f;
+            const KR::WorldHitbox sphereWorld = worldOf(sphere);
+            const KR::WorldHitbox mirroredSphere = worldOf(KR::MirrorHitbox(sphere, leftBone, 1, rightBone));
+            check("左右反転 球:中心が X = 0 の鏡映し・半径は同じ",
+                  nearEnough(-sphereWorld.sphere.center.x, mirroredSphere.sphere.center.x) && nearEnough(sphereWorld.sphere.center.y, mirroredSphere.sphere.center.y)
+                      && nearEnough(sphereWorld.sphere.center.z, mirroredSphere.sphere.center.z) && nearEnough(mirroredSphere.sphere.radius, 0.25f), true);
+        }
+
         // コピー・貼り付け
         {
             auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-5f; };
@@ -311,7 +383,7 @@ protected:
 
         if (failures == 0)
         {
-            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・大きさ・コピー貼り付け・クリックの見分け)");
+            KR_LOG_INFO("  判定の確認: OK(球×球・球×箱・回した箱・画面の点からのレイ・レイ×球・箱・レイ×線分・ギズモの移動量・大きさ・左右反転・コピー貼り付け・クリックの見分け)");
         }
     }
 
