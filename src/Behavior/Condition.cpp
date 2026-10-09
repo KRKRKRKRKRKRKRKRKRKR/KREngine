@@ -1,6 +1,9 @@
 #include "Condition.h"
 
+#include "KR/Core/Log.h"
+
 #include <cmath>
+#include <set>
 
 namespace KR::Behavior
 {
@@ -45,6 +48,21 @@ namespace KR::Behavior
             return defaultValue;
         }
 
+        // 状況にキーがあるか。無ければ、そのキーについて、警告を 1 回だけ出す(毎フレームの洪水を防ぐ)
+        bool HasKeyOrWarn(const Context& context, const std::string& key)
+        {
+            if (context.Has(key))
+            {
+                return true;
+            }
+            static std::set<std::string> warned;
+            if (warned.insert(key).second)
+            {
+                KR_LOG_WARN("Behavior: 状況にキー \"{}\" がありません(この条件は偽になります。ゲームが SetFloat などで入れてください)", key);
+            }
+            return false;
+        }
+
         enum class Zone
         {
             Unknown, // キーが無くて、判定できない
@@ -56,7 +74,7 @@ namespace KR::Behavior
         Zone JudgeZone(const Node& node, const Context& context)
         {
             const std::string keyX = StringParam(node, "key", "distanceToPlayerX");
-            if (!context.Has(keyX))
+            if (!HasKeyOrWarn(context, keyX))
             {
                 return Zone::Unknown;
             }
@@ -65,7 +83,7 @@ namespace KR::Behavior
             if (BoolParam(node, "includeVertical", false))
             {
                 const std::string keyY = StringParam(node, "keyY", "distanceToPlayerY");
-                if (!context.Has(keyY))
+                if (!HasKeyOrWarn(context, keyY))
                 {
                     return Zone::Unknown;
                 }
@@ -79,7 +97,6 @@ namespace KR::Behavior
 
     bool EvaluateCondition(const Node& node, const Context& context, float timeInState)
     {
-        (void)timeInState; // B2-3 で使う
         if (node.type == "PlayerWithin")
         {
             return JudgeZone(node, context) == Zone::Inside;
@@ -88,6 +105,15 @@ namespace KR::Behavior
         {
             return JudgeZone(node, context) == Zone::Outside;
         }
-        return false; // TimeElapsed・AttackFinished は B2-3
+        if (node.type == "TimeElapsed")
+        {
+            return timeInState >= FloatParam(node, "seconds", 0.0f);
+        }
+        if (node.type == "AttackFinished")
+        {
+            const std::string key = StringParam(node, "key", "attackFinished");
+            return HasKeyOrWarn(context, key) && context.GetBool(key);
+        }
+        return false;
     }
 }

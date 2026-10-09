@@ -73,9 +73,11 @@
 - `EvaluateCondition(node, context, timeInState)`。
 - `PlayerWithin` / `PlayerOutside`:**横(X)だけの距離**が基本。`includeVertical` が true のときは、縦(`keyY`)も含めて √(x²+y²) で比べる(Ryusei の決定)。**ちょうど半径は、内側**(`距離 <= 半径` が内)。
 - キーが無いときは、判定できないので、`PlayerOutside` も偽(「内でない」を「外」とはしない)。
-- `TimeElapsed`・`AttackFinished`:次の段階(B2-3)。
+- `TimeElapsed`:状態に入ってからの秒 `>=` seconds で真(ちょうどの秒も真)。
+- `AttackFinished`:状況の `key`(既定 `attackFinished`)が true のとき真。
+- **キーが無いときは、偽 + 警告を、そのキーについて 1 回だけ**出す(静的な集合で覚える。毎フレーム出すと、ログが埋まるため)。**選ばなかった案**:条件ノードごとに 1 回。同じキーを見る条件が複数あっても、原因は 1 つ(ゲームが入れ忘れ)なので、キー単位にした。ゲームを再起動するまで、同じキーの警告は、2 回目以降は出ない。
 
 ## 7. 進み具合(B1〜B6)
-済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2(距離の条件)。
-これから:B2-3〜(条件の残り・Runner)→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
+済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2〜B2-3(条件の評価)。
+これから:B2-4〜(Runner)→ B3(imnodes)→ B4(エディタ)→ B5(デバッグ表示・再読み込み)→ B6(サンプル・docs・版 0.4.0)。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
 使い方(`Usage.md` の 8)は、ゲームが呼べる形(Runner)ができてから書く(B6-3)。
