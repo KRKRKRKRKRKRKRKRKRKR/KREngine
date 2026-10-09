@@ -1,8 +1,8 @@
 // 敵の行動の調整ツール KRBehaviorEditor
 // 状態(青)と条件(緑)を、ノードでつないで、敵の行動のグラフを作る。詳しい使い方は docs/BehaviorEditor.md
 //
-// 今の段階(B4-8):アセットのフォルダーを開く(文字欄・引数 --assets)・Assets/Enemies/*.json の一覧・選んで開く
-// 次の段階:保存・新規・読み直し(B4-9)・「保存していない」の印・設定の記憶(B4-10)
+// 今の段階(B4-9):フォルダーを開く・一覧・開く(B4-8)/ 保存・新規・読み直し(B4-9)
+// 次の段階:「保存していない」の印・切り替え時の確認・設定の記憶(B4-10)
 
 #include <KR/KR.h>
 #include <KR/Behavior/GraphEditor.h>
@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace KR::Behavior;
@@ -34,6 +35,18 @@ namespace
     std::filesystem::path FromUtf8(const std::string& text)
     {
         return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(text.data()), text.size()));
+    }
+
+    // グラフの名前(ファイル名から .json を除いた物)として、使えるか。空・前後の空白や「.」・Windows で使えない文字(\ / : * ? " < > |)・制御文字は、不可
+    // (Enemies フォルダーの外へ書くことになる「..」や「/」を、ここで防ぐ)
+    bool IsValidGraphName(const std::string& name)
+    {
+        if (name.empty() || name.front() == ' ' || name.back() == ' ' || name.front() == '.' || name.back() == '.')
+        {
+            return false;
+        }
+        return std::none_of(name.begin(), name.end(), [](char c)
+            { return static_cast<unsigned char>(c) < 0x20 || std::string_view("\\/:*?\"<>|").find(c) != std::string_view::npos; });
     }
 }
 
@@ -146,13 +159,78 @@ private:
         if (result != GraphLoadResult::Loaded)
         {
             m_StatusMessage = (result == GraphLoadResult::NotFound ? "ファイルがありません: " : "読み込めません(壊れています): ") + name + ".json";
+            m_StatusIsError = true;
             return false;
         }
         m_Graph = std::move(loaded);
         m_Editor->Reset(); // ノードの位置を、新しいグラフから、取り直す
         m_CurrentName = name;
+        std::snprintf(m_NameText, sizeof(m_NameText), "%s", name.c_str());
         m_StatusMessage = "";
+        m_StatusIsError = true;
         return true;
+    }
+
+    // ---- 保存・新規・読み直し ----
+
+    // 名前 = 保存先(Enemies/<名前>.json)。今の名前と違う名前で、同じ名前のファイルが既にあるときは、上書きの確認を出す(confirmed = 確認が済んだ)
+    bool SaveGraphAs(const std::string& name, bool confirmed)
+    {
+        if (!IsValidGraphName(name))
+        {
+            m_StatusMessage = "名前が使えません(空・前後の空白や「.」・\\ / : * ? \" < > | は、使えません)";
+            m_StatusIsError = true;
+            return false;
+        }
+
+        const std::filesystem::path file = KR::GetAssetDirectory(EnemiesFolderName) / FromUtf8(name + ".json");
+        std::error_code error;
+        if (!confirmed && name != m_CurrentName && std::filesystem::exists(file, error))
+        {
+            m_PendingOverwriteName = name;
+            m_OpenOverwritePopup = true;
+            return false;
+        }
+
+        if (!SaveGraph(m_Graph, file))
+        {
+            m_StatusMessage = "保存できません: " + name + ".json(ログを見てください)";
+            m_StatusIsError = true;
+            return false;
+        }
+        m_CurrentName = name;
+        RefreshFileList(); // 新しい名前を、一覧に出す(この中で、状態の行は、空になる)
+        m_StatusMessage = "保存しました: " + name + ".json";
+        m_StatusIsError = false;
+        return true;
+    }
+
+    // 新規:待機 1 つの、まっさらなグラフ。名前は、まだ無い(保存のとき、付ける)
+    void NewGraph()
+    {
+        m_Graph = *MakeDefaultGraph();
+        if (Node* start = m_Graph.FindNode(m_Graph.startNode))
+        {
+            start->posX = 40.0f;
+            start->posY = 60.0f;
+        }
+        m_Editor->Reset();
+        m_CurrentName.clear();
+        m_NameText[0] = '\0';
+        m_StatusMessage = "";
+        m_StatusIsError = true;
+    }
+
+    // 読み直し:今の名前のファイルを、読み直す(今のグラフの変更は、捨てられる)
+    void ReloadGraph()
+    {
+        if (m_CurrentName.empty())
+        {
+            m_StatusMessage = "まだ保存していないので、読み直せません";
+            m_StatusIsError = true;
+            return;
+        }
+        OpenGraph(m_CurrentName);
     }
 
     // ---- ImGui の各区画 ----
@@ -168,13 +246,59 @@ private:
         }
         ImGui::TextDisabled("(Enter で開く)");
 
+        // 保存・新規・読み直し。名前を変えて保存すると、別のファイルになる
+        ImGui::SeparatorText("このグラフ");
+        ImGui::SetNextItemWidth(-1.0f);
+        const bool nameEntered = ImGui::InputTextWithHint("##name", "名前(.json は、不要)", m_NameText, sizeof(m_NameText), ImGuiInputTextFlags_EnterReturnsTrue);
+        if (ImGui::Button("保存") || nameEntered)
+        {
+            SaveGraphAs(m_NameText, false);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("新規"))
+        {
+            NewGraph();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("読み直し"))
+        {
+            ReloadGraph();
+        }
+
+        // Ctrl+S = 保存(文字欄に入力中は、除く)
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S) && !ImGui::GetIO().WantTextInput)
+        {
+            SaveGraphAs(m_NameText, false);
+        }
+
+        if (m_OpenOverwritePopup)
+        {
+            ImGui::OpenPopup("上書きの確認");
+            m_OpenOverwritePopup = false;
+        }
+        if (ImGui::BeginPopupModal("上書きの確認", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::Text("「%s.json」は、すでにあります。上書きしますか?", m_PendingOverwriteName.c_str());
+            if (ImGui::Button("上書きする"))
+            {
+                SaveGraphAs(m_PendingOverwriteName, true);
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("やめる"))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
         ImGui::SeparatorText("敵の行動(Enemies)");
         if (ImGui::Button("一覧を更新"))
         {
             RefreshFileList();
         }
 
-        ImGui::BeginChild("一覧", ImVec2(0.0f, -80.0f), ImGuiChildFlags_Borders);
+        ImGui::BeginChild("一覧", ImVec2(0.0f, -110.0f), ImGuiChildFlags_Borders);
         for (const std::string& name : m_Files)
         {
             if (ImGui::Selectable(name.c_str(), name == m_CurrentName))
@@ -188,7 +312,9 @@ private:
         ImGui::TextWrapped("%s", m_CurrentName.empty() ? "(見本のグラフ)" : m_CurrentName.c_str());
         if (!m_StatusMessage.empty())
         {
-            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.25f, 1.0f), "%s", m_StatusMessage.c_str());
+            ImGui::PushStyleColor(ImGuiCol_Text, m_StatusIsError ? ImVec4(1.0f, 0.75f, 0.25f, 1.0f) : ImVec4(0.45f, 0.85f, 0.55f, 1.0f));
+            ImGui::TextWrapped("%s", m_StatusMessage.c_str());
+            ImGui::PopStyleColor();
         }
     }
 
@@ -200,6 +326,10 @@ private:
     std::vector<std::string> m_Files;   // Enemies/ の下の、グラフの名前(.json を除く。UTF-8)
     std::string m_CurrentName;          // 開いているグラフの名前(空 = 見本・まだ保存していない)
     std::string m_StatusMessage;        // 画面に出す 1 行(エラーなど)
+    bool m_StatusIsError = true;        // 1 行の色(エラー = 橙・成功 = 緑)
+    char m_NameText[128] = {};          // 保存する名前の文字欄(UTF-8。.json を除く)
+    std::string m_PendingOverwriteName; // 上書きの確認の、待ち
+    bool m_OpenOverwritePopup = false;
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()
