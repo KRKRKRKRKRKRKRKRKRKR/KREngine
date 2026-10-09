@@ -1,5 +1,6 @@
 #pragma once
 
+#include "KR/Behavior/Context.h"
 #include "KR/Behavior/Graph.h"
 
 #include <string>
@@ -41,6 +42,11 @@ namespace KR::Behavior
         // 開始ノードの状態に入った状態で作る。開始ノードが正しくなければ、最初の状態から。
         // 状態が 1 つも無い(または null の)グラフなら、待機 1 つの既定のグラフを使う
         explicit Runner(GraphPtr graph);
+
+        // 1 フレーム進める。時間を dt だけ進め、今の状態から出る線を priority の小さい順に調べて、
+        // 最初に成り立った条件の先の状態へ移る。**移るのは、1 回の Update で 1 回まで**(線が輪になっていても、止まらなくなることがない)
+        // 移ったら、入ってからの時間は 0 に戻り、EnteredThisFrame() が true になる(次の Update で false)
+        void Update(float deltaTime, const Context& context);
 
         StateView GetCurrentState() const;
         const GraphPtr& GetGraph() const { return graph_; }

@@ -1,5 +1,7 @@
 #include "KR/Behavior/Runner.h"
 
+#include "Condition.h"
+
 #include <algorithm>
 
 namespace KR::Behavior
@@ -78,6 +80,40 @@ namespace KR::Behavior
         {
             graph_ = MakeDefaultGraph();
             currentNode_ = graph_->startNode;
+        }
+    }
+
+    void Runner::Update(float deltaTime, const Context& context)
+    {
+        enteredThisFrame_ = false;
+        timeInState_ += deltaTime;
+
+        // 状態 → 条件 → 状態。状態から出る線(priority 順)のうち、最初に成り立つ条件の先へ移る
+        for (const Link& toCondition : graph_->OutgoingLinks(currentNode_))
+        {
+            const Node* condition = graph_->FindNode(toCondition.to);
+            if (condition == nullptr || condition->kind != NodeKind::Condition)
+            {
+                continue; // 状態へ直接つなぐ線は、使わない(条件のない移動は、作らない)
+            }
+            if (!EvaluateCondition(*condition, context, timeInState_))
+            {
+                continue;
+            }
+
+            // 条件の出力(1 本のはず。複数あれば、priority の小さい順で最初の状態)
+            for (const Link& toState : graph_->OutgoingLinks(condition->id))
+            {
+                const Node* next = graph_->FindNode(toState.to);
+                if (next != nullptr && next->kind == NodeKind::State)
+                {
+                    currentNode_ = next->id;
+                    timeInState_ = 0.0f;
+                    enteredThisFrame_ = true;
+                    return; // 1 回の Update で移るのは、1 回まで
+                }
+            }
+            // 出力がつながっていない条件は、成り立っても、移れない → 次の線を調べる
         }
     }
 
