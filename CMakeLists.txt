@@ -167,6 +167,8 @@ set(ENGINE_FILES
     src/Behavior/NodeTypes.cpp
     src/Behavior/Context.cpp
     src/Behavior/Runner.cpp
+    src/Behavior/GraphEdit.h
+    src/Behavior/GraphEdit.cpp
     src/Behavior/GraphEditor.cpp
     src/Behavior/Condition.h
     src/Behavior/Condition.cpp

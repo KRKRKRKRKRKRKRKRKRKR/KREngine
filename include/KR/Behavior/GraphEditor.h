@@ -17,8 +17,10 @@ namespace KR::Behavior
         GraphEditor(const GraphEditor&) = delete;
         GraphEditor& operator=(const GraphEditor&) = delete;
 
-        // グラフを描く(毎フレーム。ImGui の窓の中で呼ぶ)。graph を編集したら、true を返す(ノードを動かした・値の欄を変えた)
+        // グラフを描く(毎フレーム。ImGui の窓の中で呼ぶ)。graph を編集したら、true を返す(ノードを動かした・値の欄を変えた・線をつないだ / 消した)
         // 状態 = 青・条件 = 緑・開始ノード = 橙の枠と「開始」の印
+        // 線:出力ピン(右)→ 入力ピン(左)へ、ドラッグして、つなぐ。つなげるのは、状態 → 条件・条件 → 状態だけ(条件は、入力 1・出力 1 まで)
+        // 消す:線を選んで Delete・線をピンから引き離す
         bool Draw(Graph& graph);
 
         // 別のグラフを開いたとき(読み直し・新規など)に呼ぶ。ノードの位置を、グラフから、取り直す

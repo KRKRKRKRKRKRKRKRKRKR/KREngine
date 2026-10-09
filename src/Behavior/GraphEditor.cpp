@@ -1,5 +1,6 @@
 #include "KR/Behavior/GraphEditor.h"
 
+#include "GraphEdit.h"
 #include "KR/Behavior/NodeTypes.h"
 
 #include <imgui.h>
@@ -10,6 +11,7 @@
 #include <cstdio>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace KR::Behavior
 {
@@ -178,6 +180,51 @@ namespace KR::Behavior
         }
 
         ImNodes::EndNodeEditor();
+
+        // 線の追加:ピンからピンへドラッグして離すと来る。出力ピン → 入力ピンの向きに直して、ルール(CanAddLink)に合うときだけ足す
+        int startPin = 0;
+        int endPin = 0;
+        if (ImNodes::IsLinkCreated(&startPin, &endPin))
+        {
+            const bool startIsOutput = startPin % 4 == 2;
+            const bool endIsOutput = endPin % 4 == 2;
+            if (startIsOutput != endIsOutput) // 出力どうし・入力どうしは、つなげない
+            {
+                const int outputPin = startIsOutput ? startPin : endPin;
+                const int inputPin = startIsOutput ? endPin : startPin;
+                changed |= AddLink(graph, outputPin / 4, inputPin / 4);
+            }
+        }
+
+        // 線の削除:線をピンから引き離した(IsLinkDestroyed)・選んで Delete キー。文字欄に入力中の Delete は、除く
+        std::set<int> removeIndices;
+        int destroyedLink = 0;
+        if (ImNodes::IsLinkDestroyed(&destroyedLink))
+        {
+            removeIndices.insert(destroyedLink - 1);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_Delete) && !ImGui::GetIO().WantTextInput)
+        {
+            const int selectedCount = ImNodes::NumSelectedLinks();
+            if (selectedCount > 0)
+            {
+                std::vector<int> selected(static_cast<size_t>(selectedCount));
+                ImNodes::GetSelectedLinks(selected.data());
+                for (const int id : selected)
+                {
+                    removeIndices.insert(id - 1);
+                }
+                ImNodes::ClearLinkSelection();
+            }
+        }
+        for (auto it = removeIndices.rbegin(); it != removeIndices.rend(); ++it) // 後ろから消す(番号がずれない)
+        {
+            if (*it >= 0 && static_cast<size_t>(*it) < graph.links.size())
+            {
+                graph.links.erase(graph.links.begin() + *it);
+                changed = true;
+            }
+        }
 
         // ドラッグで動いた位置を、グラフに書き戻す(保存したとき、位置が残る)
         for (Node& node : graph.nodes)
