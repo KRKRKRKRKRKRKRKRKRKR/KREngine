@@ -44,3 +44,10 @@
 ## まだ、ないこと
 
 - 元に戻す・コピー・ズーム(imnodes に、ズームの機能がない = `docs/Behavior.md` の相性の記録)
+
+## 最初の 1 回(使い方)
+1. ビルド:`cmake --preset vs2026` → `cmake --build build --config Debug`(`KRBehaviorEditor` は、一緒にビルドされる)。実行ファイルは、`build/tools/BehaviorEditor/Debug/KRBehaviorEditor.exe`。
+2. 起動:`KRBehaviorEditor.exe --assets "<ゲームの Assets フォルダー>"`(「参照...」でも選べる。2 回目からは、前回のフォルダーとグラフが、自動で開く)。
+3. グラフを作る(右クリックでノードを足す・ピンからピンへドラッグ・値を直す・「ここから始める」)。上の「警告」を、見る。
+4. 名前を書いて「保存」→ `<Assets>/Enemies/<名前>.json`。ゲームでの使い方は、[Usage.md](Usage.md) の 8。サンプル `KRBehavior` が、動く見本(`samples/Assets/Enemies/Walker.json`)。
+- ゲームが動いている間に保存すると、約 0.5 秒で、反映される(ゲームが `GraphAsset` を使っているとき)。
