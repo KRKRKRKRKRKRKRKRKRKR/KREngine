@@ -67,6 +67,38 @@ namespace
         return result;
     }
 
+    // 大きさのギズモ:世界の大きさが oldScale → newScale に変わったとき、骨の中の大きさ(半分の大きさ)の、新しい値
+    // 軸ごとに、比(new / old)を掛ける。小さくしすぎて、形が消えないよう、最小値で止める
+    constexpr float MinShapeSize = 0.01f;
+
+    XMFLOAT3 ScaleHalfSize(const XMFLOAT3& half, const XMFLOAT3& oldScale, const XMFLOAT3& newScale)
+    {
+        auto scaled = [](float value, float oldValue, float newValue)
+        {
+            return oldValue > 1e-9f ? std::max(value * newValue / oldValue, MinShapeSize) : value;
+        };
+        return { scaled(half.x, oldScale.x, newScale.x), scaled(half.y, oldScale.y, newScale.y), scaled(half.z, oldScale.z, newScale.z) };
+    }
+
+    // 球:半径は 1 つだけ。3 軸のうち、一番大きく変わった軸の比を使う(中心のつまみ = 3 軸いっしょ・1 軸の矢印 = その軸だけ変わる)
+    float ScaleRadius(float radius, float oldScale, const XMFLOAT3& newScale)
+    {
+        if (oldScale <= 1e-9f)
+        {
+            return radius;
+        }
+        float ratio = 1.0f;
+        for (const float value : { newScale.x, newScale.y, newScale.z })
+        {
+            const float r = value / oldScale;
+            if (std::abs(r - 1.0f) > std::abs(ratio - 1.0f))
+            {
+                ratio = r;
+            }
+        }
+        return std::max(radius * ratio, MinShapeSize);
+    }
+
     // クリックとドラッグの見分け:押してから離すまでに、押した点から 4 ピクセル以上離れたら、ドラッグ(途中で戻ってきても、ドラッグ)
     class ClickDetector
     {
@@ -215,6 +247,19 @@ protected:
             check("ギズモ 動いた長さは、世界でも骨の中でも 0.5", nearEnough(length, 0.5f), true);
             // 90° 回した骨では、世界の +X は、骨の中の Z の向き(X は、変わらない)
             check("ギズモ 回した骨では、骨の中の X は変わらない", nearEnough(moved.x, 1.0f), true);
+        }
+
+        // 大きさのギズモ:世界の大きさの変化 → 骨の中の大きさ
+        {
+            auto nearEnough = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+            // 骨の中の半分の大きさ (1, 2, 3)・世界では 2 倍(モデルが 2 倍に拡大されている)→ 世界 X を 2 → 4 にすると、骨の中の X も 2 倍
+            const XMFLOAT3 half = ScaleHalfSize({ 1.0f, 2.0f, 3.0f }, { 2.0f, 4.0f, 6.0f }, { 4.0f, 4.0f, 6.0f });
+            check("大きさ 箱:X だけ 2 倍(他は不変)", nearEnough(half.x, 2.0f) && nearEnough(half.y, 2.0f) && nearEnough(half.z, 3.0f), true);
+            const XMFLOAT3 tiny = ScaleHalfSize({ 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, -1.0f, 0.001f });
+            check("大きさ 箱:小さくしすぎても、最小値(0.01)で止まる", nearEnough(tiny.x, MinShapeSize) && nearEnough(tiny.y, MinShapeSize) && nearEnough(tiny.z, MinShapeSize), true);
+            check("大きさ 球:3 軸いっしょに 1.5 倍 → 半径 1.5 倍", nearEnough(ScaleRadius(1.0f, 1.0f, { 1.5f, 1.5f, 1.5f }), 1.5f), true);
+            check("大きさ 球:1 軸だけ 0.5 倍 → 半径 0.5 倍", nearEnough(ScaleRadius(2.0f, 1.0f, { 1.0f, 0.5f, 1.0f }), 1.0f), true);
+            check("大きさ 球:小さくしすぎても、最小値で止まる", nearEnough(ScaleRadius(1.0f, 1.0f, { 0.0f, 1.0f, 1.0f }), MinShapeSize), true);
         }
 
         // クリックとドラッグの見分け
@@ -548,17 +593,50 @@ protected:
         XMFLOAT4X4 projection;
         XMStoreFloat4x4(&view, m_Camera.GetViewMatrix());
         XMStoreFloat4x4(&projection, m_Camera.GetProjectionMatrix(size.x / size.y));
+        // ギズモに渡す行列。移動:位置だけ / 大きさ:軸(箱の向き)× 今の大きさ(世界)+ 位置(球は、軸を世界の軸にして、半径を掛ける)
+        const bool isScale = (m_GizmoOperation == ImGuizmo::SCALE);
+        const bool isBox = (shape.shape == KR::HitShape::Box);
+        const XMFLOAT3 oldScale = isBox ? shape.box.halfSize : XMFLOAT3{ shape.sphere.radius, shape.sphere.radius, shape.sphere.radius };
         XMFLOAT4X4 matrix;
         XMStoreFloat4x4(&matrix, XMMatrixTranslation(center.x, center.y, center.z));
+        if (isScale)
+        {
+            const XMFLOAT3 axes[3] = { isBox ? shape.box.axes[0] : XMFLOAT3{ 1, 0, 0 }, isBox ? shape.box.axes[1] : XMFLOAT3{ 0, 1, 0 }, isBox ? shape.box.axes[2] : XMFLOAT3{ 0, 0, 1 } };
+            const float scales[3] = { oldScale.x, oldScale.y, oldScale.z };
+            float* rows[3] = { &matrix._11, &matrix._21, &matrix._31 };
+            for (int i = 0; i < 3; ++i)
+            {
+                rows[i][0] = axes[i].x * scales[i];
+                rows[i][1] = axes[i].y * scales[i];
+                rows[i][2] = axes[i].z * scales[i];
+            }
+        }
 
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList()); // ImGui の窓より後ろ・3D の絵より手前に描く
         ImGuizmo::SetRect(0.0f, 0.0f, size.x, size.y);
         ImGuizmo::AllowAxisFlip(false);
-        const bool changed = ImGuizmo::Manipulate(&view._11, &projection._11, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, &matrix._11);
+        const bool changed = ImGuizmo::Manipulate(&view._11, &projection._11, m_GizmoOperation, isScale ? ImGuizmo::LOCAL : ImGuizmo::WORLD, &matrix._11);
         m_GizmoBusy = ImGuizmo::IsOver() || ImGuizmo::IsUsing(); // 次のフレームの、カメラ・クリックの判断に使う
 
-        if (changed)
+        if (changed && isScale)
+        {
+            // 行の長さ = 新しい大きさ(世界)。今の大きさとの比を、骨の中の大きさに掛ける(骨・モデルの拡大があっても、合う)
+            const XMFLOAT3 newScale{ std::sqrt(matrix._11 * matrix._11 + matrix._12 * matrix._12 + matrix._13 * matrix._13),
+                                     std::sqrt(matrix._21 * matrix._21 + matrix._22 * matrix._22 + matrix._23 * matrix._23),
+                                     std::sqrt(matrix._31 * matrix._31 + matrix._32 * matrix._32 + matrix._33 * matrix._33) };
+            KR::Hitbox& hitbox = m_Model.GetHitboxes()[m_SelectedHitbox];
+            if (isBox)
+            {
+                hitbox.halfSize = ScaleHalfSize(hitbox.halfSize, oldScale, newScale);
+            }
+            else
+            {
+                hitbox.radius = ScaleRadius(hitbox.radius, oldScale.x, newScale);
+            }
+            m_Dirty = true;
+        }
+        else if (changed)
         {
             // ギズモが動かした世界の位置 → 骨の中の座標に直して、center にする(形は、骨の中の座標で持つ)
             std::vector<KR::Hitbox>& hitboxes = m_Model.GetHitboxes();
@@ -578,6 +656,7 @@ protected:
         }
     }
 
+    ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE; // 移動 / 大きさ(A3-4 で、W / E キーも足す)
     bool m_GizmoBusy = false; // ギズモの上にマウスがある・ドラッグ中(カメラを回さない・クリックで選ばない)
 
     void OnShutdown() override
@@ -1041,6 +1120,13 @@ private:
             }
             m_SelectedHitbox = onBone[static_cast<size_t>(m_SubHitbox)];
             KR::Hitbox& hitbox = hitboxes[m_SelectedHitbox];
+
+            // ギズモの操作:移動 / 大きさ
+            int operation = (m_GizmoOperation == ImGuizmo::SCALE) ? 1 : 0;
+            ImGui::RadioButton("移動", &operation, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("大きさ", &operation, 1);
+            m_GizmoOperation = (operation == 1) ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
 
             // 変えたら「未保存」の印(m_Dirty)
             int shape = (hitbox.shape == KR::HitShape::Box) ? 0 : 1;
