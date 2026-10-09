@@ -93,6 +93,20 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 set(JSON_Install OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(nlohmann_json)
 
+# imnodes(ノードエディタの部品。MIT。ImGui の上に、ノードと線を描く)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
+# コミット eb36902(2026 年 10 月時点の master の先頭)を固定。ハッシュで改ざんを検出
+# imnodes 自身の CMakeLists.txt は使わない(imgui を探しに行くため)。SOURCE_SUBDIR に無い場所を指して、add_subdirectory を飛ばし、下で、自分で static ライブラリにする
+FetchContent_Declare(imnodes
+    URL      https://github.com/Nelarius/imnodes/archive/eb36902c892548ef94f88f51ad7e7c9c7058a71c.zip
+    URL_HASH SHA256=45c5e408b13d5702cead6f506db50105d7d082db80199b17870e730cabea18ca
+    SOURCE_SUBDIR do_not_add_subdirectory
+)
+FetchContent_MakeAvailable(imnodes)
+add_library(imnodes STATIC ${imnodes_SOURCE_DIR}/imnodes.cpp)
+target_include_directories(imnodes PUBLIC ${imnodes_SOURCE_DIR})
+target_link_libraries(imnodes PUBLIC imgui)
+target_compile_options(imnodes PRIVATE /utf-8 /W0)
+
 set(ENGINE_FILES
     include/KR/KR.h
     include/KR/Core/Application.h
@@ -216,6 +230,9 @@ target_link_libraries(KREngine PUBLIC imgui)
 # JSON は、エンジンの中だけで使う(PRIVATE)。公開ヘッダーには、JSON の型を出さない
 target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
 
+# imnodes も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい
+target_link_libraries(KREngine PRIVATE imnodes)
+
 # C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
 target_compile_features(KREngine PUBLIC cxx_std_23)
 target_compile_options(KREngine PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
@@ -234,7 +251,7 @@ target_link_libraries(KREngine PRIVATE
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ENGINE_FILES})
 source_group(Shaders FILES ${SHADER_FILES})
-set_target_properties(DirectX-Headers DirectX-Guids imgui PROPERTIES FOLDER ThirdParty)
+set_target_properties(DirectX-Headers DirectX-Guids imgui imnodes PROPERTIES FOLDER ThirdParty)
 
 # 実行時に必要なファイル: DXC 本体(dxcompiler.dll)とシェーダー署名用(dxil.dll)は Windows SDK のものを使う
 set(PROGRAM_FILES_X86 "ProgramFiles(x86)")
