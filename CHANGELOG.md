@@ -6,7 +6,10 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 書き方:`追加`(新しい機能)・`変更`(今までの動きが変わった)・`修正`(バグの修正)・`ゲーム側で必要な変更`。
 
 ## [未リリース]
-調整ツール KRAnimationEditor を、画面の上で、直接操作できるように強化(版は、merge のときに決める。機能の追加なので、0.3.0 の予定)。
+(次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
+
+## [0.3.0] — 2026-10-09
+調整ツール KRAnimationEditor を、画面の上で、直接操作できるように強化(機能の追加)。
 - 追加:**レイ**(`Physics/Ray.h`)・`Camera::ScreenPointToRay`(画面の点 → 世界のレイ)・`Raycast(Ray, Sphere)` / `Raycast(Ray, OBB)`(当たれば距離 t)・`RayToSegmentDistance`(レイと線分の最短距離)
 - 追加:**`MirrorHitbox`**(判定の形を、X = 0 で左右反転して、対の骨に付け直す)・`MirrorBoneName` / `FindMirrorJoint`(対の骨の名前。`.L/.R`・`_L/_R`・`Left/Right`・`左/右`)(`Animation/HitboxMirror.h`)
 - 追加:調整ツールの、**クリックで、判定の形・骨を選ぶ**・**ギズモ(ImGuizmo)で、形の移動・大きさ**(T = 移動 / S = 大きさ。Blender 準拠)・**コピー / 貼り付け**(Ctrl+C / V)・**左右反転して貼り付け**
