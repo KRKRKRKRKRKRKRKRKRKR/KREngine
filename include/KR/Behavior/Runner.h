@@ -48,10 +48,19 @@ namespace KR::Behavior
         // 移ったら、入ってからの時間は 0 に戻り、EnteredThisFrame() が true になる(次の Update で false)
         void Update(float deltaTime, const Context& context);
 
+        // グラフを差し替える(ファイルの再読み込み用)。今の状態の id が、新しいグラフにも状態として残っていれば、その状態と時間を引き継ぐ。
+        // 無ければ、新しいグラフの開始の状態に戻る(null は、待機 1 つの既定のグラフ)
+        void SetGraph(GraphPtr graph);
+
+        // 今のグラフの開始の状態に戻す(時間は 0・EnteredThisFrame() は true)
+        void Reset();
+
         StateView GetCurrentState() const;
         const GraphPtr& GetGraph() const { return graph_; }
 
     private:
+        void SetGraphAndStart(GraphPtr graph); // 差し替えて、開始の状態に入る
+
         GraphPtr graph_;
         NodeId currentNode_ = 0;
         float timeInState_ = 0.0f;

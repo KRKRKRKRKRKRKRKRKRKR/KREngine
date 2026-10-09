@@ -70,17 +70,41 @@ namespace KR::Behavior
     }
 
     Runner::Runner(GraphPtr graph)
-        : graph_(std::move(graph))
     {
-        if (graph_ != nullptr)
-        {
-            currentNode_ = ResolveStart(*graph_);
-        }
+        SetGraphAndStart(std::move(graph));
+    }
+
+    void Runner::SetGraphAndStart(GraphPtr graph)
+    {
+        graph_ = std::move(graph);
+        currentNode_ = (graph_ != nullptr) ? ResolveStart(*graph_) : 0;
         if (currentNode_ == 0)
         {
             graph_ = MakeDefaultGraph();
             currentNode_ = graph_->startNode;
         }
+        timeInState_ = 0.0f;
+        enteredThisFrame_ = true;
+    }
+
+    void Runner::SetGraph(GraphPtr graph)
+    {
+        // 今の状態の id が、新しいグラフにも状態として残っていれば、引き継ぐ(時間もそのまま)
+        if (graph != nullptr)
+        {
+            const Node* same = graph->FindNode(currentNode_);
+            if (same != nullptr && same->kind == NodeKind::State)
+            {
+                graph_ = std::move(graph);
+                return;
+            }
+        }
+        SetGraphAndStart(std::move(graph)); // 無ければ、開始の状態に戻る
+    }
+
+    void Runner::Reset()
+    {
+        SetGraphAndStart(graph_);
     }
 
     void Runner::Update(float deltaTime, const Context& context)
