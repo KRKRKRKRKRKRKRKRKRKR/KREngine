@@ -52,6 +52,7 @@ namespace KR::Behavior
         int version = 1;
         std::string graphType = "fsm";
         NodeId startNode = 0; // 最初の状態。0 = 未指定
+        NodeId nextNodeId = 1; // 次に発行するノードの id。ノードを消しても、その id は使い回さない(増える一方。JSON に保存する)
         std::vector<Node> nodes;
         std::vector<Link> links;
 

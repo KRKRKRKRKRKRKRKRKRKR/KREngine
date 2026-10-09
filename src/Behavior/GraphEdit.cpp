@@ -1,5 +1,7 @@
 #include "GraphEdit.h"
 
+#include "KR/Behavior/NodeTypes.h"
+
 #include <algorithm>
 
 namespace KR::Behavior
@@ -59,6 +61,60 @@ namespace KR::Behavior
             return false;
         }
         graph.links.erase(removed, graph.links.end());
+        return true;
+    }
+}
+
+namespace KR::Behavior
+{
+    NodeId AddNode(Graph& graph, const std::string& type, float x, float y)
+    {
+        const NodeTypeInfo* info = FindNodeType(type);
+        if (info == nullptr)
+        {
+            return 0;
+        }
+
+        // 手で作ったグラフなどで、nextNodeId が、今ある id より小さくても、重ならないようにする
+        for (const Node& existing : graph.nodes)
+        {
+            graph.nextNodeId = std::max(graph.nextNodeId, existing.id + 1);
+        }
+
+        Node node;
+        node.id = graph.nextNodeId++;
+        node.kind = info->kind;
+        node.type = type;
+        node.posX = x;
+        node.posY = y;
+        for (const ParamSpec& spec : info->params)
+        {
+            node.params[spec.name] = spec.defaultValue;
+        }
+        graph.nodes.push_back(node);
+
+        if (node.kind == NodeKind::State && graph.FindNode(graph.startNode) == nullptr)
+        {
+            graph.startNode = node.id;
+        }
+        return node.id;
+    }
+
+    bool RemoveNode(Graph& graph, NodeId id)
+    {
+        const auto removedNode = std::remove_if(graph.nodes.begin(), graph.nodes.end(),
+            [id](const Node& node) { return node.id == id; });
+        if (removedNode == graph.nodes.end())
+        {
+            return false;
+        }
+        graph.nodes.erase(removedNode, graph.nodes.end());
+
+        std::erase_if(graph.links, [id](const Link& link) { return link.from == id || link.to == id; });
+        if (graph.startNode == id)
+        {
+            graph.startNode = 0;
+        }
         return true;
     }
 }

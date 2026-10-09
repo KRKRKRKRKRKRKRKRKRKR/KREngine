@@ -5,6 +5,8 @@
 
 #include "KR/Behavior/Graph.h"
 
+#include <string>
+
 namespace KR::Behavior
 {
     // from の出力 → to の入力の線を、足してよいか
@@ -17,4 +19,16 @@ namespace KR::Behavior
 
     // 線を消す。消したら true
     bool RemoveLink(Graph& graph, NodeId from, NodeId to);
+}
+
+namespace KR::Behavior
+{
+    // 登録された種類(type)のノードを、新しい id で足す。値は、登録の既定値。位置は (x, y)
+    // id は graph.nextNodeId から発行して、増やす(消した id も、今ある id も、使い回さない)
+    // 状態を足して、開始ノードがまだ無ければ、それを開始にする。足したノードの id を返す(type が未登録なら 0)
+    NodeId AddNode(Graph& graph, const std::string& type, float x, float y);
+
+    // ノードを消す。そのノードにつながる線も、消す。開始ノードを消したら、開始は「未指定(0)」になる
+    // 消したら true(id が無ければ false)
+    bool RemoveNode(Graph& graph, NodeId id);
 }

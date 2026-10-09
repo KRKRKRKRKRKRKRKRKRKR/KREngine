@@ -95,9 +95,39 @@ namespace KR::Behavior
             impl_->lastGraph = &graph;
         }
 
+        bool changed = false;
         ImNodes::BeginNodeEditor();
 
-        bool changed = false;
+        // 右クリックのメニュー:登録された種類の一覧から、ノードを足す(押した場所に置く)
+        const bool openMenu = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImNodes::IsEditorHovered()
+            && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsAnyItemHovered();
+        if (openMenu)
+        {
+            ImGui::OpenPopup("ノードを足す");
+        }
+        if (ImGui::BeginPopup("ノードを足す"))
+        {
+            const ImVec2 clickPos = ImGui::GetMousePosOnOpeningCurrentPopup();
+            const auto addItems = [&](NodeKind kind, const char* header)
+            {
+                ImGui::TextDisabled("%s", header);
+                for (const NodeTypeInfo& type : GetNodeTypes())
+                {
+                    if (type.kind == kind && ImGui::MenuItem(type.displayName.c_str()))
+                    {
+                        const NodeId id = AddNode(graph, type.type, 0.0f, 0.0f);
+                        ImNodes::SetNodeScreenSpacePos(id, clickPos);
+                        impl_->placed.insert(id); // 位置は imnodes が持つ(下の書き戻しで、グラフに入る)
+                        changed = true;
+                    }
+                }
+            };
+            addItems(NodeKind::State, "状態");
+            ImGui::Separator();
+            addItems(NodeKind::Condition, "条件");
+            ImGui::EndPopup();
+        }
+
         for (size_t nodeIndex = 0; nodeIndex < graph.nodes.size(); ++nodeIndex)
         {
             const Node& node = graph.nodes[nodeIndex];
@@ -198,6 +228,7 @@ namespace KR::Behavior
 
         // 線の削除:線をピンから引き離した(IsLinkDestroyed)・選んで Delete キー。文字欄に入力中の Delete は、除く
         std::set<int> removeIndices;
+        std::vector<int> selectedNodeIds;
         int destroyedLink = 0;
         if (ImNodes::IsLinkDestroyed(&destroyedLink))
         {
@@ -205,6 +236,13 @@ namespace KR::Behavior
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Delete) && !ImGui::GetIO().WantTextInput)
         {
+            const int selectedNodeCount = ImNodes::NumSelectedNodes();
+            if (selectedNodeCount > 0)
+            {
+                selectedNodeIds.resize(static_cast<size_t>(selectedNodeCount));
+                ImNodes::GetSelectedNodes(selectedNodeIds.data());
+            }
+
             const int selectedCount = ImNodes::NumSelectedLinks();
             if (selectedCount > 0)
             {
@@ -224,6 +262,17 @@ namespace KR::Behavior
                 graph.links.erase(graph.links.begin() + *it);
                 changed = true;
             }
+        }
+
+        // ノードの削除:選んで Delete キー(つながる線も消える)。線の削除のあとに行う(線の番号が、ずれるため)
+        if (!selectedNodeIds.empty())
+        {
+            for (const int id : selectedNodeIds)
+            {
+                changed |= RemoveNode(graph, id);
+                impl_->placed.erase(id);
+            }
+            ImNodes::ClearNodeSelection();
         }
 
         // ドラッグで動いた位置を、グラフに書き戻す(保存したとき、位置が残る)

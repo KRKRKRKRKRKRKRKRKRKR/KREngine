@@ -8,6 +8,7 @@
 #include <imgui.h>
 
 #include <memory>
+#include <string>
 
 using namespace KR::Behavior;
 
@@ -51,9 +52,27 @@ protected:
         ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(1240.0f, 560.0f), ImGuiCond_FirstUseEver);
         ImGui::Begin("GraphEditor");
-        ImGui::Text("edits=%d  node1=(%.0f, %.0f)  radius(node2)=%.2f  vertical(node2)=%d  damage(node5)=%d  nodes=%d  links=%d", m_Edits, m_Graph.nodes[0].posX, m_Graph.nodes[0].posY,
-            std::get<float>(m_Graph.nodes[1].params["radius"]), static_cast<int>(std::get<bool>(m_Graph.nodes[1].params["includeVertical"])), std::get<int>(m_Graph.nodes[4].params["damage"]),
-            static_cast<int>(m_Graph.nodes.size()), static_cast<int>(m_Graph.links.size()));
+        // 状態の表示。ノードは、並びの番号ではなく id で探す(削除で並びが変わるため)。無い・型が違うときは、「-」
+        const auto number = [this](NodeId id, const char* name) -> std::string
+        {
+            const Node* node = m_Graph.FindNode(id);
+            if (node == nullptr)
+            {
+                return "-";
+            }
+            const auto found = node->params.find(name);
+            if (found == node->params.end())
+            {
+                return "-";
+            }
+            if (const float* f = std::get_if<float>(&found->second)) { return std::to_string(*f); }
+            if (const int* i = std::get_if<int>(&found->second)) { return std::to_string(*i); }
+            if (const bool* b = std::get_if<bool>(&found->second)) { return *b ? "true" : "false"; }
+            return "-";
+        };
+        ImGui::Text("edits=%d  radius(id2)=%s  vertical(id2)=%s  damage(id5)=%s  nodes=%d  links=%d  nextId=%d", m_Edits,
+            number(2, "radius").c_str(), number(2, "includeVertical").c_str(), number(5, "damage").c_str(),
+            static_cast<int>(m_Graph.nodes.size()), static_cast<int>(m_Graph.links.size()), m_Graph.nextNodeId);
         if (m_Editor->Draw(m_Graph))
         {
             ++m_Edits;

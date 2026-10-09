@@ -62,6 +62,7 @@ namespace KR::Behavior
             root["version"] = FileVersion;
             root["graph"] = graph.graphType;
             root["start"] = graph.startNode;
+            root["nextId"] = graph.nextNodeId;
             root["nodes"] = json::array();
             for (const Node& node : graph.nodes)
             {
@@ -194,6 +195,13 @@ namespace KR::Behavior
                     throw std::runtime_error("ノードの id が重なっている: " + std::to_string(node.id));
                 }
                 graph.nodes.push_back(std::move(node));
+            }
+
+            // 次に発行する id:ファイルの値と、今ある id の最大 + 1 の、大きい方(古いファイルや手で直したファイルでも、重ならない)
+            graph.nextNodeId = std::max(1, root.value("nextId", 1));
+            for (const Node& node : graph.nodes)
+            {
+                graph.nextNodeId = std::max(graph.nextNodeId, node.id + 1);
             }
 
             // 線は、無くてもよい(つながっていない = その状態のまま)。存在しないノードへの線は、警告して捨てる
