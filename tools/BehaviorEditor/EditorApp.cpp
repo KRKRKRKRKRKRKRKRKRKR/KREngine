@@ -1,8 +1,7 @@
 // 敵の行動の調整ツール KRBehaviorEditor
 // 状態(青)と条件(緑)を、ノードでつないで、敵の行動のグラフを作る。詳しい使い方は docs/BehaviorEditor.md
 //
-// 今の段階(B4-9):フォルダーを開く・一覧・開く(B4-8)/ 保存・新規・読み直し(B4-9)
-// 次の段階:「保存していない」の印・切り替え時の確認・設定の記憶(B4-10)
+// 今の段階(B4-10):フォルダーを開く・一覧・開く / 保存・新規・読み直し / 保存していない印・確認の窓・設定の記憶・引数(--assets・--graph)
 
 #include <KR/KR.h>
 #include <KR/Behavior/GraphEditor.h>
@@ -14,6 +13,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -59,19 +59,38 @@ protected:
     void OnInit() override
     {
         m_Editor = std::make_unique<GraphEditor>();
+        LoadSettings();
 
-        // 最初のフォルダー:引数 --assets <フォルダー> があればそれ。無ければ、ビルドで決まっているゲームのアセットのフォルダー
-        std::filesystem::path folder = KR::GetAssetDirectory(EnemiesFolderName).parent_path();
+        // 最初のフォルダー:引数 --assets <フォルダー> → 前回のフォルダー(設定)→ ビルドで決まっているゲームのアセットのフォルダー
+        // 最初のグラフ:引数 --graph <名前> → (前回と同じフォルダーのときだけ)前回のグラフ。無ければ、見本
+        std::filesystem::path folder = m_SavedFolder.empty() ? KR::GetAssetDirectory(EnemiesFolderName).parent_path() : m_SavedFolder;
+        std::string graphName = m_SavedGraph;
+        bool folderFromArgs = false;
+        bool graphFromArgs = false;
         const std::vector<std::filesystem::path> args = KR::GetCommandLineArguments();
         for (size_t i = 1; i + 1 < args.size(); ++i)
         {
             if (args[i] == L"--assets")
             {
                 folder = args[i + 1];
+                folderFromArgs = true;
+            }
+            else if (args[i] == L"--graph")
+            {
+                graphName = ToUtf8(args[i + 1]);
+                graphFromArgs = true;
             }
         }
+        if (graphName.size() > 5 && graphName.substr(graphName.size() - 5) == ".json")
+        {
+            graphName.resize(graphName.size() - 5); // --graph Walker.json でも、Walker でも、よい
+        }
+
         std::snprintf(m_FolderText, sizeof(m_FolderText), "%s", ToUtf8(folder).c_str());
-        ApplyFolder(folder);
+        if (ApplyFolder(folder) && !graphName.empty() && (graphFromArgs || !folderFromArgs))
+        {
+            OpenGraph(graphName);
+        }
     }
 
     void OnShutdown() override
@@ -97,7 +116,10 @@ protected:
         ImGui::BeginGroup();
         ImGui::TextDisabled("右クリック = ノードを足す / ノードの上で右クリック = 開始・消す / ピンからピンへドラッグ = 線 / 選んで Delete = 消す");
         m_Editor->DrawWarnings(m_Graph);
-        m_Editor->Draw(m_Graph);
+        if (m_Editor->Draw(m_Graph))
+        {
+            m_Dirty = true; // ノードを動かした・値を変えた・線やノードを足した / 消した
+        }
         ImGui::EndGroup();
 
         ImGui::End();
@@ -105,6 +127,114 @@ protected:
 
 private:
     static constexpr float PanelWidth = 280.0f;
+
+    // ---- 保存していない変更の確認 ----
+    // フォルダーを変える・別のグラフを開く・新規・読み直しは、今のグラフの変更を捨てることになる。変更があるときは、確認の窓を出して、選んでもらう
+
+    enum class ActionKind { Folder, Open, New, Reload };
+    struct PendingAction
+    {
+        ActionKind kind = ActionKind::New;
+        std::string text; // Folder = フォルダー(UTF-8)/ Open = グラフの名前
+    };
+
+    void RequestAction(const PendingAction& action)
+    {
+        if (m_Dirty)
+        {
+            m_Pending = action;
+            m_OpenConfirmPopup = true;
+            return;
+        }
+        PerformAction(action);
+    }
+
+    void PerformAction(const PendingAction& action)
+    {
+        switch (action.kind)
+        {
+        case ActionKind::Folder:
+            if (ApplyFolder(FromUtf8(action.text)))
+            {
+                NewGraph(); // 別のフォルダーでは、前のフォルダーのグラフを、持ち越さない
+            }
+            break;
+        case ActionKind::Open: OpenGraph(action.text); break;
+        case ActionKind::New: NewGraph(); break;
+        case ActionKind::Reload: ReloadGraph(); break;
+        }
+    }
+
+    // 確認の窓(「保存して続ける」「捨てて続ける」「やめる」)
+    void DrawConfirmPopup()
+    {
+        if (m_OpenConfirmPopup)
+        {
+            ImGui::OpenPopup("保存していない変更");
+            m_OpenConfirmPopup = false;
+        }
+        if (!ImGui::BeginPopupModal("保存していない変更", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            return;
+        }
+        ImGui::Text("「%s」に、保存していない変更があります。", m_CurrentName.empty() ? "(名前のないグラフ)" : m_CurrentName.c_str());
+        if (ImGui::Button("保存して続ける"))
+        {
+            // 名前のないグラフは、名前の文字欄の名前で保存する(使えない名前なら、続けずに、理由を出す)
+            if (SaveGraphAs(m_CurrentName.empty() ? std::string(m_NameText) : m_CurrentName, true))
+            {
+                PerformAction(m_Pending);
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("捨てて続ける"))
+        {
+            m_Dirty = false;
+            PerformAction(m_Pending);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("やめる"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    // ---- 設定の記憶(exe の隣の KRBehaviorEditor.txt。1 行 1 項目。UTF-8)----
+
+    std::filesystem::path GetSettingsFile() const
+    {
+        const std::vector<std::filesystem::path> args = KR::GetCommandLineArguments();
+        return (args.empty() ? std::filesystem::path() : args.front().parent_path()) / "KRBehaviorEditor.txt";
+    }
+
+    void LoadSettings()
+    {
+        std::ifstream stream(GetSettingsFile(), std::ios::binary);
+        std::string line;
+        while (std::getline(stream, line))
+        {
+            if (!line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+            if (line.rfind("assets=", 0) == 0)     { m_SavedFolder = FromUtf8(line.substr(7)); }
+            else if (line.rfind("graph=", 0) == 0) { m_SavedGraph = line.substr(6); }
+        }
+    }
+
+    void SaveSettings() const
+    {
+        std::ofstream stream(GetSettingsFile(), std::ios::binary);
+        if (!stream.is_open())
+        {
+            return; // 記憶できなくても、ツールは、使える
+        }
+        stream << "assets=" << ToUtf8(m_Folder) << '\n';
+        stream << "graph=" << m_CurrentName << '\n';
+    }
 
     // ---- フォルダーと一覧 ----
 
@@ -125,6 +255,7 @@ private:
         std::snprintf(m_FolderText, sizeof(m_FolderText), "%s", ToUtf8(folder).c_str());
         RefreshFileList();
         KR_LOG_INFO("BehaviorEditor: アセットのフォルダー {}(グラフ {} 個)", ToUtf8(folder), m_Files.size());
+        SaveSettings();
         return true;
     }
 
@@ -168,6 +299,8 @@ private:
         std::snprintf(m_NameText, sizeof(m_NameText), "%s", name.c_str());
         m_StatusMessage = "";
         m_StatusIsError = true;
+        m_Dirty = false;
+        SaveSettings();
         return true;
     }
 
@@ -202,6 +335,9 @@ private:
         RefreshFileList(); // 新しい名前を、一覧に出す(この中で、状態の行は、空になる)
         m_StatusMessage = "保存しました: " + name + ".json";
         m_StatusIsError = false;
+        m_Dirty = false;
+        std::snprintf(m_NameText, sizeof(m_NameText), "%s", name.c_str());
+        SaveSettings();
         return true;
     }
 
@@ -219,6 +355,8 @@ private:
         m_NameText[0] = '\0';
         m_StatusMessage = "";
         m_StatusIsError = true;
+        m_Dirty = false;
+        SaveSettings();
     }
 
     // 読み直し:今の名前のファイルを、読み直す(今のグラフの変更は、捨てられる)
@@ -242,7 +380,7 @@ private:
         ImGui::SetNextItemWidth(-1.0f);
         if (ImGui::InputText("##folder", m_FolderText, sizeof(m_FolderText), ImGuiInputTextFlags_EnterReturnsTrue))
         {
-            ApplyFolder(FromUtf8(m_FolderText)); // Enter で開く
+            RequestAction({ ActionKind::Folder, m_FolderText }); // Enter で開く
         }
         ImGui::TextDisabled("(Enter で開く)");
 
@@ -257,12 +395,12 @@ private:
         ImGui::SameLine();
         if (ImGui::Button("新規"))
         {
-            NewGraph();
+            RequestAction({ ActionKind::New, "" });
         }
         ImGui::SameLine();
         if (ImGui::Button("読み直し"))
         {
-            ReloadGraph();
+            RequestAction({ ActionKind::Reload, "" });
         }
 
         // Ctrl+S = 保存(文字欄に入力中は、除く)
@@ -303,13 +441,19 @@ private:
         {
             if (ImGui::Selectable(name.c_str(), name == m_CurrentName))
             {
-                OpenGraph(name);
+                RequestAction({ ActionKind::Open, name });
             }
         }
         ImGui::EndChild();
 
+        DrawConfirmPopup();
+
         ImGui::Text("開いているグラフ:");
-        ImGui::TextWrapped("%s", m_CurrentName.empty() ? "(見本のグラフ)" : m_CurrentName.c_str());
+        ImGui::TextWrapped("%s", m_CurrentName.empty() ? "(名前のないグラフ)" : m_CurrentName.c_str());
+        if (m_Dirty)
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.25f, 1.0f), "● 保存していない変更があります");
+        }
         if (!m_StatusMessage.empty())
         {
             ImGui::PushStyleColor(ImGuiCol_Text, m_StatusIsError ? ImVec4(1.0f, 0.75f, 0.25f, 1.0f) : ImVec4(0.45f, 0.85f, 0.55f, 1.0f));
@@ -330,6 +474,11 @@ private:
     char m_NameText[128] = {};          // 保存する名前の文字欄(UTF-8。.json を除く)
     std::string m_PendingOverwriteName; // 上書きの確認の、待ち
     bool m_OpenOverwritePopup = false;
+    bool m_Dirty = false;               // 保存していない変更がある(グラフを、編集した)
+    PendingAction m_Pending;            // 確認の窓の、返事を待っている操作
+    bool m_OpenConfirmPopup = false;
+    std::filesystem::path m_SavedFolder; // 前回のフォルダー(設定から)
+    std::string m_SavedGraph;            // 前回のグラフの名前(設定から)
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()
