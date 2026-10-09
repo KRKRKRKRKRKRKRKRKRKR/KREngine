@@ -455,7 +455,7 @@ namespace KR
         }
     }
 
-    GltfModel LoadGltf(const std::filesystem::path& relativePath)
+    ModelData LoadGltf(const std::filesystem::path& relativePath)
     {
         const std::filesystem::path file = GetAssetDirectory("Models") / relativePath;
 
@@ -485,7 +485,7 @@ namespace KR
         }
 
         // ④ エンジンのデータにする
-        GltfModel model;
+        ModelData model;
         ReadMeshes(*data, model.mesh);
 
         const cgltf_skin* skin = nullptr;

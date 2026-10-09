@@ -422,8 +422,8 @@ protected:
     // 置き場所(位置)は、比べない(FBX は、Blender の置き場所を、そのまま持つため。骨を読む F4 で、扱いを決める)
     static void CheckFbxMesh(const std::filesystem::path& modelPath)
     {
-        const KR::GltfModel gltf = KR::LoadGltf(std::filesystem::path(modelPath).concat(".glb"));
-        const KR::GltfModel fbx = KR::LoadFbx(std::filesystem::path(modelPath).concat(".fbx"));
+        const KR::ModelData gltf = KR::LoadGltf(std::filesystem::path(modelPath).concat(".glb"));
+        const KR::ModelData fbx = KR::LoadFbx(std::filesystem::path(modelPath).concat(".fbx"));
         if (gltf.IsEmpty() || fbx.IsEmpty())
         {
             KR_LOG_WARN("  FBX の確認: {} の .glb か .fbx が、読めないので、飛ばします", modelPath.string());

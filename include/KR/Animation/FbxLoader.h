@@ -12,5 +12,5 @@ namespace KR
     //
     // 今は、メッシュ(三角形・法線・UV)・骨(名前・親・基準姿勢・逆バインド)・重み(mesh.skin。1 頂点 4 本まで)・動き(clips。1 秒 30 回の Linear に焼き付け)
     // 座標:モデルの座標 = FBX の世界の座標(Blender の置き場所を、そのまま持つ)。骨の基準姿勢は、バインド時の世界の行列から作る
-    GltfModel LoadFbx(const std::filesystem::path& relativePath);
+    ModelData LoadFbx(const std::filesystem::path& relativePath);
 }

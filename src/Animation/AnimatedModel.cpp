@@ -25,7 +25,7 @@ namespace KR
     {
         Unload(renderer); // 読み込み済みなら、先に片づける
 
-        GltfModel model = LoadGltf(relativePath);
+        ModelData model = LoadGltf(relativePath);
         if (model.IsEmpty())
         {
             return false; // エラーは、LoadGltf が出している

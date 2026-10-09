@@ -393,7 +393,7 @@ namespace KR
         }
     }
 
-    GltfModel LoadFbx(const std::filesystem::path& relativePath)
+    ModelData LoadFbx(const std::filesystem::path& relativePath)
     {
         const std::filesystem::path file = GetAssetDirectory("Models") / relativePath;
 
@@ -419,7 +419,7 @@ namespace KR
             return {};
         }
 
-        GltfModel model;
+        ModelData model;
         FbxSkeleton skeleton = ReadSkeleton(*scene);
         SkinStats skinStats;
         ReadMeshes(*scene, skeleton, model.mesh, skinStats);
