@@ -1,3 +1,12 @@
+---
+title: アニメーションの調整ツール KRAnimationEditor
+project: KREngine
+kind: 使い方
+status: 最新
+updated: 2026-10-12
+replaces:
+---
+
 # アニメーションの調整ツール KRAnimationEditor
 
 骨つきのモデル(glTF = `.glb` / `.gltf`・FBX = `.fbx`)の**骨・動き・当たり判定の形**を、見て、調整して、保存するツール。調整した結果(`<モデル名>.hitboxes.json`)は、ゲームが `AnimatedModel` で**読み込むだけ**([Usage.md](Usage.md) の 7)。ゲームに、調整の画面は、要らない。

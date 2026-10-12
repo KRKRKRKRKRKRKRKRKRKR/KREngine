@@ -1,3 +1,12 @@
+---
+title: 更新の記録(CHANGELOG)
+project: KREngine
+kind: 記録
+status: 最新
+updated: 2026-10-12
+replaces:
+---
+
 # 更新の記録(CHANGELOG)
 
 KR エンジンの、版ごとの変更。版の付け方・上げるときの決まりは [docs/Versioning.md](docs/Versioning.md)。

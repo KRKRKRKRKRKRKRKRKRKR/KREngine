@@ -1,3 +1,12 @@
+---
+title: メッシュ(形のデータ)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-08
+replaces:
+---
+
 # メッシュ(形のデータ)
 
 形(メッシュ)の作り方・番号札・削除の流れと、OBJ ファイルから読み込む流れ。

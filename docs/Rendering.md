@@ -1,3 +1,12 @@
+---
+title: 描画(座標変換・GPU・シェーダー)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-08
+replaces:
+---
+
 # 描画(座標変換・GPU・シェーダー)
 
 座標がどう変換されて画面に出るか、GPU の描画パイプライン、C++ とシェーダーのつながり。

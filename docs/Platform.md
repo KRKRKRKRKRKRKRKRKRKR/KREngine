@@ -1,3 +1,12 @@
+---
+title: プラットフォーム(キー操作・OS メッセージ・ログ)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-07
+replaces:
+---
+
 # プラットフォーム(キー操作・OS メッセージ・ログ)
 
 Win32 のウィンドウ操作、OS からのメッセージ、ログの仕組み。

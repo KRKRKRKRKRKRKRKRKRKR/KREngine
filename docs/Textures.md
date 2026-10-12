@@ -1,3 +1,12 @@
+---
+title: テクスチャ(画像を貼る。フェーズ6)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-07
+replaces:
+---
+
 # テクスチャ(画像を貼る。フェーズ6)
 
 モデルに、**画像(PNG)を貼る**仕組み(フェーズ6)。自機(`Player/player.obj`)に、`player.png` を貼るのが、最初の目標。

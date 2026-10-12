@@ -1,3 +1,12 @@
+---
+title: ImGui(デバッグ用の画面)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-07
+replaces:
+---
+
 # ImGui(デバッグ用の画面)
 
 自機の速度やカメラの数字を、動かしながら調整するための画面(Dear ImGui)を、エンジンに組み込む仕組み。

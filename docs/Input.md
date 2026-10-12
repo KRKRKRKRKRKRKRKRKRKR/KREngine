@@ -1,3 +1,12 @@
+---
+title: 入力(キーボード)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-07
+replaces:
+---
+
 # 入力(キーボード)
 
 キーの押している・押した・離したを Game が調べられるようにする仕組み(フェーズ3-7)。
