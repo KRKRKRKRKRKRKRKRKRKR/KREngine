@@ -11,3 +11,6 @@ imgui.ini
 
 # Blender のバックアップ(.blend1)
 *.blend1
+
+# ツールの exe の取り出し先(tools\Publish-Tools.ps1 が作る)
+dist/

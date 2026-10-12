@@ -66,6 +66,7 @@ KREngine/
 ├─ shaders/                      シェーダー(実行時にコンパイル): Basic.hlsl(物)/ Sky.hlsl(空)/ Line.hlsl(線。当たり判定の箱)/ Common.hlsli(共通の b1 の宣言)
 ├─ samples/                      サンプル(モデルの素材は、Assets/Models/Test/<モデル名>/ に、1 モデル 1 フォルダー:元の .blend・書き出した .glb / .fbx・判定の形 .hitboxes.json。Blender のバックアップ .blend1 は、Git に入れない): Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Animated/(動くモデル AnimatedModel の使い方の見本)・Behavior/(敵の行動 KR::Behavior の使い方の見本。Walker.json を読んで、敵 1 体を動かす・今の状態のノードを光らせる)・Assets/(サンプル共通のアセット。テスト用のモデル・Enemies/Walker.json)
 ├─ third_party/ufbx/             ufbx(FBX を読むライブラリ)の CMake の定義(取得は最上位の CMakeLists.txt。ufbx だけ Debug でも最適化)
+├─ tools/Publish-Tools.ps1       ツールの exe だけを dist に取り出す(-Build でビルドも。-Samples でサンプルも)。取り出した物は、build を消しても動く。dist は、Git に入れない
 ├─ tools/AnimationEditor/        ツール KRAnimationEditor(骨・判定の形を、見て、調整して、保存する)
 ├─ tools/Common/                 ツールの共通の部品 KRToolCommon(フォルダーを選ぶ窓 FolderDialog。調整ツールどうしで共有)
 ├─ tools/BehaviorEditor/         ツール KRBehaviorEditor(敵の行動のグラフを、ノードで作る。作成中)
