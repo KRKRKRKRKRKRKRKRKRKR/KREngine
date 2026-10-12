@@ -94,6 +94,18 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 set(JSON_Install OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(nlohmann_json)
 
+# ufbx(FBX を読む)。エンジンの中だけで使う(PRIVATE)。**版を固定**(v0.23.1・指すコミット 26a482ae66871d7de36eb722aa060bce95bce274)
+# ufbx は、0.Y.Z の間は、マイナーが上がるたびに互換が壊れることがある。上げるときは、CHANGELOG を読んでから
+# 取得だけして(SOURCE_SUBDIR を、存在しない場所にして、add_subdirectory を避ける)、ライブラリは、third_party/ufbx で定義する
+FetchContent_Declare(ufbx
+    URL      https://github.com/ufbx/ufbx/archive/refs/tags/v0.23.1.zip
+    URL_HASH SHA256=3e5d8219f5b634fd374949808206eba1a1da49b2b2e3ee31ff0bd228c0abd469
+    SOURCE_SUBDIR do_not_add_subdirectory
+)
+FetchContent_MakeAvailable(ufbx)
+set(UFBX_SOURCE_DIR ${ufbx_SOURCE_DIR})
+add_subdirectory(third_party/ufbx)
+
 # imnodes(ノードエディタの部品。MIT。ImGui の上に、ノードと線を描く)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
 # コミット eb36902(2026 年 10 月時点の master の先頭)を固定。ハッシュで改ざんを検出
 # imnodes 自身の CMakeLists.txt は使わない(imgui を探しに行くため)。SOURCE_SUBDIR に無い場所を指して、add_subdirectory を飛ばし、下で、自分で static ライブラリにする
@@ -141,6 +153,8 @@ set(ENGINE_FILES
     include/KR/Behavior/GraphFile.h
     include/KR/Animation/HitboxFile.h
     include/KR/Animation/HitboxMirror.h
+    include/KR/Animation/FbxLoader.h
+    include/KR/Animation/LoadModel.h
     include/KR/Animation/AnimatedModel.h
 
     src/Core/Application.cpp
@@ -167,6 +181,8 @@ set(ENGINE_FILES
     src/Animation/Hitbox.cpp
     src/Animation/HitboxFile.cpp
     src/Animation/HitboxMirror.cpp
+    src/Animation/FbxLoader.cpp
+    src/Animation/LoadModel.cpp
     src/Animation/AnimatedModel.cpp
     src/Behavior/Graph.cpp
     src/Behavior/NodeTypes.cpp
@@ -242,6 +258,9 @@ target_link_libraries(KREngine PUBLIC imgui)
 
 # JSON は、エンジンの中だけで使う(PRIVATE)。公開ヘッダーには、JSON の型を出さない
 target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
+
+# ufbx も、エンジンの中だけ(PRIVATE)。公開ヘッダーには、ufbx の型を出さない
+target_link_libraries(KREngine PRIVATE ufbx)
 
 # imnodes も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい
 target_link_libraries(KREngine PRIVATE imnodes)

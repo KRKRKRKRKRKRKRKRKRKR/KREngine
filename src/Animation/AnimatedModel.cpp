@@ -1,7 +1,7 @@
 #include "KR/Animation/AnimatedModel.h"
 
 #include "KR/Animation/AnimationPose.h"
-#include "KR/Animation/GltfLoader.h"
+#include "KR/Animation/LoadModel.h"
 #include "KR/Animation/HitboxFile.h"
 #include "KR/Animation/SkinMatrices.h"
 #include "KR/Core/Log.h"
@@ -25,10 +25,10 @@ namespace KR
     {
         Unload(renderer); // 読み込み済みなら、先に片づける
 
-        GltfModel model = LoadGltf(relativePath);
+        ModelData model = LoadModel(relativePath); // 拡張子で、glTF か FBX を選ぶ
         if (model.IsEmpty())
         {
-            return false; // エラーは、LoadGltf が出している
+            return false; // エラーは、LoadModel(の中の、読み込み)が出している
         }
 
         // メッシュを囲む箱(CreateMesh のあとは、CPU 側の頂点は、捨ててよいので、先に求める)

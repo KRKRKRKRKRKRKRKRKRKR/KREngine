@@ -25,10 +25,12 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <numbers>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace DirectX;
@@ -416,9 +418,317 @@ protected:
         }
     }
 
+    // FBX のメッシュの確認(F3):同じモデルの .glb と .fbx を読んで、形が、そろっているか調べる(Models からの、拡張子なしの相対パス)
+    //   三角形の数・大きさ(幅・高さ・奥行き。メートル)・表裏(三角形の向きと、法線の向きが、そろっている三角形の割合)
+    // 置き場所(位置)は、比べない(FBX は、Blender の置き場所を、そのまま持つため。骨を読む F4 で、扱いを決める)
+    static void CheckFbxMesh(const std::filesystem::path& modelPath)
+    {
+        const KR::ModelData gltf = KR::LoadGltf(std::filesystem::path(modelPath).concat(".glb"));
+        const KR::ModelData fbx = KR::LoadFbx(std::filesystem::path(modelPath).concat(".fbx"));
+        if (gltf.IsEmpty() || fbx.IsEmpty())
+        {
+            KR_LOG_WARN("  FBX の確認: {} の .glb か .fbx が、読めないので、飛ばします", modelPath.string());
+            return;
+        }
+
+        struct Shape
+        {
+            XMFLOAT3 size;
+            float outwardRatio; // 三角形の向き(外積)と、頂点の法線が、同じ向きの三角形の割合(1 に近いほど、表裏が合っている)
+        };
+        auto measure = [](const KR::MeshData& mesh)
+        {
+            XMFLOAT3 minimum = mesh.vertices[0].position;
+            XMFLOAT3 maximum = minimum;
+            for (const KR::Vertex& vertex : mesh.vertices)
+            {
+                minimum = { std::min(minimum.x, vertex.position.x), std::min(minimum.y, vertex.position.y), std::min(minimum.z, vertex.position.z) };
+                maximum = { std::max(maximum.x, vertex.position.x), std::max(maximum.y, vertex.position.y), std::max(maximum.z, vertex.position.z) };
+            }
+            size_t same = 0;
+            const size_t triangles = mesh.indices.size() / 3;
+            for (size_t t = 0; t < triangles; ++t)
+            {
+                const KR::Vertex& a = mesh.vertices[mesh.indices[t * 3]];
+                const KR::Vertex& b = mesh.vertices[mesh.indices[t * 3 + 1]];
+                const KR::Vertex& c = mesh.vertices[mesh.indices[t * 3 + 2]];
+                const XMVECTOR normal = XMVector3Cross(XMVectorSubtract(XMLoadFloat3(&b.position), XMLoadFloat3(&a.position)),
+                                                       XMVectorSubtract(XMLoadFloat3(&c.position), XMLoadFloat3(&a.position)));
+                same += (XMVectorGetX(XMVector3Dot(normal, XMLoadFloat3(&a.normal))) > 0.0f) ? 1 : 0;
+            }
+            return Shape{ { maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z }, static_cast<float>(same) / static_cast<float>(std::max<size_t>(triangles, 1)) };
+        };
+
+        const Shape a = measure(gltf.mesh);
+        const Shape b = measure(fbx.mesh);
+        auto close = [](float x, float y) { return std::abs(x - y) < 0.01f; };
+        const bool trianglesMatch = gltf.mesh.indices.size() == fbx.mesh.indices.size();
+        const bool sizeMatch = close(a.size.x, b.size.x) && close(a.size.y, b.size.y) && close(a.size.z, b.size.z);
+        // 表裏:glTF の割合と、FBX の割合が、近ければ OK(どちらも、同じ決まりの表裏)。向きが逆なら、割合が、1 − ほぼ
+        const bool windingMatch = std::abs(a.outwardRatio - b.outwardRatio) < 0.05f;
+
+        if (trianglesMatch && sizeMatch && windingMatch)
+        {
+            KR_LOG_INFO("  FBX メッシュの確認: OK(glTF と一致:三角形 {}・大きさ {:.2f} × {:.2f} × {:.2f} m・表裏の割合 glTF {:.2f} / FBX {:.2f})",
+                        fbx.mesh.indices.size() / 3, b.size.x, b.size.y, b.size.z, a.outwardRatio, b.outwardRatio);
+        }
+        else
+        {
+            KR_LOG_ERROR("  FBX メッシュの確認 NG: 三角形 glTF {} / FBX {}・大きさ glTF ({:.3f}, {:.3f}, {:.3f}) / FBX ({:.3f}, {:.3f}, {:.3f})・表裏の割合 glTF {:.2f} / FBX {:.2f}",
+                         gltf.mesh.indices.size() / 3, fbx.mesh.indices.size() / 3, a.size.x, a.size.y, a.size.z, b.size.x, b.size.y, b.size.z, a.outwardRatio, b.outwardRatio);
+        }
+
+        // 骨(F4):数・名前・親が、glTF と同じか。基準姿勢が、逆バインド行列と合っているか。骨どうしの相対位置が、glTF と同じか
+        const KR::Skeleton& gs = gltf.skeleton;
+        const KR::Skeleton& fs = fbx.skeleton;
+        bool skeletonOk = gs.joints.size() == fs.joints.size();
+        std::string detail;
+        const std::vector<XMFLOAT4X4> gPose = KR::EvaluatePose(gs, nullptr, 0.0f);
+        const std::vector<XMFLOAT4X4> fPose = KR::EvaluatePose(fs, nullptr, 0.0f);
+        auto indexOf = [](const KR::Skeleton& s, const std::string& name) -> int
+        {
+            for (size_t i = 0; i < s.joints.size(); ++i)
+            {
+                if (s.joints[i].name == name)
+                {
+                    return static_cast<int>(i);
+                }
+            }
+            return -1;
+        };
+        auto rootOf = [](const KR::Skeleton& s) -> int
+        {
+            for (size_t i = 0; i < s.joints.size(); ++i)
+            {
+                if (s.joints[i].parent < 0)
+                {
+                    return static_cast<int>(i);
+                }
+            }
+            return -1;
+        };
+        const int gRoot = rootOf(gs);
+        const int fRoot = rootOf(fs);
+        if (skeletonOk && gRoot >= 0 && fRoot >= 0)
+        {
+            const XMFLOAT4X4& gr = gPose[static_cast<size_t>(gRoot)];
+            const XMFLOAT4X4& fr = fPose[static_cast<size_t>(fRoot)];
+            for (const KR::Joint& joint : gs.joints)
+            {
+                const int j = indexOf(fs, joint.name);
+                if (j < 0)
+                {
+                    skeletonOk = false;
+                    detail += " 骨「" + joint.name + "」が FBX に無い";
+                    continue;
+                }
+                const KR::Joint& other = fs.joints[static_cast<size_t>(j)];
+                const std::string gParent = joint.parent >= 0 ? gs.joints[static_cast<size_t>(joint.parent)].name : "";
+                const std::string fParent = other.parent >= 0 ? fs.joints[static_cast<size_t>(other.parent)].name : "";
+                if (gParent != fParent)
+                {
+                    skeletonOk = false;
+                    detail += " 「" + joint.name + "」の親が違う";
+                }
+                // 根の骨からの相対位置(置き場所の違いを、打ち消す)
+                const XMFLOAT4X4& gw = gPose[static_cast<size_t>(&joint - gs.joints.data())];
+                const XMFLOAT4X4& fw = fPose[static_cast<size_t>(j)];
+                if (!close(gw._41 - gr._41, fw._41 - fr._41) || !close(gw._42 - gr._42, fw._42 - fr._42) || !close(gw._43 - gr._43, fw._43 - fr._43))
+                {
+                    skeletonOk = false;
+                    detail += " 「" + joint.name + "」の相対位置が違う";
+                }
+            }
+        }
+        // 基準姿勢 × 逆バインド = 単位行列(骨の世界の行列と、逆バインドが、矛盾していない)
+        float worstBind = 0.0f;
+        for (size_t i = 0; i < fs.joints.size(); ++i)
+        {
+            const XMMATRIX product = XMLoadFloat4x4(&fPose[i]) * XMLoadFloat4x4(&fs.joints[i].inverseBind);
+            XMFLOAT4X4 p;
+            XMStoreFloat4x4(&p, product);
+            const float* e = &p._11;
+            for (int k = 0; k < 16; ++k)
+            {
+                worstBind = std::max(worstBind, std::abs(e[k] - ((k % 5 == 0) ? 1.0f : 0.0f)));
+            }
+        }
+        if (worstBind > 0.01f)
+        {
+            skeletonOk = false;
+            detail += " 基準姿勢 × 逆バインドが、単位行列と合わない(最大のずれ " + std::to_string(worstBind) + ")";
+        }
+
+        if (skeletonOk)
+        {
+            const XMFLOAT4X4& fr = fPose[static_cast<size_t>(fRoot)];
+            const XMFLOAT4X4& gr = gPose[static_cast<size_t>(gRoot)];
+            KR_LOG_INFO("  FBX 骨の確認: OK(骨 {} 本・名前と親が glTF と一致・骨どうしの相対位置が一致・基準姿勢 × 逆バインド = 単位行列(最大のずれ {:.5f}))。根の骨の置き場所:glTF ({:.2f}, {:.2f}, {:.2f}) / FBX ({:.2f}, {:.2f}, {:.2f})",
+                        fs.joints.size(), worstBind, gr._41, gr._42, gr._43, fr._41, fr._42, fr._43);
+        }
+        else
+        {
+            KR_LOG_ERROR("  FBX 骨の確認 NG: 骨の数 glTF {} / FBX {}。{}", gs.joints.size(), fs.joints.size(), detail);
+        }
+
+        // 骨の重み(F5):頂点と同じ数・重みの合計が 1・骨の番号が範囲の中・骨ごとの重みの合計が、glTF と同じか
+        {
+            const KR::MeshData& gm = gltf.mesh;
+            const KR::MeshData& fm = fbx.mesh;
+            bool skinOk = fm.skin.size() == fm.vertices.size() && gm.skin.size() == gm.vertices.size() && !fm.skin.empty();
+            std::string skinDetail;
+            auto totals = [](const KR::MeshData& mesh, const KR::Skeleton& skeleton, float& worstSum, int& maxJoint)
+            {
+                std::map<std::string, float> perBone;
+                worstSum = 0.0f;
+                maxJoint = -1;
+                for (const KR::SkinVertex& v : mesh.skin)
+                {
+                    float sum = 0.0f;
+                    for (int k = 0; k < 4; ++k)
+                    {
+                        sum += v.weights[k];
+                        if (v.weights[k] > 0.0f)
+                        {
+                            maxJoint = std::max(maxJoint, static_cast<int>(v.joints[k]));
+                            if (v.joints[k] < skeleton.joints.size())
+                            {
+                                perBone[skeleton.joints[v.joints[k]].name] += v.weights[k];
+                            }
+                        }
+                    }
+                    worstSum = std::max(worstSum, std::abs(sum - 1.0f));
+                }
+                return perBone;
+            };
+            float gSum = 0.0f, fSum = 0.0f;
+            int gMax = -1, fMax = -1;
+            const std::map<std::string, float> gTotals = totals(gm, gs, gSum, gMax);
+            const std::map<std::string, float> fTotals = totals(fm, fs, fSum, fMax);
+            if (fSum > 1e-3f)
+            {
+                skinOk = false;
+                skinDetail += " 重みの合計が 1 でない頂点がある(最大のずれ " + std::to_string(fSum) + ")";
+            }
+            if (fMax >= static_cast<int>(fs.joints.size()))
+            {
+                skinOk = false;
+                skinDetail += " 骨の番号が範囲の外";
+            }
+            for (const auto& [name, weight] : gTotals)
+            {
+                const auto other = fTotals.find(name);
+                const float fw = other == fTotals.end() ? 0.0f : other->second;
+                if (std::abs(weight - fw) > 0.5f) // 頂点 1536 個の合計。丸めの誤差だけ許す
+                {
+                    skinOk = false;
+                    skinDetail += " 骨「" + name + "」の重みの合計が違う(glTF " + std::to_string(weight) + " / FBX " + std::to_string(fw) + ")";
+                }
+            }
+            if (skinOk)
+            {
+                std::string text;
+                for (const auto& [name, weight] : fTotals)
+                {
+                    text += (text.empty() ? "" : "・") + name + " " + std::to_string(static_cast<int>(weight + 0.5f));
+                }
+                KR_LOG_INFO("  FBX 重みの確認: OK(頂点 {} 個・重みの合計 1(最大のずれ {:.6f})・骨ごとの重みの合計が glTF と一致:{})", fm.skin.size(), fSum, text);
+            }
+            else
+            {
+                KR_LOG_ERROR("  FBX 重みの確認 NG:{}", skinDetail);
+            }
+        }
+
+        // 動き(F6):数・長さ・動く骨の数が、glTF と同じか。いくつかの時刻の姿勢(骨の位置)が、glTF と近いか
+        // (FBX は、1 秒 30 回の Linear に焼き付けた物。glTF は、元のキー。補間のしかたの差だけ、許す)
+        {
+            bool clipOk = gltf.clips.size() == fbx.clips.size() && !fbx.clips.empty();
+            std::string clipDetail;
+            float worstDiff = 0.0f;
+            if (clipOk)
+            {
+                const KR::AnimationClip& gc = gltf.clips[0];
+                const KR::AnimationClip& fc = fbx.clips[0];
+                if (std::abs(gc.duration - fc.duration) > 0.05f)
+                {
+                    clipOk = false;
+                    clipDetail += " 長さ glTF " + std::to_string(gc.duration) + " / FBX " + std::to_string(fc.duration);
+                }
+                if (gc.tracks.size() != fc.tracks.size())
+                {
+                    clipOk = false;
+                    clipDetail += " 動く骨の数 glTF " + std::to_string(gc.tracks.size()) + " / FBX " + std::to_string(fc.tracks.size());
+                }
+                // 置き場所の違い(根の骨の、基準姿勢の位置の差)を、打ち消して、骨ごとの世界の位置を、比べる
+                const std::vector<XMFLOAT4X4> gBase = KR::EvaluatePose(gs, nullptr, 0.0f);
+                const std::vector<XMFLOAT4X4> fBase = KR::EvaluatePose(fs, nullptr, 0.0f);
+                const XMFLOAT3 offset = { fBase[static_cast<size_t>(fRoot)]._41 - gBase[static_cast<size_t>(gRoot)]._41,
+                                          fBase[static_cast<size_t>(fRoot)]._42 - gBase[static_cast<size_t>(gRoot)]._42,
+                                          fBase[static_cast<size_t>(fRoot)]._43 - gBase[static_cast<size_t>(gRoot)]._43 };
+                for (const float time : { 0.0f, 0.3f, 0.7f, 1.0f, 1.3f })
+                {
+                    const std::vector<XMFLOAT4X4> gp = KR::EvaluatePose(gs, &gc, time);
+                    const std::vector<XMFLOAT4X4> fp = KR::EvaluatePose(fs, &fc, time);
+                    for (size_t i = 0; i < gs.joints.size(); ++i)
+                    {
+                        const int j = indexOf(fs, gs.joints[i].name);
+                        if (j < 0)
+                        {
+                            continue;
+                        }
+                        const XMFLOAT4X4& a2 = gp[i];
+                        const XMFLOAT4X4& b2 = fp[static_cast<size_t>(j)];
+                        const float diff = std::max({ std::abs(a2._41 - (b2._41 - offset.x)), std::abs(a2._42 - (b2._42 - offset.y)), std::abs(a2._43 - (b2._43 - offset.z)) });
+                        worstDiff = std::max(worstDiff, diff);
+                    }
+                }
+                if (worstDiff > 0.15f)
+                {
+                    clipOk = false;
+                    clipDetail += " 骨の位置が、glTF と合わない(最大のずれ " + std::to_string(worstDiff) + " m)";
+                }
+            }
+            else
+            {
+                clipDetail += " 動きの数 glTF " + std::to_string(gltf.clips.size()) + " / FBX " + std::to_string(fbx.clips.size());
+            }
+            if (clipOk)
+            {
+                KR_LOG_INFO("  FBX 動きの確認: OK(動き {} 個「{}」・長さ {:.3f} 秒・動く骨 {} 本・5 つの時刻の骨の位置が glTF と一致(最大のずれ {:.4f} m))",
+                            fbx.clips.size(), fbx.clips[0].name, fbx.clips[0].duration, fbx.clips[0].tracks.size(), worstDiff);
+            }
+            else
+            {
+                KR_LOG_ERROR("  FBX 動きの確認 NG:{}", clipDetail);
+            }
+        }
+
+        // 振り分け(F7b):LoadModel が、拡張子で、glTF・FBX を選ぶ(大文字の拡張子でも)。LoadGltf / LoadFbx を直接呼んだ結果と、同じ形か
+        {
+            const KR::ModelData viaGlb = KR::LoadModel(std::filesystem::path(modelPath).concat(".glb"));
+            const KR::ModelData viaFbx = KR::LoadModel(std::filesystem::path(modelPath).concat(".fbx"));
+            const KR::ModelData viaUpper = KR::LoadModel(std::filesystem::path(modelPath).concat(".FBX"));
+            const bool dispatchOk = viaGlb.mesh.vertices.size() == gltf.mesh.vertices.size() && viaGlb.skeleton.joints.size() == gltf.skeleton.joints.size()
+                                 && viaFbx.mesh.vertices.size() == fbx.mesh.vertices.size() && viaFbx.skeleton.joints.size() == fbx.skeleton.joints.size()
+                                 && viaUpper.mesh.vertices.size() == fbx.mesh.vertices.size() && !viaGlb.IsEmpty() && !viaFbx.IsEmpty();
+            if (dispatchOk)
+            {
+                KR_LOG_INFO("  LoadModel の確認: OK(.glb → LoadGltf・.fbx / .FBX → LoadFbx と同じ結果:頂点 {} / {}・骨 {} / {})",
+                            viaGlb.mesh.vertices.size(), viaFbx.mesh.vertices.size(), viaGlb.skeleton.joints.size(), viaFbx.skeleton.joints.size());
+            }
+            else
+            {
+                KR_LOG_ERROR("  LoadModel の確認 NG: .glb の頂点 {}(LoadGltf {})・.fbx の頂点 {}(LoadFbx {})・.FBX の頂点 {}", viaGlb.mesh.vertices.size(),
+                             gltf.mesh.vertices.size(), viaFbx.mesh.vertices.size(), fbx.mesh.vertices.size(), viaUpper.mesh.vertices.size());
+            }
+        }
+    }
+
     void OnInit() override
     {
         RunCollisionSelfTest();
+        CheckFbxMesh("Test/BossObstacle/BossObstacle"); // F3 の確認:FBX のメッシュが、同じモデルの glTF と、そろっているか
         m_BoneRenderer.Create(GetRenderer());
 
         // 開くフォルダー・モデルの決め方:コマンドラインの引数 → 前回の記憶 → 既定(ビルドで決まった、アセットのフォルダー)
@@ -706,7 +1016,7 @@ protected:
         else
         {
             ImGui::Separator();
-            ImGui::TextWrapped(m_Models.empty() ? "Models の下に .glb が見つかりません。別のフォルダーを選んでください。" : "モデルを読み込めていません(ログを見てください)。");
+            ImGui::TextWrapped(m_Models.empty() ? "Models の下に .glb / .gltf / .fbx が見つかりません。別のフォルダーを選んでください。" : "モデルを読み込めていません(ログを見てください)。");
         }
         ImGui::End();
 
@@ -814,7 +1124,7 @@ protected:
 private:
     // ---- 開く(フォルダー・モデル)----
 
-    // アセットのフォルダーを決める:KR::SetAssetRoot で、エンジンの読み書きの場所を切り替え、Models/ の下の .glb を、一覧にする
+    // アセットのフォルダーを決める:KR::SetAssetRoot で、エンジンの読み書きの場所を切り替え、Models/ の下の .glb / .gltf / .fbx を、一覧にする
     // Models/ が無いフォルダーは、断る(false)
     bool ApplyFolder(const std::filesystem::path& folder)
     {
@@ -830,7 +1140,7 @@ private:
         m_Folder = folder;
         std::snprintf(m_FolderText, sizeof(m_FolderText), "%s", ToUtf8(folder).c_str());
 
-        // Models/ の下の .glb / .gltf を、全部探す(Models からの相対パス。区切りは /)
+        // Models/ の下の .glb / .gltf / .fbx を、全部探す(Models からの相対パス。区切りは /)
         m_Models.clear();
         for (const auto& entry : std::filesystem::recursive_directory_iterator(folder / "Models", std::filesystem::directory_options::skip_permission_denied, error))
         {
@@ -841,12 +1151,21 @@ private:
             std::filesystem::path extension = entry.path().extension();
             std::wstring lower = extension.wstring();
             std::transform(lower.begin(), lower.end(), lower.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-            if (lower == L".glb" || lower == L".gltf")
+            if (lower == L".glb" || lower == L".gltf" || lower == L".fbx")
             {
                 m_Models.push_back(ToUtf8(std::filesystem::relative(entry.path(), folder / "Models").generic_u8string()));
             }
         }
-        std::sort(m_Models.begin(), m_Models.end());
+        // 名前の順。同じ名前(拡張子を除く)の物は、glTF(.glb / .gltf)を先に・FBX を後に(同名の glb と fbx は、判定のファイルを共有する。最初に開くのは、glTF)
+        auto sortKey = [](const std::string& path)
+        {
+            const size_t dot = path.find_last_of('.');
+            std::string stem = path.substr(0, dot);
+            std::string extension = dot == std::string::npos ? "" : path.substr(dot);
+            std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return std::make_pair(stem, extension == ".fbx" ? 1 : 0);
+        };
+        std::sort(m_Models.begin(), m_Models.end(), [&](const std::string& a, const std::string& b) { return sortKey(a) < sortKey(b); });
         m_SelectedModel = 0;
 
         // 最近使ったフォルダーの先頭に
@@ -857,7 +1176,7 @@ private:
             m_Recent.resize(MaxRecentFolders);
         }
 
-        m_StatusMessage = m_Models.empty() ? "Models の下に .glb が見つかりません" : "";
+        m_StatusMessage = m_Models.empty() ? "Models の下に .glb / .gltf / .fbx が見つかりません" : "";
         KR_LOG_INFO("Editor: アセットのフォルダー {}(モデル {} 個)", ToUtf8(folder), m_Models.size());
         return true;
     }
@@ -1079,7 +1398,7 @@ private:
         ImGui::SameLine();
         ImGui::Text("アセット");
 
-        // モデルの一覧(Models の下の .glb)
+        // モデルの一覧(Models の下の .glb / .gltf / .fbx。拡張子も表示)
         if (!m_Models.empty())
         {
             m_SelectedModel = std::min(m_SelectedModel, m_Models.size() - 1);
@@ -1461,7 +1780,7 @@ private:
 
     // 開いているもの
     std::filesystem::path m_Folder;        // アセットのフォルダー(KR::SetAssetRoot に渡した物)
-    std::vector<std::string> m_Models;     // Models の下の .glb(相対パス。UTF-8。区切りは /)
+    std::vector<std::string> m_Models;     // Models の下の .glb / .gltf / .fbx(相対パス。UTF-8。区切りは /)
     size_t m_SelectedModel = 0;
     std::string m_CurrentModel;            // 今読んでいるモデル(Models からの相対パス)
     char m_FolderText[1024] = {};          // フォルダーの文字欄

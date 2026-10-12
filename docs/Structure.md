@@ -33,13 +33,13 @@ KREngine/
 │   ├─ KR.h                        まとめヘッダー(主なヘッダーを、まとめて取り込む)
 │   ├─ Core/                       Application, Log, Input(IsKeyDown / IsKeyPressed / IsKeyReleased), Assets(アセット・シェーダーの場所。SetAssetRoot で、実行時に切り替え), CommandLine(起動の引数)
 │   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners・Raycast・RayToSegmentDistance。当たり判定)・Ray(光線)
-│   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・HitboxMirror(判定の形の左右反転・対の骨の名前)・SkeletonDebug(骨の表示)
+│   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf。型 ModelData)・FbxLoader(LoadFbx)・LoadModel(拡張子で、glTF か FBX を選ぶ)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・HitboxMirror(判定の形の左右反転・対の骨の名前)・SkeletonDebug(骨の表示)
 │   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
 ├─ src/                          【非公開】ゲームからは見えない
 │   ├─ Core/                       Application, EntryPoint(main), Log, Input(状態表), InputState(書き込み口), Assets
 │   ├─ Platform/Windows/           Window(Win32)
 │   ├─ Physics/                    Collision(判定の計算)
-│   ├─ Animation/                  GltfLoader(cgltf で glTF を読み、エンジンのデータにする)
+│   ├─ Animation/                  GltfLoader(cgltf で glTF を読み、エンジンのデータにする)・FbxLoader(ufbx で FBX を読む)・LoadModel(拡張子で振り分け)
 │   ├─ Renderer/                   Renderer(描画の統括), Camera, Mesh(キューブなどのデータ), ModelLoader(OBJ を読む), Image(PNG をほどく。stb_image)
 │   ├─ UI/                         ImGuiLayer(ImGui の準備・片付け・毎フレームの描画)
 │   └─ Graphics/DX12/              DX12 の部品
@@ -56,6 +56,7 @@ KREngine/
 │       └─ DX12Texture               画像(Default ヒープ + SRV の札。Upload 経由でコピー)
 ├─ shaders/                      シェーダー(実行時にコンパイル): Basic.hlsl(物)/ Sky.hlsl(空)/ Line.hlsl(線。当たり判定の箱)/ Common.hlsli(共通の b1 の宣言)
 ├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Animated/(動くモデル AnimatedModel の使い方の見本)・Behavior/(敵の行動 KR::Behavior の使い方の見本。Walker.json を読んで、敵 1 体を動かす・今の状態のノードを光らせる)・Assets/(サンプル共通のアセット。テスト用のモデル・Enemies/Walker.json)
+├─ third_party/ufbx/             ufbx(FBX を読むライブラリ)の CMake の定義(取得は最上位の CMakeLists.txt。ufbx だけ Debug でも最適化)
 ├─ tools/AnimationEditor/        ツール KRAnimationEditor(骨・判定の形を、見て、調整して、保存する)
 ├─ tools/Common/                 ツールの共通の部品 KRToolCommon(フォルダーを選ぶ窓 FolderDialog。調整ツールどうしで共有)
 ├─ tools/BehaviorEditor/         ツール KRBehaviorEditor(敵の行動のグラフを、ノードで作る。作成中)
