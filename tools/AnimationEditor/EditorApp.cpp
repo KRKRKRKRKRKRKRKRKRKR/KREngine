@@ -421,7 +421,8 @@ protected:
     // FBX のメッシュの確認(F3):同じモデルの .glb と .fbx を読んで、形が、そろっているか調べる(Models からの、拡張子なしの相対パス)
     //   三角形の数・大きさ(幅・高さ・奥行き。メートル)・表裏(三角形の向きと、法線の向きが、そろっている三角形の割合)
     // 置き場所(位置)は、比べない(FBX は、Blender の置き場所を、そのまま持つため。骨を読む F4 で、扱いを決める)
-    static void CheckFbxMesh(const std::filesystem::path& modelPath)
+    //   sameMesh = false:glb と fbx で、メッシュの中身が違う書き出し(例:HumanModel の glb は、左半分だけ・fbx は、ミラーを適用した両側)。三角形は「FBX が、glTF 以上」・大きさは、高さと奥行きだけ・骨ごとの重みの合計は、比べない
+    static void CheckFbxMesh(const std::filesystem::path& modelPath, bool sameMesh = true)
     {
         const KR::ModelData gltf = KR::LoadGltf(std::filesystem::path(modelPath).concat(".glb"));
         const KR::ModelData fbx = KR::LoadFbx(std::filesystem::path(modelPath).concat(".fbx"));
@@ -462,15 +463,16 @@ protected:
         const Shape a = measure(gltf.mesh);
         const Shape b = measure(fbx.mesh);
         auto close = [](float x, float y) { return std::abs(x - y) < 0.01f; };
-        const bool trianglesMatch = gltf.mesh.indices.size() == fbx.mesh.indices.size();
-        const bool sizeMatch = close(a.size.x, b.size.x) && close(a.size.y, b.size.y) && close(a.size.z, b.size.z);
+        const bool trianglesMatch = sameMesh ? gltf.mesh.indices.size() == fbx.mesh.indices.size() : fbx.mesh.indices.size() >= gltf.mesh.indices.size();
+        const bool sizeMatch = (!sameMesh || close(a.size.x, b.size.x)) && close(a.size.y, b.size.y) && close(a.size.z, b.size.z);
         // 表裏:glTF の割合と、FBX の割合が、近ければ OK(どちらも、同じ決まりの表裏)。向きが逆なら、割合が、1 − ほぼ
         const bool windingMatch = std::abs(a.outwardRatio - b.outwardRatio) < 0.05f;
 
         if (trianglesMatch && sizeMatch && windingMatch)
         {
-            KR_LOG_INFO("  FBX メッシュの確認: OK(glTF と一致:三角形 {}・大きさ {:.2f} × {:.2f} × {:.2f} m・表裏の割合 glTF {:.2f} / FBX {:.2f})",
-                        fbx.mesh.indices.size() / 3, b.size.x, b.size.y, b.size.z, a.outwardRatio, b.outwardRatio);
+            KR_LOG_INFO("  FBX メッシュの確認: OK({}:三角形 glTF {} / FBX {}・FBX の大きさ {:.2f} × {:.2f} × {:.2f} m・表裏の割合 glTF {:.2f} / FBX {:.2f})",
+                        sameMesh ? "glTF と一致" : "メッシュの中身が違う書き出し(高さ・奥行き・表裏だけ比べた)", gltf.mesh.indices.size() / 3, fbx.mesh.indices.size() / 3,
+                        b.size.x, b.size.y, b.size.z, a.outwardRatio, b.outwardRatio);
         }
         else
         {
@@ -553,6 +555,22 @@ protected:
                 worstBind = std::max(worstBind, std::abs(e[k] - ((k % 5 == 0) ? 1.0f : 0.0f)));
             }
         }
+        // 骨の世界の行列の、軸の長さ(拡大)が、1 か。FBX は、アーマチュアに 100 倍の拡大が付くことがある。拡大が残ると、判定の形が、その倍率で大きくなる(glTF の骨は、拡大 1)
+        float worstScale = 0.0f;
+        for (const XMFLOAT4X4& pose : fPose)
+        {
+            const XMMATRIX m = XMLoadFloat4x4(&pose);
+            for (int k = 0; k < 3; ++k)
+            {
+                worstScale = std::max(worstScale, std::abs(XMVectorGetX(XMVector3Length(m.r[k])) - 1.0f));
+            }
+        }
+        if (worstScale > 0.01f)
+        {
+            skeletonOk = false;
+            detail += " 骨の世界の行列に、拡大が残っている(軸の長さが、1 から最大 " + std::to_string(worstScale) + " ずれる)";
+        }
+
         if (worstBind > 0.01f)
         {
             skeletonOk = false;
@@ -619,7 +637,7 @@ protected:
             {
                 const auto other = fTotals.find(name);
                 const float fw = other == fTotals.end() ? 0.0f : other->second;
-                if (std::abs(weight - fw) > 0.5f) // 頂点 1536 個の合計。丸めの誤差だけ許す
+                if (sameMesh && std::abs(weight - fw) > 0.5f) // 頂点 1536 個の合計。丸めの誤差だけ許す(メッシュが違う書き出しでは、比べない)
                 {
                     skinOk = false;
                     skinDetail += " 骨「" + name + "」の重みの合計が違う(glTF " + std::to_string(weight) + " / FBX " + std::to_string(fw) + ")";
@@ -655,7 +673,7 @@ protected:
                     clipOk = false;
                     clipDetail += " 長さ glTF " + std::to_string(gc.duration) + " / FBX " + std::to_string(fc.duration);
                 }
-                if (gc.tracks.size() != fc.tracks.size())
+                if (fc.tracks.size() > gc.tracks.size()) // FBX は、基準姿勢から動かない骨のトラックを、作らない(glTF は、全部の骨に、キーを持つことがある)。FBX のほうが、多いのは、おかしい
                 {
                     clipOk = false;
                     clipDetail += " 動く骨の数 glTF " + std::to_string(gc.tracks.size()) + " / FBX " + std::to_string(fc.tracks.size());
@@ -729,6 +747,7 @@ protected:
     {
         RunCollisionSelfTest();
         CheckFbxMesh("Test/BossObstacle/BossObstacle"); // F3 の確認:FBX のメッシュが、同じモデルの glTF と、そろっているか
+        CheckFbxMesh("Test/HumanModel/HumanModel", false); // 人型のモデル(212 本の骨)でも、確認する。glb は左半分だけ・fbx は両側
         m_BoneRenderer.Create(GetRenderer());
 
         // 開くフォルダー・モデルの決め方:コマンドラインの引数 → 前回の記憶 → 既定(ビルドで決まった、アセットのフォルダー)

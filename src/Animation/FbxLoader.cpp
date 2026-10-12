@@ -46,11 +46,23 @@ namespace KR
             return result;
         }
 
+        // 行列の軸(1〜3 行目)を、scale 倍する(位置は、変えない)。骨の世界の行列から、共通の拡大を、取り除くのに使う
+        void ScaleAxes(XMFLOAT4X4& m, float scale)
+        {
+            for (float* axis : { &m._11, &m._21, &m._31 })
+            {
+                axis[0] *= scale;
+                axis[1] *= scale;
+                axis[2] *= scale;
+            }
+        }
+
         // 骨(Skeleton)と、骨の番号 → FBX のノード の対応(重みを読む F5・動きを読む F6 が、使う)
         struct FbxSkeleton
         {
             Skeleton skeleton;
             std::vector<const ufbx_node*> nodes; // skeleton.joints と、同じ並び
+            float unitScale = 1.0f; // 骨の世界の行列に、含まれていた共通の拡大(Blender の FBX は、アーマチュアに 100 倍の拡大が付く)。骨の行列は、これで割って、拡大 1 にそろえる
         };
 
         // 骨:スキン(ufbx_skin_deformer)の「クラスター」(= 骨 1 本の、影響の設定)が指すノードを、骨にする。番号は、クラスターの並び
@@ -72,6 +84,26 @@ namespace KR
                     }
                     result.nodes.push_back(cluster->bone_node);
                     bindWorld.push_back(ConvertMatrix(cluster->bind_to_world));
+                }
+            }
+
+            // 共通の拡大を、取り除く。Blender の FBX は、アーマチュアに 100 倍の拡大が付き(単位 cm との帳尻合わせ)、そのまま使うと、骨の行列の軸が長さ 100 になり、
+            // 骨に付けた判定の形が、100 倍の大きさで出る(glTF の骨は、拡大 1)。最初の骨の軸の長さの平均を、共通の拡大とみなして、全部の骨(バインド・動き)の軸を、その分だけ縮める。
+            // 全部の骨で、同じ拡大が掛かっていれば、スキニングの結果(世界の行列 × 逆バインド)は、変わらない(拡大が、打ち消し合う)
+            if (!bindWorld.empty())
+            {
+                const XMMATRIX first = XMLoadFloat4x4(&bindWorld[0]);
+                result.unitScale = (XMVectorGetX(XMVector3Length(first.r[0])) + XMVectorGetX(XMVector3Length(first.r[1])) + XMVectorGetX(XMVector3Length(first.r[2]))) / 3.0f;
+                if (result.unitScale > 1e-6f && std::abs(result.unitScale - 1.0f) > 1e-4f)
+                {
+                    for (XMFLOAT4X4& world : bindWorld)
+                    {
+                        ScaleAxes(world, 1.0f / result.unitScale);
+                    }
+                }
+                else
+                {
+                    result.unitScale = 1.0f;
                 }
             }
 
@@ -156,6 +188,7 @@ namespace KR
                     for (size_t j = 0; j < jointCount; ++j)
                     {
                         worlds[s][j] = ConvertMatrix(evaluated->nodes.data[fbxSkeleton.nodes[j]->typed_id]->node_to_world);
+                        ScaleAxes(worlds[s][j], 1.0f / fbxSkeleton.unitScale); // 骨の基準姿勢と、同じ拡大にそろえる(ReadSkeleton)
                     }
                     ufbx_free_scene(evaluated);
                 }
