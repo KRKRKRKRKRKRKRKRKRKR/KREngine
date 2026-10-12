@@ -1,6 +1,6 @@
 ﻿# ツールの exe だけを、dist\ に取り出す(エクスプローラーから、ダブルクリックで動かせる形)
 #   使い方:  powershell -NoProfile -ExecutionPolicy Bypass -File tools\Publish-Tools.ps1 [-Build] [-Samples] [-Config Release]
-#   -Build   : 先に、ビルドする(ツール)。つけなければ、今ある build の出力を、コピーするだけ
+#   -Build   : 先に、ビルドする(ツール)。build が無ければ、設定(cmake --preset vs2026)から、行う。つけなければ、今ある build の出力を、コピーするだけ
 #   -Samples : サンプル(KRAnimated・KRBehavior・KRMinimal)も、取り出す
 #   -Config  : Release(既定。最適化つき・コンソールなし)か Debug
 # 出力:dist\<名前>\(exe・DLL・Models・Shaders・Enemies。pdb・lib・ログ・設定は、含めない)。dist\ は、Git に入れない
@@ -28,6 +28,15 @@ if ($Samples) {
 if ($Build) {
     $cmakeDir = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
     if (-not (Get-Command cmake -ErrorAction SilentlyContinue) -and (Test-Path $cmakeDir)) { $env:PATH += ";$cmakeDir" }
+    # build\ が無い(消した)・設定が無いときは、先に、設定する(cmake --preset vs2026。外部ライブラリの取得も、ここで行う)
+    if (-not (Test-Path (Join-Path $root "build\CMakeCache.txt"))) {
+        Write-Host "build\ が無いので、先に、設定します(cmake --preset vs2026)"
+        Push-Location $root
+        & cmake --preset vs2026
+        $configured = $LASTEXITCODE
+        Pop-Location
+        if ($configured -ne 0) { Write-Error "設定に失敗しました"; exit 1 }
+    }
     & cmake --build (Join-Path $root "build") --config $Config --target @($targets.Keys)
     if ($LASTEXITCODE -ne 0) { Write-Error "ビルドに失敗しました"; exit 1 }
 }
