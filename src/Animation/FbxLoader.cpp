@@ -11,6 +11,7 @@
 #include <cmath>
 #include <fstream>
 #include <iterator>
+#include <initializer_list>
 #include <limits>
 #include <utility>
 #include <string>
@@ -46,11 +47,23 @@ namespace KR
             return result;
         }
 
+        // 行列の軸(1〜3 行目)を、scale 倍する(位置は、変えない)。骨の世界の行列から、共通の拡大を、取り除くのに使う
+        void ScaleAxes(XMFLOAT4X4& m, float scale)
+        {
+            for (float* axis : { &m._11, &m._21, &m._31 })
+            {
+                axis[0] *= scale;
+                axis[1] *= scale;
+                axis[2] *= scale;
+            }
+        }
+
         // 骨(Skeleton)と、骨の番号 → FBX のノード の対応(重みを読む F5・動きを読む F6 が、使う)
         struct FbxSkeleton
         {
             Skeleton skeleton;
             std::vector<const ufbx_node*> nodes; // skeleton.joints と、同じ並び
+            float unitScale = 1.0f; // 骨の世界の行列に、含まれていた共通の拡大(Blender の FBX は、アーマチュアに 100 倍の拡大が付く)。骨の行列は、これで割って、拡大 1 にそろえる
         };
 
         // 骨:スキン(ufbx_skin_deformer)の「クラスター」(= 骨 1 本の、影響の設定)が指すノードを、骨にする。番号は、クラスターの並び
@@ -72,6 +85,26 @@ namespace KR
                     }
                     result.nodes.push_back(cluster->bone_node);
                     bindWorld.push_back(ConvertMatrix(cluster->bind_to_world));
+                }
+            }
+
+            // 共通の拡大を、取り除く。Blender の FBX は、アーマチュアに 100 倍の拡大が付き(単位 cm との帳尻合わせ)、そのまま使うと、骨の行列の軸が長さ 100 になり、
+            // 骨に付けた判定の形が、100 倍の大きさで出る(glTF の骨は、拡大 1)。最初の骨の軸の長さの平均を、共通の拡大とみなして、全部の骨(バインド・動き)の軸を、その分だけ縮める。
+            // 全部の骨で、同じ拡大が掛かっていれば、スキニングの結果(世界の行列 × 逆バインド)は、変わらない(拡大が、打ち消し合う)
+            if (!bindWorld.empty())
+            {
+                const XMMATRIX first = XMLoadFloat4x4(&bindWorld[0]);
+                result.unitScale = (XMVectorGetX(XMVector3Length(first.r[0])) + XMVectorGetX(XMVector3Length(first.r[1])) + XMVectorGetX(XMVector3Length(first.r[2]))) / 3.0f;
+                if (result.unitScale > 1e-6f && std::abs(result.unitScale - 1.0f) > 1e-4f)
+                {
+                    for (XMFLOAT4X4& world : bindWorld)
+                    {
+                        ScaleAxes(world, 1.0f / result.unitScale);
+                    }
+                }
+                else
+                {
+                    result.unitScale = 1.0f;
                 }
             }
 
@@ -156,6 +189,7 @@ namespace KR
                     for (size_t j = 0; j < jointCount; ++j)
                     {
                         worlds[s][j] = ConvertMatrix(evaluated->nodes.data[fbxSkeleton.nodes[j]->typed_id]->node_to_world);
+                        ScaleAxes(worlds[s][j], 1.0f / fbxSkeleton.unitScale); // 骨の基準姿勢と、同じ拡大にそろえる(ReadSkeleton)
                     }
                     ufbx_free_scene(evaluated);
                 }
@@ -499,5 +533,83 @@ namespace KR
             }
         }
         return model;
+    }
+
+    bool RunFbxSkinSelfTest()
+    {
+        int failures = 0;
+        auto check = [&](const char* name, bool ok)
+        {
+            if (!ok)
+            {
+                KR_LOG_ERROR("  FBX 重みの処理の確認 NG: {}", name);
+                ++failures;
+            }
+        };
+        auto nearlyEqual = [](float a, float b) { return std::abs(a - b) < 1e-5f; };
+
+        // 偽のスキン:頂点 5 個。重みの並びは、頂点ごとに、weight_begin から num_weights 個
+        //   頂点 0:6 本(順番はばらばら)  頂点 1:2 本  頂点 2:重みなし  頂点 3:クラスターが骨に対応しない(-1)の物と、1 本  頂点 4:ちょうど 4 本
+        std::vector<ufbx_skin_weight> weights;
+        std::vector<ufbx_skin_vertex> vertices;
+        auto addVertex = [&](std::initializer_list<std::pair<uint32_t, double>> list)
+        {
+            ufbx_skin_vertex vertex = {};
+            vertex.weight_begin = static_cast<uint32_t>(weights.size());
+            vertex.num_weights = static_cast<uint32_t>(list.size());
+            for (const auto& [cluster, weight] : list)
+            {
+                ufbx_skin_weight w = {};
+                w.cluster_index = cluster;
+                w.weight = weight;
+                weights.push_back(w);
+            }
+            vertices.push_back(vertex);
+        };
+        addVertex({ { 0, 0.05 }, { 1, 0.30 }, { 2, 0.10 }, { 3, 0.25 }, { 4, 0.20 }, { 5, 0.10 } }); // 0
+        addVertex({ { 2, 1.0 }, { 3, 3.0 } });                                                        // 1:合計が 1 でない
+        addVertex({});                                                                                // 2
+        addVertex({ { 6, 0.5 }, { 1, 0.5 } });                                                        // 3:クラスター 6 は、骨に無い
+        addVertex({ { 0, 0.4 }, { 1, 0.3 }, { 2, 0.2 }, { 3, 0.1 } });                                // 4
+        ufbx_skin_deformer deformer = {};
+        deformer.vertices.data = vertices.data();
+        deformer.vertices.count = vertices.size();
+        deformer.weights.data = weights.data();
+        deformer.weights.count = weights.size();
+        // クラスターの番号 → 骨の番号:0→10・1→11・2→12・3→13・4→14・5→15・6→骨に無い
+        const std::vector<int> jointOfCluster = { 10, 11, 12, 13, 14, 15, -1 };
+
+        SkinStats stats;
+        auto sum = [](const SkinVertex& v) { return v.weights[0] + v.weights[1] + v.weights[2] + v.weights[3]; };
+
+        const SkinVertex six = ReadSkinVertex(deformer, 0, jointOfCluster, stats);
+        check("6 本 → 大きい順の 4 本(骨 11・13・14・12 か 15)", six.joints[0] == 11 && six.joints[1] == 13 && six.joints[2] == 14 && (six.joints[3] == 12 || six.joints[3] == 15));
+        check("6 本 → 合計 1", nearlyEqual(sum(six), 1.0f));
+        check("6 本 → 小さい物を捨てて、残りを 1 に直す(0.30 / 0.85)", nearlyEqual(six.weights[0], 0.30f / 0.85f));
+        check("6 本 → 重みが、大きい順", six.weights[0] >= six.weights[1] && six.weights[1] >= six.weights[2] && six.weights[2] >= six.weights[3]);
+
+        const SkinVertex two = ReadSkinVertex(deformer, 1, jointOfCluster, stats);
+        check("2 本 → 大きい物が先(骨 13:0.75)・もう 1 本(骨 12:0.25)", two.joints[0] == 13 && nearlyEqual(two.weights[0], 0.75f) && two.joints[1] == 12 && nearlyEqual(two.weights[1], 0.25f));
+        check("2 本 → 残りの枠は、重み 0", nearlyEqual(two.weights[2], 0.0f) && nearlyEqual(two.weights[3], 0.0f) && nearlyEqual(sum(two), 1.0f));
+
+        const SkinVertex none = ReadSkinVertex(deformer, 2, jointOfCluster, stats);
+        check("重みなし → 骨 0・重み 1(glTF と同じ)", none.joints[0] == 0 && nearlyEqual(none.weights[0], 1.0f) && nearlyEqual(sum(none), 1.0f));
+
+        const SkinVertex dropped = ReadSkinVertex(deformer, 3, jointOfCluster, stats);
+        check("骨に無いクラスターは、捨てる(骨 11 だけ・重み 1)", dropped.joints[0] == 11 && nearlyEqual(dropped.weights[0], 1.0f) && nearlyEqual(dropped.weights[1], 0.0f));
+
+        const SkinVertex four = ReadSkinVertex(deformer, 4, jointOfCluster, stats);
+        check("ちょうど 4 本 → そのまま(5 本以上に、数えない)", four.joints[0] == 10 && four.joints[3] == 13 && nearlyEqual(sum(four), 1.0f));
+
+        check("集計:骨つきの頂点 5 個", stats.vertexCount == 5);
+        check("集計:5 本以上の頂点は 1 個(頂点 0 だけ)", stats.overFourCount == 1);
+        check("集計:1 頂点の最大 6 本", stats.maxInfluences == 6);
+        check("集計:重みが無い頂点は 1 個", stats.noWeightCount == 1);
+
+        if (failures == 0)
+        {
+            KR_LOG_INFO("  FBX 重みの処理の確認: OK(5 本以上の骨を 4 本に絞る・大きい順・合計 1・骨に無いクラスターを捨てる・重みなし → 骨 0・集計。作った偽のデータで検査)");
+        }
+        return failures == 0;
     }
 }
