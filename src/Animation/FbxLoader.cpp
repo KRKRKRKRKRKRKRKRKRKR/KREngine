@@ -474,6 +474,30 @@ namespace KR
                     model.mesh.vertices.size(), model.mesh.indices.size() / 3, maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z,
                     minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z, model.skeleton.joints.size(), model.clips.size(), BakeFramesPerSecond,
                     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count());
+
+        // 骨とメッシュが、離れていないか(基準姿勢で)。FBX は、Blender の置き場所を、そのまま持つので、骨とメッシュが、別々の場所にあるファイルもある。
+        // その場合、骨に付けた判定の形は、メッシュから離れた所に出る(骨の動きに、メッシュが、大きく振り回されることもある)。ファイルの内容なので、読み込みでは直さず、警告で知らせる
+        // 骨の位置のうち、メッシュを囲む箱に、一番近い物までの距離が、箱の対角線の半分より遠ければ、警告
+        if (!model.skeleton.joints.empty())
+        {
+            const float diagonal = std::sqrt((maximum.x - minimum.x) * (maximum.x - minimum.x) + (maximum.y - minimum.y) * (maximum.y - minimum.y) + (maximum.z - minimum.z) * (maximum.z - minimum.z));
+            float nearest = std::numeric_limits<float>::max();
+            for (const Joint& joint : model.skeleton.joints)
+            {
+                XMFLOAT4X4 bindWorld; // 骨の、バインド時の世界の行列 = 逆バインド行列の逆。位置は 4 行目
+                XMStoreFloat4x4(&bindWorld, XMMatrixInverse(nullptr, XMLoadFloat4x4(&joint.inverseBind)));
+                const float dx = std::max({ minimum.x - bindWorld._41, 0.0f, bindWorld._41 - maximum.x });
+                const float dy = std::max({ minimum.y - bindWorld._42, 0.0f, bindWorld._42 - maximum.y });
+                const float dz = std::max({ minimum.z - bindWorld._43, 0.0f, bindWorld._43 - maximum.z });
+                nearest = std::min(nearest, std::sqrt(dx * dx + dy * dy + dz * dz));
+            }
+            if (nearest > diagonal * 0.5f)
+            {
+                KR_LOG_WARN("FbxLoader: {} は、骨とメッシュが離れています(骨からメッシュを囲む箱までの距離 {:.1f} m・メッシュの大きさ(対角線){:.1f} m)。"
+                            "Blender で、アーマチュアとメッシュの置き場所をそろえて(Apply Transform)、書き出し直すと、判定の形が、メッシュの上に出ます",
+                            relativePath.string(), nearest, diagonal);
+            }
+        }
         return model;
     }
 }
