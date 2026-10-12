@@ -99,4 +99,10 @@ KR エンジンが、どういう順番で・どんな理由で・何を選ん�
 - 切り替えのキーを、Blender に合わせて、**T = 移動 / S = 大きさ**にした(最初の予定は W / E)。
 - 形を選ぶのに、**レイ**(`Camera::ScreenPointToRay` → `Raycast` / `RayToSegmentDistance`)を使った。画面に投影する案もあったが、箱・球・骨の線分を、同じ方法で扱えるレイにした。
 **merge のときに、仲介担当が、したこと**:`main` に `--no-ff` で merge(衝突なし)・版 **0.3.0**・`CHANGELOG.md` の「未リリース」を「0.3.0」へ・タグ `v0.3.0`・全ターゲットのビルドと、ゲーム(すれすれ飛行)の確認。
-**次**:ノード担当の作業(敵 AI のノードエディタ。版 0.4.0)が、続いている。ノード担当は、この版を、`main` から取り込む。
+**次**:ノード担当の作業(敵 AI のノードエディタ)は、0.4.0 として merge した(7)。
+
+## 7. ノードエディタを、merge した(0.4.0。2026-10-12)
+**したこと**:敵の行動を、ノードで作って、ゲームで動かす仕組み `KR::Behavior`(グラフ・`Runner`・`GraphAsset`・`DrawGraphDebug`)と、ツール **KRBehaviorEditor**。担当(ノード担当)が、別の窓・別のブランチ(`feature/behavior-editor`)で、B1〜B6 に分けて進めた。きっかけは、Action2D からの依頼(原文は `Shared/handoff/Action2D依頼_敵AIエディタ.md`)。経過・決めたこと・既知の制限は、[Behavior.md](Behavior.md)・[BehaviorEditor.md](BehaviorEditor.md)。使い方は、[Usage.md](Usage.md) の 8。
+**途中で決めたこと**:ノードエディタの部品は、外部ライブラリ **imnodes**(ズームが無いことを承知で、ズームなしで進める判断。B3-3)。**エンジンは、物理・移動・当たり判定を持たない**(ゲームが、`Runner` の返す状態を見て動く)。`FolderDialog` は、2 つのツールで共有するため、`tools/Common/` へ移した。
+**merge のときに、仲介担当が、したこと**:`main` に `--no-ff` で merge(衝突なし。担当が、先に `main`(0.3.0)を取り込み済み)・版 **0.4.0**・`CHANGELOG.md`・`Versioning.md` の表・タグ `v0.4.0`・全ターゲットのビルド。
+**次**:FBX 担当(`feature/fbx-loader`。F8〜F10 が残り)が、この版(`main`)を取り込んでから、merge する。版は **0.5.0** の予定。
