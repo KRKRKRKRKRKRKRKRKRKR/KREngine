@@ -1,0 +1,7 @@
+# 敵の行動(KR::Behavior)の、使い方の見本 KRBehavior(グラフを読んで、敵を動かす・今の状態のノードを光らせる・ファイルの書き換えを、自動で反映する)
+# グラフは、samples/Assets/Enemies/Walker.json(ツール KRBehaviorEditor で作った物)
+add_executable(KRBehavior BehaviorApp.cpp)
+target_link_libraries(KRBehavior PRIVATE KREngine)
+kr_copy_runtime_files(KRBehavior)
+set_target_properties(KRBehavior PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Samples)
+target_link_options(KRBehavior PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)

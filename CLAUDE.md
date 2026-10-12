@@ -24,6 +24,16 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 - 使い方の見本は `samples/Animated/`(KRAnimated)。骨つきのメッシュは、1 フレームに 32 個・骨は 128 本まで(`Renderer::MaxSkinnedDrawsPerFrame` / `MaxSkinJoints`)
 - 手前に描く(`overlay`。深度テストなし)は、骨つきの形には使えない
 
+## 敵の行動(`Behavior/`。B1〜B6-3 が完了。版・タグは、仲介担当が決める)
+詳しくは `docs/Behavior.md`(経緯・決めたこと・既知の制限)・`docs/Usage.md` の 8(使い方)・`docs/BehaviorEditor.md`(ツール)。
+- **役割を分ける**:データと計算 = `Graph`(型)・`NodeTypes`(ノードの種類の登録)・`GraphFile`(JSON の読み書き)・`Context`(状況)・`Runner`(今の状態を決める)・`GraphAsset`(ファイルの書き換えを読み直す)/ 画面 = `GraphEditor`(ノードエディタの部品。ツール用)・`DrawGraphDebug`(ゲームの中で、今の状態を光らせる。読むだけ)。**エンジンは、物理・移動・当たり判定を持たない**(ゲームが、`Runner` が返す「今の状態」を見て、自分で動く)。ゲーム固有の型は、エンジンに入れない(汎用の値の入れ物 = `Context` で渡す)。
+- **ノードの種類を足す**:`src/Behavior/NodeTypes.cpp` の `MakeBuiltinTypes` に、登録を 1 つ書く(エディタの欄・メニューは、登録から自動で作られる)。条件の評価は `src/Behavior/Condition.cpp`。ゲームの動きは、ゲーム側。
+- **グラフの JSON は、版つき**(`"version": 1`)。形式を変えたら、`GraphFile.cpp` の `FileVersion` を上げて、`docs/Behavior.md` に書く。壊れたファイル・欠けた項目でも、落ちない(エラー + 安全な既定)。
+- **imnodes は、エンジンの中だけ(PRIVATE)**。公開ヘッダー(`GraphEditor.h` など)に、imnodes の型を出さない(pimpl)。コミットとハッシュを固定して取り込む(`CMakeLists.txt`)。ズームの機能は、imnodes に無い(既知の制限)。
+- **ノードは、並びの番号ではなく、id で探す**(`Graph::FindNode`)。id は使い回さない(`nextNodeId` を JSON に保存)。
+- **ツール `KRBehaviorEditor`**(`tools/BehaviorEditor/`)は、開いたゲームの `Assets/Enemies/<名前>.json` に保存する(`KR::SetAssetRoot`。ゲームは、呼ばない)。フォルダーを選ぶ窓は、`tools/Common/`(`KRToolCommon`)で、調整ツールどうしで共有。見本は、サンプル `KRBehavior`(`samples/Behavior/`)。
+- 確認用の使い捨て exe は、`probe/BehaviorProbe/`(`-DKR_BUILD_PROBES=ON` のときだけ)。
+
 ## 文字コード・パス
 - ソースは UTF-8(`/utf-8`)。**日本語を含むフォルダーに置いても動く**ように、CMake が埋め込んだ場所(`KR_*_SOURCE_DIR`)は、`char8_t` の列として `std::filesystem::path` にする(`Assets.cpp` の `Utf8Path`)。`path(const char*)` は、日本語 Windows で、CP932 として読まれて、例外になる
 - 引数・設定ファイルなどで、UTF-8 の文字列と `path` を行き来するときも、`u8string()` / `char8_t` を使う(ツールの `EditorApp.cpp` の `ToUtf8` / `FromUtf8` が見本)

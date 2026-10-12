@@ -8,6 +8,23 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 ## [未リリース]
 (次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
 
+## [0.4.0] — 2026-10-12
+敵の行動を、ノードで作る仕組みの追加(機能の追加)。
+敵の行動を、ノードで作って、ゲームで動かす仕組み(`KR::Behavior`)と、ツール。
+- 追加:**`KR::Behavior`**(`Behavior/`)。ゲームから使えるのは、公開側 `include/KR/Behavior/` の、次の物(`Graph`・`Context`・`Runner`・`GraphFile`・`GraphAsset`・`GraphDebug` は、`KR.h` から、まとめて使える)
+  - `Graph`・`Node`・`Link`(グラフの型。状態 → 条件 → 状態)・`NodeTypes`(ノードの種類の登録。エディタの欄は、登録から自動で作られる)
+  - `LoadGraph` / `SaveGraph`(JSON。版つき。壊れたファイル・欠けた項目でも、落ちない)・`Context`(状況の入れ物)・**`Runner`**(毎フレーム「今の状態」を決める。`StateView` で、種類・値・入ってからの時間を返す)・**`GraphAsset`**(ファイルが書き換わったら、約 0.5 秒おきに見て、自動で読み直す。壊れていたら、前のまま)
+  - **`DrawGraphDebug`**(動いている敵の「今の状態」のノードを、ゲームの ImGui の窓の中で、光らせる。読むだけの表示)
+  - 状態:`Wait`・`Patrol`・`MoveToPlayer`・`Attack` / 条件:`PlayerWithin`・`PlayerOutside`(横だけの距離が基本。`includeVertical` で、縦も含める)・`TimeElapsed`・`AttackFinished`
+  - **エンジンは、物理・移動・当たり判定を持たない**(ゲームが、`Runner` が返す状態を見て、自分で動く)
+- 追加:**ツール `KRBehaviorEditor`**(`tools/BehaviorEditor/`)。ノードで、行動のグラフを作る(足す・つなぐ・値を直す・開始ノード・分岐の順番・検証の警告)。開いたゲームの `Assets/Enemies/<名前>.json` に保存する(開く・一覧・保存・新規・読み直し・保存していない印と確認・設定の記憶・`--assets` / `--graph`)
+- 追加:**サンプル `KRBehavior`**(`samples/Behavior/`。グラフ `samples/Assets/Enemies/Walker.json`)・外部ライブラリ **imnodes**(MIT。ノードエディタの部品。エンジンの中だけ = PRIVATE。コミットで固定。ズームの機能は、無い)
+- 追加:`docs/Behavior.md`(経緯・決めたこと・既知の制限)・`docs/BehaviorEditor.md`・**`docs/Usage.md` の 8(ゲームでの使い方)**
+- 変更(ツールの中だけ。ゲームには影響なし):`FolderDialog` を `tools/AnimationEditor/` から `tools/Common/`(静的ライブラリ `KRToolCommon`)へ移し、2 つのツールで共有した
+- **ゲーム側で必要な変更:なし**(追加だけ。`KR.h` に、`KR::Behavior` の公開ヘッダーが増えたが、既存の物は変わらない。ゲームの CMake は、そのままでよい)
+  - 敵の行動を使うゲーム(Action2D)は、`Usage.md` の 8 のとおりに呼ぶ。**`Enemies` フォルダーを、初めて作ったときは、CMake を、もう一度 configure する**(exe の横へ、コピーする一覧が、configure のときに決まるため)
+- 既知の制限:ノードエディタに、ズームが無い(imnodes の機能の制限)・元に戻す / コピーが無い・ツールの窓の閉じるボタンでは、保存の確認が出ない(エンジンの `Application` に、閉じる前の仕組みが無い)
+
 ## [0.3.0] — 2026-10-09
 調整ツール KRAnimationEditor を、画面の上で、直接操作できるように強化(機能の追加)。
 - 追加:**レイ**(`Physics/Ray.h`)・`Camera::ScreenPointToRay`(画面の点 → 世界のレイ)・`Raycast(Ray, Sphere)` / `Raycast(Ray, OBB)`(当たれば距離 t)・`RayToSegmentDistance`(レイと線分の最短距離)

@@ -236,3 +236,89 @@ for (const KR::WorldHitbox& shape : shapes)
 ### 7-4. 注意
 - ゲームの CMake は、そのままでよい(エンジンが、cgltf と nlohmann/json を取り込む)。ゲームが、同じ nlohmann/json(v3.12.0)を取り込んでいても、競合しない。
 - 骨つきの物は、1 フレームに 32 個まで描ける(`Renderer::MaxSkinnedDrawsPerFrame`)。骨なしの `DrawMesh` に、骨つきのメッシュを渡すと、エラーになる(`AnimatedModel::Draw` を使えば、自動で選ばれる)。
+
+## 8. 敵の行動(ノードで作った行動)を使う
+**ツールでノードをつないで作った、敵の行動(状態機械)を、ゲームで動かす**。コードを書き換えずに、ツールで直して保存すれば、行動が変わる。しくみ・経緯・決めたことは [Behavior.md](Behavior.md)・ツールは [BehaviorEditor.md](BehaviorEditor.md)。動く見本は、サンプル `KRBehavior`(`samples/Behavior/`)。
+
+- **エンジンは、「今、どの状態か」だけを返す**。移動・当たり判定・攻撃の時間の数え方は、**ゲームの仕事**(エンジンは、ゲーム固有の型を知らない)。ゲームは、状況を、名前つきの値(`Context`)で渡す。
+
+### 8-1. グラフを作る(ツール)
+1. ツール `KRBehaviorEditor` を起動する(`cmake --build build --config Debug` で、エンジン単体のビルドと一緒にビルドされる)。引数 `--assets <ゲームの Assets フォルダー>` で、そのフォルダーを開く(「参照...」でも選べる)。
+2. 何もない所で右クリック → 状態(青)と条件(緑)を足す。**状態 → 条件 → 状態**の順に、ピンからピンへドラッグして、つなぐ(条件は、状態と状態の間)。「ここから始める」で、最初の状態を決める。値(速さ・半径・秒など)を、ノードの中で直す。
+3. 左の名前の欄に名前(例 `Walker`)を書いて「保存」→ **`<Assets>/Enemies/Walker.json`** ができる。1 つの敵の種類 = 1 つのグラフ = 1 ファイル。
+- 上に出る「警告」は、つなぎ忘れの知らせ(動きはする)。
+
+### 8-2. ゲームのコード(契約に対応した、実際の呼び出し)
+```cpp
+#include <KR/KR.h>
+
+// ① 起動時:グラフを読む(敵の種類ごとに 1 回。複数の敵で共有する)
+//    読めなければ、エラーを出して、待機だけのグラフ(落ちない)
+KR::Behavior::GraphPtr graph = KR::Behavior::LoadGraph(KR::GetAssetDirectory("Enemies") / "Walker.json");
+
+// ② 敵ごとに、Runner を 1 つ(作った直後は、開始の状態に入っている)
+KR::Behavior::Runner runner(graph);
+
+// ③ 毎フレーム:状況を入れて、Update して、今の状態を見て、動く
+KR::Behavior::Context context;
+context.SetFloat("distanceToPlayerX", std::abs(playerX - enemyX));   // 横の距離
+context.SetFloat("distanceToPlayerY", std::abs(playerY - enemyY));   // 縦も含める条件のときだけ使われる
+context.SetBool("attackFinished", attackFinished);                   // 攻撃の溜め・出る・硬直を、数え終わったら true
+runner.Update(deltaTime, context);
+
+const KR::Behavior::StateView state = runner.GetCurrentState();     // Update・SetGraph のたびに、取り直す
+if (state.GetType() == "Patrol")            { enemyX += direction * state.GetFloat("speed") * deltaTime; /* 壁で反転 */ }
+else if (state.GetType() == "MoveToPlayer") { /* プレイヤーへ、state.GetFloat("speed") で */ }
+else if (state.GetType() == "Attack")
+{
+    if (state.EnteredThisFrame()) { attackTime = 0.0f; }                      // 入った最初のフレームだけ true
+    attackTime += deltaTime;
+    // 溜め → 出ている → 硬直(秒は、state.GetFloat("windupSeconds") など)。箱は、state.GetFloat("boxWidth") など
+    attackFinished = attackTime >= state.GetFloat("windupSeconds") + state.GetFloat("activeSeconds") + state.GetFloat("recoverySeconds");
+}
+// "Wait"(待機)は、何もしない
+
+// ④ デバッグ(ImGui の窓の中で。今の状態のノードが光る)
+KR::Behavior::DrawGraphDebug(runner);                 // Runner が持つグラフを描く(いちばん簡単)
+// KR::Behavior::DrawGraphDebug(*graph, runner);      // グラフを指定するなら(Graph を渡す。GraphPtr なら *graph)
+```
+- **`StateView`**:`GetType()`(状態の種類)・`GetNodeId()`・`GetTimeInState()`(入ってからの秒)・`EnteredThisFrame()`・値(`GetFloat` / `GetInt` / `GetBool` / `GetString`。無い・型が違うときは、既定値を渡せる)。
+- **1 回の `Update` で移る状態は、1 回まで**(状態が、1 フレームで、通り過ぎない = `EnteredThisFrame()` を、見逃さない)。
+- **状況のキーが無い条件**は、偽になり、**警告が 1 回**ログに出る(キーの名前を、グラフの条件ノードの設定と、そろえる)。
+
+### 8-3. 保存したら、動いているゲームに、すぐ反映する(`GraphAsset`)
+```cpp
+KR::Behavior::GraphAsset asset;
+asset.Load(KR::GetAssetDirectory("Enemies") / "Walker.json");   // ① の代わり
+KR::Behavior::Runner runner(asset.GetGraph());
+uint32_t seen = asset.GetVersion();
+// 毎フレーム:
+asset.ReloadIfChanged(deltaTime);                              // 約 0.5 秒おきに、更新時刻を見る
+if (asset.GetVersion() != seen) { runner.SetGraph(asset.GetGraph()); seen = asset.GetVersion(); }
+```
+- `Runner::SetGraph` は、**今の状態の id が、新しいグラフにも残っていれば、その状態と時間を引き継ぐ**。無ければ、開始の状態に戻る。敵が複数いるときは、敵ごとに `seen` を持つ。
+- ツールで保存 → 約 0.5 秒で、動いている敵に反映される(Debug は、元の `Assets` を読むので、コピーが要らない)。**壊れたファイルは、前のグラフのまま**。
+
+### 8-4. ノードの種類と、ゲームがすること
+| 状態(`GetType()`) | 値(既定) | ゲームがすること |
+|---|---|---|
+| `Wait`(待機) | なし | 動かない |
+| `Patrol`(巡回) | `speed`(1.5) | 左右に歩いて、壁で反転する(壁の判定は、ゲーム) |
+| `MoveToPlayer`(プレイヤーへ移動) | `speed`(2.5) | プレイヤーへ近づく |
+| `Attack`(攻撃) | `boxWidth`(1.0)・`boxHeight`(0.5)・`damage`(1)・`windupSeconds`(0.4)・`activeSeconds`(0.2)・`recoverySeconds`(0.4) | 溜め → 出ている(箱で、当たり判定)→ 硬直。**エンジンは、秒を数えない**。ゲームが数え、終わったら `attackFinished` を true にする |
+
+| 条件 | 値(既定) | 使う Context のキー |
+|---|---|---|
+| `PlayerWithin`(プレイヤーが半径以内) | `key`("distanceToPlayerX")・`radius`(3.0)・`includeVertical`(false)・`keyY`("distanceToPlayerY") | `key`(縦も含めるなら、`keyY` も) |
+| `PlayerOutside`(半径の外) | 同上(`radius` 6.0) | 同上 |
+| `TimeElapsed`(秒たった) | `seconds`(1.0) | なし(状態に入ってからの時間 = エンジンが数える) |
+| `AttackFinished`(攻撃が終わった) | `key`("attackFinished") | `key` |
+- **距離は、横(X)だけが基本**。`includeVertical` が true のときは、縦(`keyY`)も含めて、√(x² + y²) で比べる。**ちょうど半径は、内側**。
+- 1 つの状態から、条件を複数出せる(**分岐**)。調べる順番(priority)は、ツールの「分岐の順番」で決める。最初に成り立ったものへ移る。
+- 同じ値の名前・ゲームの「状態の種類」の文字列は、`Behavior.md` の表と、ツールの登録(`NodeTypes.cpp`)が、元。**新しい種類を足すとき**は、ツール側は登録を 1 つ書くだけ(ノードの欄は、自動で作られる)。ゲーム側は、その `GetType()` を扱う分岐を足す。
+
+### 8-5. 注意
+- **Release では、`Enemies` フォルダーが、exe の横に、コピーされる**(ビルド後)。**`Enemies` を、初めて作ったあとは、CMake を、もう一度 configure する**(コピーする一覧は、configure のときに決まるため)。
+- ゲームの CMake は、そのままでよい(imnodes・nlohmann/json は、エンジンの中だけ)。
+- ファイルの形式(JSON)には、版(`"version": 1`)がある。**版が違うファイルは、読まない**(エラー + 待機だけのグラフ)。
+- 壊れたファイル・欠けた項目でも、落ちない(エラー + 安全な既定)。
