@@ -746,6 +746,7 @@ protected:
     void OnInit() override
     {
         RunCollisionSelfTest();
+        KR::RunFbxSkinSelfTest(); // FBX の骨の重みの処理(5 本以上の絞りなど)を、偽のデータで確認
         CheckFbxMesh("Test/BossObstacle/BossObstacle"); // F3 の確認:FBX のメッシュが、同じモデルの glTF と、そろっているか
         CheckFbxMesh("Test/HumanModel/HumanModel", false); // 人型のモデル(212 本の骨)でも、確認する。glb は左半分だけ・fbx は両側
         m_BoneRenderer.Create(GetRenderer());
