@@ -82,7 +82,10 @@ namespace KR
         void DrawSkinnedMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, std::span<const DirectX::XMFLOAT4X4> palette, TextureHandle texture = {});
 
         // 骨の本数の上限(パレットの大きさ。シェーダーの MaxJoints と同じ)・1 フレームに描ける骨つきの物の数
-        static constexpr uint32_t MaxSkinJoints = 128;
+        // 512 本(HumanModel は 212 本で、128 では描けなかった)。上限は、DX12 の定数バッファの大きさ(64 KB = 行列 1024 個)。
+        // 1 つのパレットは、骨の数にかかわらず、最大の大きさの枠を使う(512 本 = 32 KB)。1 フレーム分の箱は、32 KB × MaxSkinnedDrawsPerFrame(1 MB)
+        static constexpr uint32_t MaxSkinJoints = 512;
+        static_assert(MaxSkinJoints * sizeof(DirectX::XMFLOAT4X4) <= 65536, "パレットは、定数バッファの上限(64 KB)に収める");
         static constexpr uint32_t MaxSkinnedDrawsPerFrame = 32;
 
         // デバッグ用の線を 1 本、積む(OnRender で呼ぶ)。座標は世界の座標。光・フォグはかからず、色のまま描く

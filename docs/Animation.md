@@ -156,7 +156,7 @@ replaces:
 ### A-5:GPU スキニング(2026-10-08。ブランチ feature/gpu-skinning)
 - **作った物**:`MeshData::skin`(`SkinVertex` = 骨の番号 4 つ + 重み 4 つ。骨なしは空)・`LoadGltf` が `JOINTS_0` / `WEIGHTS_0` を読む(重みの合計を 1 にそろえる)/ `Basic.hlsl` に `VSSkinned`(4 本の骨の行列を、重みで混ぜて、位置・法線を動かす)/ Root Signature に b2(パレットの住所。`PaletteRootIndex = 3`)/ `Renderer::DrawSkinnedMesh(mesh, world, palette, texture)` / `ComputeSkinMatrices(skeleton, pose)`(= 骨ごとに 逆バインド × 今の世界の行列)。
 - **流れ**:`EvaluatePose`(骨の今の姿勢)→ `ComputeSkinMatrices`(パレット)→ `DrawSkinnedMesh`(パレットを、描画リストの表に積む)→ `ExecuteDrawList` で、フレームごとの Upload バッファに、まとめて書き、描く直前に、住所を b2 に伝える → GPU の頂点シェーダーが、頂点ごとに、パレットから 4 本の骨の行列を取って混ぜる。
-- **上限**:骨 128 本(シェーダーの `MaxJoints` と、`Renderer::MaxSkinJoints`)・1 フレームに、骨つきの物 32 個(1 つのパレットは、骨の数にかかわらず、8 KB の枠)。超えたら、警告して、描かない。
+- **上限**:骨 512 本(2026-10-12 に、128 から増やした。HumanModel = 212 本が、描けなかったため。DX12 の定数バッファの上限 64 KB = 1024 本が、これ以上の限度)(シェーダーの `MaxJoints` と、`Renderer::MaxSkinJoints`)・1 フレームに、骨つきの物 32 個(1 つのパレットは、骨の数にかかわらず、8 KB の枠)。超えたら、警告して、描かない。
 - **確認**:KRSkeleton の「Bind pose」(基準姿勢。形が崩れない)と、再生(形が骨と一緒に曲がる)。
 
 ### 後始末(2026-10-08。ブランチ feature/cleanup)
@@ -244,4 +244,4 @@ glTF に加えて、**FBX(`.fbx`)**の、メッシュ・骨・スキン・動き
 - **基準姿勢の位置**:HumanModel は、根の骨の位置が、glTF も FBX も、原点(0, 0, 0)で、**一致**した。F8 の保留は、HumanModel で解消した。`BossObstacle.fbx` の離れは、素材の問題として残る(警告が出る)。
 - **見つかったバグ(直した)**:FBX の骨の世界の行列に、**100 倍の拡大が残っていた**(Blender の FBX は、アーマチュアに 100 倍の拡大を付ける)。位置・向き・動きの確認では、見つからず、**画面で、判定の形が、画面いっぱいに大きく出た**ことで、気づいた。骨の行列(バインド・動き)から、共通の拡大(最初の骨の軸の長さ)を、取り除くようにした(`FbxLoader.cpp` の `unitScale`)。全部の骨に、同じ拡大が掛かっていれば、スキニングの結果(世界の行列 × 逆バインド)は、拡大が打ち消し合って、変わらない。起動時の確認ログ「FBX 骨の確認」に、**骨の軸の長さが 1 か**の検査を足した(直す前は NG)。
 - HumanModel の glb と fbx は、**メッシュの中身が違う書き出し**:glb は左半分だけ(192 三角形)・fbx は両側(384 三角形。ufbx も 384 と数える。読み飛ばしていない)。確認は、高さ・奥行き・表裏・骨・動きで行った(`CheckFbxMesh` の `sameMesh = false`)。骨 212 本の名前・親・相対位置は一致・動きの骨の位置は、最大 0.0026 m の差(30 回/秒に焼き付けた補間の差)。動く骨は、glTF が 212 本(全部の骨にキー)・FBX が 86 本(基準姿勢から動く骨だけ)。
-- **未解決(FBX の問題ではない)**:骨が 128 本をこえるモデルは、**メッシュが描かれない**(`Renderer::MaxSkinJoints = 128`。HumanModel は 212 本で、毎フレーム `DrawSkinnedMesh` のエラーが出る。glb も同じ)。対応は、上限を上げる・頂点が使う骨だけに詰める、など。Ryusei の判断待ち。
+- **骨の上限(解決済み。2026-10-12)**:骨が 128 本をこえるモデルは、メッシュが描かれなかった(`Renderer::MaxSkinJoints = 128`。HumanModel は 212 本。glb も同じ)。Ryusei の判断で、**上限を 512 本に増やした**(`Renderer.h` と `shaders/Basic.hlsl` の `MaxJoints`)。DX12 の定数バッファは、1 つ 64 KB まで(行列 1024 個)なので、それが限度。1 つのパレットは、32 KB の枠・1 フレーム分の箱は、32 個分で、1 MB。

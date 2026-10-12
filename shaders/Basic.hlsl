@@ -34,7 +34,7 @@ struct PSInput
 
 // 骨の行列の表(パレット)。スキニングの頂点シェーダー(VSSkinned)だけが読む(C++ 側は Root Signature の b2 の口)
 // 各行列 = 逆バインド行列 × 骨の今の世界の行列。MaxJoints は、C++ 側の MaxSkinJoints(Renderer.cpp)と同じにする
-static const uint MaxJoints = 128;
+static const uint MaxJoints = 512;
 cbuffer SkinPalette : register(b2)
 {
     row_major float4x4 bones[MaxJoints];
