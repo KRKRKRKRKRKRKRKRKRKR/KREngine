@@ -19,6 +19,7 @@ option(KR_BUILD_SAMPLES "KR エンジンのサンプルをビルドする" ${KR_
 
 # ツール(tools/)をビルドするか。単体のときは ON。ゲームの一部のときは OFF
 option(KR_BUILD_TOOLS "KR エンジンのツール(アニメーションの調整ツールなど)をビルドする" ${KR_IS_TOP_LEVEL})
+option(KR_BUILD_PROBES "使い捨ての動作確認用 exe(KRBehaviorProbe など)をビルドする" OFF)
 
 include(FetchContent)
 
@@ -93,6 +94,20 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 set(JSON_Install OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(nlohmann_json)
 
+# imnodes(ノードエディタの部品。MIT。ImGui の上に、ノードと線を描く)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
+# コミット eb36902(2026 年 10 月時点の master の先頭)を固定。ハッシュで改ざんを検出
+# imnodes 自身の CMakeLists.txt は使わない(imgui を探しに行くため)。SOURCE_SUBDIR に無い場所を指して、add_subdirectory を飛ばし、下で、自分で static ライブラリにする
+FetchContent_Declare(imnodes
+    URL      https://github.com/Nelarius/imnodes/archive/eb36902c892548ef94f88f51ad7e7c9c7058a71c.zip
+    URL_HASH SHA256=45c5e408b13d5702cead6f506db50105d7d082db80199b17870e730cabea18ca
+    SOURCE_SUBDIR do_not_add_subdirectory
+)
+FetchContent_MakeAvailable(imnodes)
+add_library(imnodes STATIC ${imnodes_SOURCE_DIR}/imnodes.cpp)
+target_include_directories(imnodes PUBLIC ${imnodes_SOURCE_DIR})
+target_link_libraries(imnodes PUBLIC imgui)
+target_compile_options(imnodes PRIVATE /utf-8 /W0)
+
 set(ENGINE_FILES
     include/KR/KR.h
     include/KR/Core/Application.h
@@ -115,6 +130,15 @@ set(ENGINE_FILES
     include/KR/Animation/AnimationPose.h
     include/KR/Animation/SkinMatrices.h
     include/KR/Animation/Hitbox.h
+    include/KR/Behavior/Graph.h
+    include/KR/Behavior/NodeTypes.h
+    include/KR/Behavior/Context.h
+    include/KR/Behavior/Runner.h
+    include/KR/Behavior/GraphValidate.h
+    include/KR/Behavior/GraphEditor.h
+    include/KR/Behavior/GraphDebug.h
+    include/KR/Behavior/GraphAsset.h
+    include/KR/Behavior/GraphFile.h
     include/KR/Animation/HitboxFile.h
     include/KR/Animation/HitboxMirror.h
     include/KR/Animation/AnimatedModel.h
@@ -144,6 +168,19 @@ set(ENGINE_FILES
     src/Animation/HitboxFile.cpp
     src/Animation/HitboxMirror.cpp
     src/Animation/AnimatedModel.cpp
+    src/Behavior/Graph.cpp
+    src/Behavior/NodeTypes.cpp
+    src/Behavior/Context.cpp
+    src/Behavior/Runner.cpp
+    src/Behavior/GraphValidate.cpp
+    src/Behavior/GraphEdit.h
+    src/Behavior/GraphEdit.cpp
+    src/Behavior/GraphEditor.cpp
+    src/Behavior/GraphDebug.cpp
+    src/Behavior/GraphAsset.cpp
+    src/Behavior/Condition.h
+    src/Behavior/Condition.cpp
+    src/Behavior/GraphFile.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
@@ -206,6 +243,9 @@ target_link_libraries(KREngine PUBLIC imgui)
 # JSON は、エンジンの中だけで使う(PRIVATE)。公開ヘッダーには、JSON の型を出さない
 target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
 
+# imnodes も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい
+target_link_libraries(KREngine PRIVATE imnodes)
+
 # C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
 target_compile_features(KREngine PUBLIC cxx_std_23)
 target_compile_options(KREngine PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
@@ -224,7 +264,7 @@ target_link_libraries(KREngine PRIVATE
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ENGINE_FILES})
 source_group(Shaders FILES ${SHADER_FILES})
-set_target_properties(DirectX-Headers DirectX-Guids imgui PROPERTIES FOLDER ThirdParty)
+set_target_properties(DirectX-Headers DirectX-Guids imgui imnodes PROPERTIES FOLDER ThirdParty)
 
 # 実行時に必要なファイル: DXC 本体(dxcompiler.dll)とシェーダー署名用(dxil.dll)は Windows SDK のものを使う
 set(PROGRAM_FILES_X86 "ProgramFiles(x86)")
@@ -262,11 +302,22 @@ endfunction()
 if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
     add_subdirectory(samples/Minimal)
     add_subdirectory(samples/Animated)
+    add_subdirectory(samples/Behavior)
+endif()
+
+# ツールの共通の部品(フォルダーを選ぶ窓。調整ツールどうしで、共有)。KR_BUILD_TOOLS が ON のときだけ。下のツールより、先に
+if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/Common/CMakeLists.txt")
+    add_subdirectory(tools/Common)
 endif()
 
 # ツール(ゲームを作るための道具。アニメーションの調整ツールなど)。KR_BUILD_TOOLS が ON のときだけ
 if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/AnimationEditor/CMakeLists.txt")
     add_subdirectory(tools/AnimationEditor)
+endif()
+
+# 敵の行動のツール KRBehaviorEditor(ノードで、行動のグラフを作る)
+if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/BehaviorEditor/CMakeLists.txt")
+    add_subdirectory(tools/BehaviorEditor)
 endif()
 
 # Visual Studio で、F5 で実行する物(指定しないと、実行できない ALL_BUILD になる)。エンジン単体のときだけ
@@ -276,4 +327,9 @@ if(KR_IS_TOP_LEVEL)
     elseif(TARGET KRMinimal)
         set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT KRMinimal)
     endif()
+endif()
+
+# 動作確認用の使い捨て exe(ライブラリの相性の確認など)。KR_BUILD_PROBES が ON のときだけ
+if(KR_BUILD_PROBES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/probe/BehaviorProbe/CMakeLists.txt")
+    add_subdirectory(probe/BehaviorProbe)
 endif()

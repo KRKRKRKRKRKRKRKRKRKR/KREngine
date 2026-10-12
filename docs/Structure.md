@@ -17,6 +17,8 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | デバッグ用の画面(ImGui) | [ImGui.md](ImGui.md) |
 | ボーンアニメーション(調べ物・実装の記録) | [Animation.md](Animation.md) |
 | **アニメーションの調整ツール**(骨・判定の形) | [AnimationEditor.md](AnimationEditor.md) |
+| 敵の行動(ノードのグラフ・保存・読み込み。作成中) | [Behavior.md](Behavior.md) |
+| **敵の行動の調整ツール**(ノードで作る。作成中) | [BehaviorEditor.md](BehaviorEditor.md) |
 | **版(バージョン)の付け方** | [Versioning.md](Versioning.md)・[CHANGELOG.md](../CHANGELOG.md) |
 | **開発の経緯(なぜ、こう作ったか・選ばなかった案)** | [History.md](History.md) |
 | 調べ物:演出(爆発・シェーダーなど) | [Effects.md](Effects.md) |
@@ -53,8 +55,10 @@ KREngine/
 │       ├─ DX12Buffer                Upload ヒープのバッファ(頂点・番号・定数)
 │       └─ DX12Texture               画像(Default ヒープ + SRV の札。Upload 経由でコピー)
 ├─ shaders/                      シェーダー(実行時にコンパイル): Basic.hlsl(物)/ Sky.hlsl(空)/ Line.hlsl(線。当たり判定の箱)/ Common.hlsli(共通の b1 の宣言)
-├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Animated/(動くモデル AnimatedModel の使い方の見本)・Assets/(サンプル共通のアセット。テスト用のモデル)
+├─ samples/                      サンプル: Minimal/(ウィンドウ + 回るキューブ + ImGui の FPS。新しいゲームの雛形)・Animated/(動くモデル AnimatedModel の使い方の見本)・Behavior/(敵の行動 KR::Behavior の使い方の見本。Walker.json を読んで、敵 1 体を動かす・今の状態のノードを光らせる)・Assets/(サンプル共通のアセット。テスト用のモデル・Enemies/Walker.json)
 ├─ tools/AnimationEditor/        ツール KRAnimationEditor(骨・判定の形を、見て、調整して、保存する)
+├─ tools/Common/                 ツールの共通の部品 KRToolCommon(フォルダーを選ぶ窓 FolderDialog。調整ツールどうしで共有)
+├─ tools/BehaviorEditor/         ツール KRBehaviorEditor(敵の行動のグラフを、ノードで作る。作成中)
 ├─ docs/                         この資料
 ├─ CMakeLists.txt                エンジンのビルド(ライブラリ KREngine・関数 kr_copy_runtime_files・サンプル)
 └─ CMakePresets.json             エンジンを単体でビルドするときの設定(vs2026)

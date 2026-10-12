@@ -14,9 +14,9 @@ target_link_libraries(imguizmo PUBLIC imgui)
 target_compile_options(imguizmo PRIVATE /utf-8 /W0)
 set_target_properties(imguizmo PROPERTIES FOLDER ThirdParty)
 
-add_executable(KRAnimationEditor EditorApp.cpp FolderDialog.h FolderDialog.cpp)
-# ole32 / shell32 / uuid:フォルダーを選ぶダイアログ(FolderDialog.cpp。Windows の部品)に使う
-target_link_libraries(KRAnimationEditor PRIVATE KREngine imguizmo ole32 shell32 uuid)
+add_executable(KRAnimationEditor EditorApp.cpp)
+# KRToolCommon:フォルダーを選ぶ窓(FolderDialog。tools/Common/。調整ツールどうしで、共有)
+target_link_libraries(KRAnimationEditor PRIVATE KREngine imguizmo KRToolCommon)
 kr_copy_runtime_files(KRAnimationEditor)
 set_target_properties(KRAnimationEditor PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Tools)
 target_link_options(KRAnimationEditor PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
