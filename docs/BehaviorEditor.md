@@ -1,3 +1,12 @@
+---
+title: 敵の行動の調整ツール KRBehaviorEditor
+project: KREngine
+kind: 使い方
+status: 最新
+updated: 2026-10-09
+replaces:
+---
+
 # 敵の行動の調整ツール KRBehaviorEditor
 
 敵の行動のグラフ(`docs/Behavior.md`)を、ノードで作る・直すツール。`tools/BehaviorEditor/`。前例は `KRAnimationEditor`(`docs/AnimationEditor.md`)。

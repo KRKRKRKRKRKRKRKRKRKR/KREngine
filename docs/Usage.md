@@ -1,3 +1,12 @@
+---
+title: KR エンジンの使い方(最短の入門)
+project: KREngine
+kind: 使い方
+status: 最新
+updated: 2026-10-12
+replaces:
+---
+
 # KR エンジンの使い方(最短の入門)
 
 KR エンジン(DirectX 12 / C++23。Windows)で、**新しいゲームを作る手順**を、最短でまとめる。細かい仕組みは、この `docs/` の、ほかのファイル([Structure.md](Structure.md) が目次代わり)を見る。

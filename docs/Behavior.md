@@ -1,3 +1,12 @@
+---
+title: 敵の行動(Behavior)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-09
+replaces:
+---
+
 # 敵の行動(Behavior)
 
 ノードで作った行動のグラフ(状態機械 = FSM)を、保存して、読んで、毎フレーム「今の状態」を決める部分。

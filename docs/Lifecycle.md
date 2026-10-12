@@ -1,3 +1,12 @@
+---
+title: 起動から終了・1フレーム
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-07
+replaces:
+---
+
 # 起動から終了・1フレーム
 
 アプリの起動 → メインループ → 終了の流れと、1フレームの中で CPU / GPU がどう動くか。

@@ -1,3 +1,12 @@
+---
+title: KR エンジンの構成(フォルダ・クラス・ビルド)
+project: KREngine
+kind: 設計
+status: 最新
+updated: 2026-10-12
+replaces:
+---
+
 # KR エンジンの構成(フォルダ・クラス・ビルド)
 
 KR エンジンの、どのフォルダに何があり、クラスがどう関係し、ビルドで何が行われるか。まず、使い方は [Usage.md](Usage.md)。

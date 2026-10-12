@@ -1,3 +1,12 @@
+---
+title: KREngine(KR エンジン)
+project: KREngine
+kind: ルール
+status: 最新
+updated: 2026-10-12
+replaces:
+---
+
 # KREngine(KR エンジン)
 
 進め方(ペアプログラミングのルール)は、共通。`C:\SchoolProgram\Game\Shared\CLAUDE.md`(`Game\CLAUDE.md` から自動で読まれる)。
