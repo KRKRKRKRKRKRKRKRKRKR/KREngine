@@ -8,3 +8,6 @@ build/
 
 # ImGui が作る、窓の位置などの保存ファイル
 imgui.ini
+
+# Blender のバックアップ(.blend1)
+*.blend1
