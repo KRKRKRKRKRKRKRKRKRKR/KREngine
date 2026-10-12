@@ -30,6 +30,7 @@
 #include <numbers>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace DirectX;
@@ -1015,7 +1016,7 @@ protected:
         else
         {
             ImGui::Separator();
-            ImGui::TextWrapped(m_Models.empty() ? "Models の下に .glb が見つかりません。別のフォルダーを選んでください。" : "モデルを読み込めていません(ログを見てください)。");
+            ImGui::TextWrapped(m_Models.empty() ? "Models の下に .glb / .gltf / .fbx が見つかりません。別のフォルダーを選んでください。" : "モデルを読み込めていません(ログを見てください)。");
         }
         ImGui::End();
 
@@ -1123,7 +1124,7 @@ protected:
 private:
     // ---- 開く(フォルダー・モデル)----
 
-    // アセットのフォルダーを決める:KR::SetAssetRoot で、エンジンの読み書きの場所を切り替え、Models/ の下の .glb を、一覧にする
+    // アセットのフォルダーを決める:KR::SetAssetRoot で、エンジンの読み書きの場所を切り替え、Models/ の下の .glb / .gltf / .fbx を、一覧にする
     // Models/ が無いフォルダーは、断る(false)
     bool ApplyFolder(const std::filesystem::path& folder)
     {
@@ -1139,7 +1140,7 @@ private:
         m_Folder = folder;
         std::snprintf(m_FolderText, sizeof(m_FolderText), "%s", ToUtf8(folder).c_str());
 
-        // Models/ の下の .glb / .gltf を、全部探す(Models からの相対パス。区切りは /)
+        // Models/ の下の .glb / .gltf / .fbx を、全部探す(Models からの相対パス。区切りは /)
         m_Models.clear();
         for (const auto& entry : std::filesystem::recursive_directory_iterator(folder / "Models", std::filesystem::directory_options::skip_permission_denied, error))
         {
@@ -1150,12 +1151,21 @@ private:
             std::filesystem::path extension = entry.path().extension();
             std::wstring lower = extension.wstring();
             std::transform(lower.begin(), lower.end(), lower.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-            if (lower == L".glb" || lower == L".gltf")
+            if (lower == L".glb" || lower == L".gltf" || lower == L".fbx")
             {
                 m_Models.push_back(ToUtf8(std::filesystem::relative(entry.path(), folder / "Models").generic_u8string()));
             }
         }
-        std::sort(m_Models.begin(), m_Models.end());
+        // 名前の順。同じ名前(拡張子を除く)の物は、glTF(.glb / .gltf)を先に・FBX を後に(同名の glb と fbx は、判定のファイルを共有する。最初に開くのは、glTF)
+        auto sortKey = [](const std::string& path)
+        {
+            const size_t dot = path.find_last_of('.');
+            std::string stem = path.substr(0, dot);
+            std::string extension = dot == std::string::npos ? "" : path.substr(dot);
+            std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return std::make_pair(stem, extension == ".fbx" ? 1 : 0);
+        };
+        std::sort(m_Models.begin(), m_Models.end(), [&](const std::string& a, const std::string& b) { return sortKey(a) < sortKey(b); });
         m_SelectedModel = 0;
 
         // 最近使ったフォルダーの先頭に
@@ -1166,7 +1176,7 @@ private:
             m_Recent.resize(MaxRecentFolders);
         }
 
-        m_StatusMessage = m_Models.empty() ? "Models の下に .glb が見つかりません" : "";
+        m_StatusMessage = m_Models.empty() ? "Models の下に .glb / .gltf / .fbx が見つかりません" : "";
         KR_LOG_INFO("Editor: アセットのフォルダー {}(モデル {} 個)", ToUtf8(folder), m_Models.size());
         return true;
     }
@@ -1388,7 +1398,7 @@ private:
         ImGui::SameLine();
         ImGui::Text("アセット");
 
-        // モデルの一覧(Models の下の .glb)
+        // モデルの一覧(Models の下の .glb / .gltf / .fbx。拡張子も表示)
         if (!m_Models.empty())
         {
             m_SelectedModel = std::min(m_SelectedModel, m_Models.size() - 1);
@@ -1770,7 +1780,7 @@ private:
 
     // 開いているもの
     std::filesystem::path m_Folder;        // アセットのフォルダー(KR::SetAssetRoot に渡した物)
-    std::vector<std::string> m_Models;     // Models の下の .glb(相対パス。UTF-8。区切りは /)
+    std::vector<std::string> m_Models;     // Models の下の .glb / .gltf / .fbx(相対パス。UTF-8。区切りは /)
     size_t m_SelectedModel = 0;
     std::string m_CurrentModel;            // 今読んでいるモデル(Models からの相対パス)
     char m_FolderText[1024] = {};          // フォルダーの文字欄
