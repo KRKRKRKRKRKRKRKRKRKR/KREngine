@@ -18,6 +18,7 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 詳しくは `docs/Animation.md`(経過・決めたこと・既知の制限)・`docs/Usage.md` の 7(使い方)・`docs/AnimationEditor.md`(調整ツール)。
 - **役割を分ける**:部品(`Skeleton`・`AnimationClip`・`GltfLoader`・`AnimationPose`・`SkinMatrices`・`Hitbox`・`HitboxFile`)= データと計算 / 窓口 = `AnimatedModel`(ゲームは、これだけ使う。部品を、直接呼ばない)/ 描くだけ = `Renderer`(骨つきは `DrawSkinnedMesh`)。Physics(`Collision.h`)は、Animation を知らない
 - **glTF は cgltf で読む**(`GltfLoader.cpp` の中だけ。公開ヘッダーに cgltf の型を出さない = ローダーを替えても、ほかは変わらない)。座標系(右手系 → 左手系)の変換は、`GltfLoader.cpp` の先頭の関数に、集めてある
+- **FBX は ufbx で読む**(`FbxLoader.cpp` の中だけ。型は、公開ヘッダーに出さない)。`LoadModel`(拡張子で glTF か FBX)を、`AnimatedModel::Load` が呼ぶ。両方が返す型は `ModelData`。ufbx には、右手系で出してもらい、glTF と同じ決まりで Z を反転する(左手系を任せると、この FBX では上下が逆さまになった)。版は固定(v0.23.1)。経過・保留は `docs/Animation.md` の「FBX 対応」
 - **判定の形(`Hitbox`)は、骨の中の座標で持つ**。保存は `<モデル名>.hitboxes.json`(nlohmann/json は、エンジンの中だけ = PRIVATE)。骨は**名前**で探す(無ければ番号)
 - **調整は、ツール `KRAnimationEditor`(`tools/AnimationEditor/`)で行い、ゲームは、読み込むだけ**。ツールは、開いたゲームの `Assets` フォルダーに保存する(`KR::SetAssetRoot`)。**`SetAssetRoot` は、ツール用。ゲームは、呼ばない**
 - 調整ツールの、画面の上の操作(クリックで選ぶ・ギズモで動かす・コピー・左右反転)は、`docs/AnimationEditor.md`。ギズモは、外部ライブラリ ImGuizmo(**ツールだけ**。エンジン本体・ゲームには入れない)。T = 移動 / S = 大きさ(Blender 準拠)

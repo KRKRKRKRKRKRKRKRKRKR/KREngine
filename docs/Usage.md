@@ -179,9 +179,18 @@ Debug ビルドは、エンジンの `shaders/` と、ゲームのアセット(`
 Blender などで作った、骨つきのモデル(glTF = `.glb`)を、動かして、描いて、当たり判定に使う。**`KR::AnimatedModel` だけ**で、できる。見本は、サンプル `samples/Animated/`(KRAnimated。約 60 行)。判定の形の調整は、ツール [KRAnimationEditor](AnimationEditor.md) で行う。
 
 ### 7-1. モデルの用意(Blender)
-- 書き出しの形式は **glTF Binary (.glb)**。骨(アーマチュア)とアニメーションを、含める設定にする。
+- 書き出しの形式は **glTF Binary (.glb)**(または、FBX。下)。骨(アーマチュア)とアニメーションを、含める設定にする。
 - 置き場所:ゲームのアセットの `Models/` の下(例 `Assets/Models/Boss/Boss.glb`)。コードでは、`Models/` からの相対パス(`"Boss/Boss.glb"`)で書く。
 - 骨の名前は、英数字がおすすめ(日本語でも動くが、ImGui の既定のフォントでは、表示が出ないことがある)。1 つの形(メッシュ)に付けられる骨は、最大 128 本。1 頂点が引っぱられる骨は、最大 4 本。
+- **FBX(`.fbx`)も、同じ呼び出しで読める**(`AnimatedModel::Load("Boss/Boss.fbx")`。`.glb` との違いは、拡張子だけ)。メッシュ・骨・スキン・動きを読む。マテリアル・画像は、読まない(ゲーム側で、別に指定する。glTF と同じ)。同名の `.glb` と `.fbx` は、`.hitboxes.json` を共有する([AnimationEditor.md](AnimationEditor.md))。
+  - **Blender の書き出し(FBX)**:Export → FBX。おすすめの設定:
+    - **Selected Objects**(選んだ物だけ)にして、モデルのメッシュとアーマチュアだけを、書き出す(判定用の箱・カメラ・ライトを、含めない)。
+    - **Scale: 1.0**・**Apply Scalings・Forward・Up は、Blender の既定のまま**(Forward = -Z・Up = Y)。この既定で書き出した `BossObstacle.fbx`(単位 cm・アーマチュアに 100 倍の拡大が付く形)が、正しい大きさ・向きで読めることを確認した。軸と単位の違いは、読み込み時に、ufbx が、メートル・Y が上に直す。(設定の名前は、Blender の版で、少し違うことがある)
+    - **Add Leaf Bones: オフ**(先端に、余分な骨が、増えない)。
+    - **Armature → Only Deform Bones: オン**・**Bake Animation: オン**(動きを、含める)。
+    - **アーマチュアとメッシュの置き場所を、原点にそろえる**(Object → Apply → All Transforms)。そろっていないと、骨と判定の形が、メッシュから離れた所に出る(読み込み時に、警告が出る)。
+  - **Mixamo など、外部の FBX**:メッシュ・骨・動きは、読める。**ライセンス(再配布の条件)は、自分で確認する**(リポジトリには、確認できるまで、入れない)。骨の名前は、`mixamorig:` なども、そのまま使う。
+  - 1 つの頂点が引っぱられる骨は、最大 4 本(5 本以上の頂点は、重みの大きい 4 本に絞る。ログに、数が出る)。モーフ(ブレンドシェイプ)は、読まない(警告を出して、読み飛ばす)。
 
 ### 7-2. コード(最小)
 ```cpp
