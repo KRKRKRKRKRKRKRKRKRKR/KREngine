@@ -44,6 +44,7 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 - **ツール `KRBehaviorEditor`**(`tools/BehaviorEditor/`)は、開いたゲームの `Assets/Enemies/<名前>.json` に保存する(`KR::SetAssetRoot`。ゲームは、呼ばない)。フォルダーを選ぶ窓は、`tools/Common/`(`KRToolCommon`)で、調整ツールどうしで共有。見本は、サンプル `KRBehavior`(`samples/Behavior/`)。
 - 確認用の使い捨て exe は、`probe/BehaviorProbe/`(`-DKR_BUILD_PROBES=ON` のときだけ)。
 - **ゲームから F1 で開く(Debug だけ)**:`Application` が `EditorLauncher`(`src/Core/`)で、ゲームの exe の横の `KRBehaviorEditor.exe` を `--assets` つきで起動(開いていれば前に出す)。開いている間は `OnUpdate` を呼ばない(右上の小さな窓で切り替え)。ツールのコピーは `kr_copy_runtime_files`(Debug だけ)。ゲームは CMake で `KR_BUILD_TOOLS` を ON にする。ツール自身は `ApplicationDesc::enableEditorKey = false`。詳しくは `docs/BehaviorEditor.md` の「ゲームから F1 で開く」
+- **リアルタイム編集(Debug だけ)**:ツールが、直してから 0.2 秒後に「ライブファイル」(`LiveGraph.h`。`%TEMP%\KREngineLive\<Enemies の印>\<名前>.json`)を書き、`GraphAsset` が本物より先にそれを読む。保存・閉じる・別のグラフなどでライブを消す(ゲームは本物に戻る)。F1 のツールが閉じたら、ゲームもライブを消す。止める初期値は `ApplicationDesc::pauseGameWhileEditing`(既定 true)。詳しくは `docs/BehaviorEditor.md` の「リアルタイムに編集する」
 
 ## 音(`Audio/`。2026-10-14 に、S-1〜S-4。最低限の機能)
 詳しくは `docs/Audio.md`(決めたこと・選ばなかった案・既知の制限)・`docs/Usage.md` の 9(使い方)。

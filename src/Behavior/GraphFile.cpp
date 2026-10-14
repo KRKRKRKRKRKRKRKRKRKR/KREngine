@@ -19,6 +19,13 @@ namespace KR::Behavior
     {
         constexpr int FileVersion = 1; // ファイルの形式の版。形式を変えたら、上げる
 
+        // ログ用。path::string() は、日本語の Windows で CP932 になり、ログ(UTF-8)が文字化けする(2Dアクションゲーム のフォルダーなど)
+        std::string ToUtf8(const std::filesystem::path& path)
+        {
+            const std::u8string utf8 = path.u8string();
+            return std::string(utf8.begin(), utf8.end());
+        }
+
         // float は、いちばん短い表記(0.2 は 0.2)で書く。そのまま double にすると 0.20000000298… と書かれてしまう
         json ToJson(float value)
         {
@@ -86,13 +93,13 @@ namespace KR::Behavior
                 std::ofstream stream(temp, std::ios::binary);
                 if (!stream.is_open())
                 {
-                    KR_LOG_ERROR("Behavior: 保存できません(ファイルを開けない): {}", file.string());
+                    KR_LOG_ERROR("Behavior: 保存できません(ファイルを開けない): {}", ToUtf8(file));
                     return false;
                 }
                 stream << root.dump(2) << '\n';
                 if (!stream.good())
                 {
-                    KR_LOG_ERROR("Behavior: 保存できません(書き込みに失敗): {}", file.string());
+                    KR_LOG_ERROR("Behavior: 保存できません(書き込みに失敗): {}", ToUtf8(file));
                     return false;
                 }
             }
@@ -100,17 +107,17 @@ namespace KR::Behavior
             if (error)
             {
                 std::filesystem::remove(temp, error);
-                KR_LOG_ERROR("Behavior: 保存できません(置き換えに失敗): {}", file.string());
+                KR_LOG_ERROR("Behavior: 保存できません(置き換えに失敗): {}", ToUtf8(file));
                 return false;
             }
         }
         catch (const std::exception& e)
         {
-            KR_LOG_ERROR("Behavior: 保存できません: {}({})", file.string(), e.what());
+            KR_LOG_ERROR("Behavior: 保存できません: {}({})", ToUtf8(file), e.what());
             return false;
         }
 
-        KR_LOG_INFO("Behavior: グラフを保存しました: {}", file.filename().string());
+        KR_LOG_INFO("Behavior: グラフを保存しました: {}", ToUtf8(file.filename()));
         return true;
     }
 
@@ -212,7 +219,7 @@ namespace KR::Behavior
                     const Link link{ item.at("from").get<int>(), item.at("to").get<int>(), item.value("priority", 0) };
                     if (graph.FindNode(link.from) == nullptr || graph.FindNode(link.to) == nullptr)
                     {
-                        KR_LOG_WARN("Behavior: 存在しないノードへの線を捨てました: {} → {}({})", link.from, link.to, file.filename().string());
+                        KR_LOG_WARN("Behavior: 存在しないノードへの線を捨てました: {} → {}({})", link.from, link.to, ToUtf8(file.filename()));
                         continue;
                     }
                     graph.links.push_back(link);
@@ -230,7 +237,7 @@ namespace KR::Behavior
                     throw std::runtime_error("状態のノードが 1 つも無い");
                 }
                 KR_LOG_WARN("Behavior: 開始ノード({})が正しくないので、最初の状態({})から始めます({})",
-                    graph.startNode, firstState->id, file.filename().string());
+                    graph.startNode, firstState->id, ToUtf8(file.filename()));
                 graph.startNode = firstState->id;
             }
             out = std::move(graph);
@@ -238,11 +245,11 @@ namespace KR::Behavior
         catch (const std::exception& e)
         {
             out = Graph();
-            KR_LOG_ERROR("Behavior: グラフを読めません: {}({})", file.string(), e.what());
+            KR_LOG_ERROR("Behavior: グラフを読めません: {}({})", ToUtf8(file), e.what());
             return GraphLoadResult::Invalid;
         }
 
-        KR_LOG_INFO("Behavior: グラフを読みました: {}(ノード {}・線 {})", file.filename().string(), out.nodes.size(), out.links.size());
+        KR_LOG_INFO("Behavior: グラフを読みました: {}(ノード {}・線 {})", ToUtf8(file.filename()), out.nodes.size(), out.links.size());
         return GraphLoadResult::Loaded;
     }
 
@@ -256,7 +263,7 @@ namespace KR::Behavior
         }
         if (result == GraphLoadResult::NotFound)
         {
-            KR_LOG_ERROR("Behavior: グラフのファイルがありません: {}", file.string());
+            KR_LOG_ERROR("Behavior: グラフのファイルがありません: {}", ToUtf8(file));
         }
 
         return MakeDefaultGraph();

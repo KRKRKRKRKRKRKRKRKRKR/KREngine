@@ -4,6 +4,7 @@
 #include "KR/Renderer/Renderer.h"
 #include "KR/Audio/Audio.h"
 #include "KR/Core/Assets.h"
+#include "KR/Behavior/LiveGraph.h"
 #include "Core/EditorLauncher.h"
 #include "Core/InputState.h"
 #include "Platform/Windows/Window.h"
@@ -59,6 +60,8 @@ namespace KR
             m_EditorLauncher = std::make_unique<EditorLauncher>();
         }
 #endif
+        m_PauseDefault = desc.pauseGameWhileEditing;
+        m_PauseWhileEditing = m_PauseDefault;
     }
 
     // unique_ptr<Window> の破棄には Window の完全な定義が必要なため、ヘッダーではなくここで定義する
@@ -89,6 +92,12 @@ namespace KR
             // ツールが開いていて、「ゲームを止める」なら、OnUpdate を呼ばない(動き・タイマー・敵の行動が、全部止まる)
             // 描画・ImGui・音は続ける(止まった画面を見ながら、窓を操作できる)
             const bool editorOpen = m_EditorLauncher && m_EditorLauncher->IsRunning();
+            if (m_EditorWasOpen && !editorOpen)
+            {
+                // ツールが閉じた(落ちた場合も):保存していない変更のライブファイルを消す → ゲームは、保存の内容に戻る
+                Behavior::DeleteAllLiveGraphFiles(GetAssetDirectory("Enemies"));
+            }
+            m_EditorWasOpen = editorOpen;
             if (!(editorOpen && m_PauseWhileEditing))
             {
                 OnUpdate(deltaTime);
@@ -169,7 +178,7 @@ namespace KR
         const bool wasRunning = m_EditorLauncher->IsRunning();
         if (m_EditorLauncher->OpenOrFocus(tool, { L"--assets", assets.wstring() }) && !wasRunning)
         {
-            m_PauseWhileEditing = true; // 開くたびに、まず止める(小さな窓で、動かせる)
+            m_PauseWhileEditing = m_PauseDefault; // 開くたびに、初期値(ApplicationDesc::pauseGameWhileEditing)に戻す。小さな窓で切り替えられる
         }
     }
 

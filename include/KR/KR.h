@@ -24,6 +24,7 @@
 #include "KR/Behavior/Runner.h"
 #include "KR/Behavior/GraphFile.h"
 #include "KR/Behavior/GraphAsset.h"
+#include "KR/Behavior/LiveGraph.h"
 #include "KR/Behavior/GraphDebug.h"
 #include "KR/Animation/HitboxFile.h"
 #include "KR/Animation/HitboxMirror.h"

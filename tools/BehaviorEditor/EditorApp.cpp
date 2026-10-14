@@ -6,6 +6,7 @@
 #include <KR/KR.h>
 #include <KR/Behavior/GraphEditor.h>
 #include <KR/Behavior/GraphFile.h>
+#include <KR/Behavior/LiveGraph.h>
 #include <KR/Behavior/NodeTypes.h>
 
 #include "FolderDialog.h" // tools/Common/(調整ツールどうしで共有)
@@ -28,6 +29,7 @@ namespace
 {
     constexpr const char* EnemiesFolderName = "Enemies"; // アセットのフォルダーの下の、敵の行動のグラフを置く場所
     constexpr size_t MaxRecentFolders = 8;               // 「最近...」に残すフォルダーの数
+    constexpr float LiveWriteDelay = 0.2f;               // 最後に直してから、ライブファイルを書くまでの秒数(ドラッグ中に、毎フレーム書かないように)
 
     // path ⇔ UTF-8 の文字列(ImGui の文字欄・画面の表示は UTF-8。path(const char*) は、日本語 Windows で、CP932 として読まれて、例外になる)
     std::string ToUtf8(const std::filesystem::path& path)
@@ -100,7 +102,32 @@ protected:
 
     void OnShutdown() override
     {
+        // 保存せずに閉じた変更を、ゲームに残さない(ゲームは、保存の内容に戻る)
+        DeleteLiveFiles();
         m_Editor.reset();
+    }
+
+    // リアルタイム編集:最後に直してから LiveWriteDelay 秒たったら、ライブファイルを書く(ゲームの GraphAsset が、Debug のとき読む)
+    void OnUpdate(float deltaTime) override
+    {
+        if (!m_LivePending)
+        {
+            return;
+        }
+        m_LiveTimer -= deltaTime;
+        if (m_LiveTimer > 0.0f)
+        {
+            return;
+        }
+        m_LivePending = false;
+        if (m_CurrentName.empty())
+        {
+            return; // まだ名前の無いグラフは、ゲームが読むファイルが無いので、送らない
+        }
+        if (WriteLiveGraph(m_Graph, CurrentGraphFile()))
+        {
+            KR_LOG_INFO("BehaviorEditor: ライブファイルを書きました(保存の前の変更を、ゲームへ): {}", m_CurrentName);
+        }
     }
 
     void OnImGui() override
@@ -124,6 +151,8 @@ protected:
         if (m_Editor->Draw(m_Graph))
         {
             m_Dirty = true; // ノードを動かした・値を変えた・線やノードを足した / 消した
+            m_LivePending = true; // ゲームへ送る(少し待ってから。続けて直したら、待ちをやり直す)
+            m_LiveTimer = LiveWriteDelay;
         }
         ImGui::EndGroup();
 
@@ -260,8 +289,10 @@ private:
             return false;
         }
 
+        DeleteLiveFiles(); // 前のフォルダーの、保存していない変更を、ゲームに残さない
         KR::SetAssetRoot(folder);
         m_Folder = folder;
+        DeleteLiveFiles(); // 新しいフォルダーの古いライブファイル(前にツールが落ちたときの残り)も片付ける
         std::snprintf(m_FolderText, sizeof(m_FolderText), "%s", ToUtf8(folder).c_str());
         RefreshFileList();
         KR_LOG_INFO("BehaviorEditor: アセットのフォルダー {}(グラフ {} 個)", ToUtf8(folder), m_Files.size());
@@ -311,6 +342,7 @@ private:
             m_StatusIsError = true;
             return false;
         }
+        DeleteCurrentLiveFile(); // 開いていたグラフの、保存していない変更を、ゲームに残さない(読み直しも、ここを通る)
         m_Graph = std::move(loaded);
         m_Editor->Reset(); // ノードの位置を、新しいグラフから、取り直す
         m_CurrentName = name;
@@ -349,7 +381,9 @@ private:
             m_StatusIsError = true;
             return false;
         }
+        DeleteCurrentLiveFile(); // 保存した = 本物が最新。ライブを消す(名前を変えて保存したときは、前の名前のライブ)
         m_CurrentName = name;
+        DeleteCurrentLiveFile(); // 保存した名前のライブも消す(ゲームは、本物を読む)
         RefreshFileList(); // 新しい名前を、一覧に出す(この中で、状態の行は、空になる)
         m_StatusMessage = "保存しました: " + name + ".json";
         m_StatusIsError = false;
@@ -362,6 +396,7 @@ private:
     // 新規:待機 1 つの、まっさらなグラフ。名前は、まだ無い(保存のとき、付ける)
     void NewGraph()
     {
+        DeleteCurrentLiveFile(); // 開いていたグラフの、保存していない変更を、ゲームに残さない
         m_Graph = *MakeDefaultGraph();
         if (Node* start = m_Graph.FindNode(m_Graph.startNode))
         {
@@ -387,6 +422,33 @@ private:
             return;
         }
         OpenGraph(m_CurrentName);
+    }
+
+    // ---- リアルタイム編集のライブファイル(KR/Behavior/LiveGraph.h)----
+
+    std::filesystem::path CurrentGraphFile() const
+    {
+        return KR::GetAssetDirectory(EnemiesFolderName) / FromUtf8(m_CurrentName + ".json");
+    }
+
+    // 今のグラフのライブファイルを消す(ゲームは、保存の内容に戻る)。書く待ちも取り消す
+    void DeleteCurrentLiveFile()
+    {
+        m_LivePending = false;
+        if (!m_CurrentName.empty())
+        {
+            DeleteLiveGraphFile(CurrentGraphFile());
+        }
+    }
+
+    // 今のフォルダーのライブファイルを、全部消す
+    void DeleteLiveFiles()
+    {
+        m_LivePending = false;
+        if (!m_Folder.empty())
+        {
+            DeleteAllLiveGraphFiles(KR::GetAssetDirectory(EnemiesFolderName));
+        }
     }
 
     // ---- ImGui の各区画 ----
@@ -528,6 +590,8 @@ private:
     std::filesystem::path m_SavedFolder; // 前回のフォルダー(設定から)
     std::string m_SavedGraph;            // 前回のグラフの名前(設定から)
     std::vector<std::string> m_Recent;   // 最近使ったフォルダー(新しい順。UTF-8)
+    bool m_LivePending = false;          // ライブファイルを書く待ち(直した後)
+    float m_LiveTimer = 0.0f;            // 書くまでの残りの秒数
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()
