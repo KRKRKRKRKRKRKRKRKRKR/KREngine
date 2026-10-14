@@ -32,6 +32,11 @@ namespace KR::Behavior
         // 別のグラフを開いたとき(読み直し・新規など)に呼ぶ。ノードの位置を、グラフから、取り直す
         void Reset();
 
+        // 光らせるノード(ゲームの敵の今の状態。Observe.h)。0 = 光らせない。Draw の前に呼ぶ
+        // そのノードの題と枠を橙(paused = ゲームが止まっているなら灰色)・そのノードから出る線を橙にする(DrawGraphDebug と同じ見せ方)
+        // id で探すので、直している途中でも、そのノードが残っていれば光り続ける。無ければ、何も光らない
+        void SetObservedNode(NodeId node, bool paused);
+
     private:
         struct Impl;
         std::unique_ptr<Impl> impl_;

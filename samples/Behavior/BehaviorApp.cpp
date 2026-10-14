@@ -58,6 +58,10 @@ protected:
 
         // ② 「今の状態」を決めてもらう
         m_Runner->Update(deltaTime, context);
+
+        // 見てほしい敵を、毎フレーム知らせる(Debug:F1 で開いたツールのグラフの上で、今の状態が光る。Release では何もしない)
+        KR::Behavior::ObserveRunner(*m_Runner, m_Asset);
+
         const KR::Behavior::StateView state = m_Runner->GetCurrentState();
 
         // ③ 返された状態に従って、ゲームが動く(移動・攻撃は、ゲームの仕事)

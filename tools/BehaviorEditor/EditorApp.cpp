@@ -8,12 +8,14 @@
 #include <KR/Behavior/GraphFile.h>
 #include <KR/Behavior/LiveGraph.h>
 #include <KR/Behavior/NodeTypes.h>
+#include <KR/Behavior/Observe.h>
 
 #include "FolderDialog.h" // tools/Common/(調整ツールどうしで共有)
 
 #include <imgui.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -30,6 +32,7 @@ namespace
     constexpr const char* EnemiesFolderName = "Enemies"; // アセットのフォルダーの下の、敵の行動のグラフを置く場所
     constexpr size_t MaxRecentFolders = 8;               // 「最近...」に残すフォルダーの数
     constexpr float LiveWriteDelay = 0.2f;               // 最後に直してから、ライブファイルを書くまでの秒数(ドラッグ中に、毎フレーム書かないように)
+    constexpr float ObserveReadInterval = 0.1f;          // ゲームの敵の今の状態(観測ファイル)を、何秒おきに読むか
 
     // path ⇔ UTF-8 の文字列(ImGui の文字欄・画面の表示は UTF-8。path(const char*) は、日本語 Windows で、CP932 として読まれて、例外になる)
     std::string ToUtf8(const std::filesystem::path& path)
@@ -110,6 +113,8 @@ protected:
     // リアルタイム編集:最後に直してから LiveWriteDelay 秒たったら、ライブファイルを書く(ゲームの GraphAsset が、Debug のとき読む)
     void OnUpdate(float deltaTime) override
     {
+        UpdateObservation(deltaTime);
+
         if (!m_LivePending)
         {
             return;
@@ -148,6 +153,7 @@ protected:
         ImGui::BeginGroup();
         ImGui::TextDisabled("右クリック = ノードを足す / ノードの上で右クリック = 開始・消す / ピンからピンへドラッグ = 線 / 選んで Delete = 消す");
         m_Editor->DrawWarnings(m_Graph);
+        DrawObservationLine(); // ゲームの敵の今の状態(光らせるノードも、ここで決める)
         if (m_Editor->Draw(m_Graph))
         {
             m_Dirty = true; // ノードを動かした・値を変えた・線やノードを足した / 消した
@@ -424,6 +430,86 @@ private:
         OpenGraph(m_CurrentName);
     }
 
+    // ---- ゲームの敵の今の状態(観測。KR/Behavior/Observe.h)----
+
+    // 約 0.1 秒おきに、ゲームが書く観測ファイルを読む(ゲームも約 0.1 秒おきに書く = 遅れは最大で約 0.2 秒)
+    void UpdateObservation(float deltaTime)
+    {
+        m_ObserveTimer += deltaTime;
+        if (m_ObserveTimer < ObserveReadInterval || m_Folder.empty())
+        {
+            return;
+        }
+        m_ObserveTimer = 0.0f;
+        const Observation now = ReadObservation(KR::GetAssetDirectory(EnemiesFolderName));
+
+        // 確認用のログ:つながり・見ている敵・状態・止まっているか、が変わったときだけ(時間だけの変化は出さない)
+        const bool changed = now.connected != m_Observation.connected || now.observing != m_Observation.observing
+            || now.paused != m_Observation.paused || now.graphName != m_Observation.graphName || now.nodeId != m_Observation.nodeId;
+        if (changed)
+        {
+            if (!now.connected)
+            {
+                KR_LOG_INFO("BehaviorEditor: ゲームとつながっていません");
+            }
+            else if (!now.observing)
+            {
+                KR_LOG_INFO("BehaviorEditor: ゲームで見ている敵なし");
+            }
+            else
+            {
+                KR_LOG_INFO("BehaviorEditor: ゲームの敵:{} の {}(ノード {}){}", now.graphName, now.stateType, now.nodeId, now.paused ? "・ゲームは止まっています" : "");
+            }
+        }
+        m_Observation = now;
+    }
+
+    // ゲームの敵が見ているグラフが、今開いているグラフか(Windows のファイル名なので、大文字・小文字は区別しない)
+    bool IsObservedGraphOpen() const
+    {
+        const std::string& a = m_Observation.graphName;
+        const std::string& b = m_CurrentName;
+        return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y)
+            { return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y)); });
+    }
+
+    // グラフの上の 1 行:ゲームの敵の今の状態。光らせるノードも決める
+    void DrawObservationLine()
+    {
+        m_Editor->SetObservedNode(0, false);
+        const Observation& o = m_Observation;
+        if (!o.connected)
+        {
+            ImGui::TextDisabled("ゲーム:つながっていません(Debug のゲームで F1 → ゲームが ObserveRunner で知らせた敵の、今の状態が光ります)");
+            return;
+        }
+        if (!o.observing)
+        {
+            ImGui::TextDisabled("ゲーム:見ている敵なし%s", o.paused ? "(ゲームは止まっています)" : "");
+            return;
+        }
+        if (!IsObservedGraphOpen())
+        {
+            // 違うグラフ:光らせずに、知らせと「開く」ボタン(保存していない変更があれば、確認の窓)
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.25f, 1.0f), "ゲームで見ている敵は %s", o.graphName.c_str());
+            ImGui::SameLine();
+            const std::string label = o.graphName + " を開く";
+            if (ImGui::SmallButton(label.c_str()))
+            {
+                RequestAction({ ActionKind::Open, o.graphName });
+            }
+            return;
+        }
+
+        const NodeTypeInfo* info = FindNodeType(o.stateType);
+        const std::string stateName = info ? info->displayName : o.stateType;
+        const bool nodeExists = m_Graph.FindNode(o.nodeId) != nullptr;
+        m_Editor->SetObservedNode(nodeExists ? o.nodeId : 0, o.paused);
+        const ImVec4 color = o.paused ? ImVec4(0.6f, 0.6f, 0.62f, 1.0f) : ImVec4(1.0f, 0.65f, 0.16f, 1.0f);
+        ImGui::TextColored(color, "ゲームの敵:%s(%.1f 秒)%s%s", stateName.c_str(), o.timeInState,
+            o.paused ? " — ゲームは止まっています" : "", nodeExists ? "" : "(このノードは、今のグラフにありません)");
+    }
+
     // ---- リアルタイム編集のライブファイル(KR/Behavior/LiveGraph.h)----
 
     std::filesystem::path CurrentGraphFile() const
@@ -592,6 +678,8 @@ private:
     std::vector<std::string> m_Recent;   // 最近使ったフォルダー(新しい順。UTF-8)
     bool m_LivePending = false;          // ライブファイルを書く待ち(直した後)
     float m_LiveTimer = 0.0f;            // 書くまでの残りの秒数
+    Observation m_Observation;           // 最後に読んだ、ゲームの敵の今の状態
+    float m_ObserveTimer = 0.0f;         // 前に読んでからの秒
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()

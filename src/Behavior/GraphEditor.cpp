@@ -27,6 +27,9 @@ namespace KR::Behavior
         constexpr ImU32 ConditionColor = IM_COL32(40, 150, 90, 255);
         constexpr ImU32 ConditionColorHover = IM_COL32(60, 180, 110, 255);
         constexpr ImU32 StartOutlineColor = IM_COL32(255, 160, 40, 255);
+        // 観測(ゲームの敵の今の状態):DrawGraphDebug と同じ橙。ゲームが止まっているときは灰色
+        constexpr ImU32 ObservedColor = IM_COL32(255, 165, 40, 255);
+        constexpr ImU32 ObservedPausedColor = IM_COL32(150, 150, 155, 255);
         constexpr float FieldWidth = 130.0f; // 値の欄の幅
 
         // 登録(spec)から、値の欄を 1 つ出す。値の型は spec の既定値の型で決まる。変えたら true
@@ -70,7 +73,15 @@ namespace KR::Behavior
         const Graph* lastGraph = nullptr;
         NodeId hoveredNode = 0;        // 直前のフレームで、マウスが乗っていたノード(右クリックで、どのメニューを出すかの判定)
         NodeId menuNode = 0;           // 「ノードのメニュー」を開いた、対象のノード
+        NodeId observedNode = 0;       // 光らせるノード(ゲームの敵の今の状態。0 = 光らせない)
+        bool observedPaused = false;   // ゲームが止まっている(灰色で光らせる)
     };
+
+    void GraphEditor::SetObservedNode(NodeId node, bool paused)
+    {
+        impl_->observedNode = node;
+        impl_->observedPaused = paused;
+    }
 
     GraphEditor::GraphEditor()
         : impl_(std::make_unique<Impl>())
@@ -179,14 +190,20 @@ namespace KR::Behavior
 
             const bool isState = node.kind == NodeKind::State;
             const bool isStart = isState && node.id == graph.startNode;
+            // ゲームの敵の今の状態(id で探す = 直している途中でも、そのノードが残っていれば光り続ける)
+            const bool isObserved = impl_->observedNode != 0 && node.id == impl_->observedNode;
+            const ImU32 observedColor = impl_->observedPaused ? ObservedPausedColor : ObservedColor;
 
-            ImNodes::PushColorStyle(ImNodesCol_TitleBar, isState ? StateColor : ConditionColor);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, isState ? StateColorHover : ConditionColorHover);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, isState ? StateColorHover : ConditionColorHover);
-            if (isStart)
+            const ImU32 titleColor = isObserved ? observedColor : (isState ? StateColor : ConditionColor);
+            const ImU32 titleHoverColor = isObserved ? observedColor : (isState ? StateColorHover : ConditionColorHover);
+            ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleColor);
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, titleHoverColor);
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, titleHoverColor);
+            const bool thickOutline = isStart || isObserved;
+            if (thickOutline)
             {
-                ImNodes::PushColorStyle(ImNodesCol_NodeOutline, StartOutlineColor);
-                ImNodes::PushStyleVar(ImNodesStyleVar_NodeBorderThickness, 2.5f);
+                ImNodes::PushColorStyle(ImNodesCol_NodeOutline, isObserved ? observedColor : StartOutlineColor);
+                ImNodes::PushStyleVar(ImNodesStyleVar_NodeBorderThickness, isObserved ? 3.5f : 2.5f);
             }
 
             ImNodes::BeginNode(node.id);
@@ -262,7 +279,7 @@ namespace KR::Behavior
 
             ImNodes::EndNode();
 
-            if (isStart)
+            if (thickOutline)
             {
                 ImNodes::PopStyleVar();
                 ImNodes::PopColorStyle();
@@ -276,7 +293,22 @@ namespace KR::Behavior
         for (size_t i = 0; i < graph.links.size(); ++i)
         {
             const Link& link = graph.links[i];
+            // 今の状態から出る線(次に移るかもしれない道)は、橙(DrawGraphDebug と同じ)
+            const bool fromObserved = impl_->observedNode != 0 && link.from == impl_->observedNode;
+            if (fromObserved)
+            {
+                const ImU32 color = impl_->observedPaused ? ObservedPausedColor : ObservedColor;
+                ImNodes::PushColorStyle(ImNodesCol_Link, color);
+                ImNodes::PushColorStyle(ImNodesCol_LinkHovered, color);
+                ImNodes::PushColorStyle(ImNodesCol_LinkSelected, color);
+            }
             ImNodes::Link(static_cast<int>(i) + 1, OutputPinId(link.from), InputPinId(link.to));
+            if (fromObserved)
+            {
+                ImNodes::PopColorStyle();
+                ImNodes::PopColorStyle();
+                ImNodes::PopColorStyle();
+            }
         }
 
         ImNodes::EndNodeEditor();
