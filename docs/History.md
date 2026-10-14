@@ -156,3 +156,7 @@ KR エンジンが、どういう順番で・どんな理由で・何を選ん�
 **したこと**:エンジンに、音の処理が、まったく無かった。**XAudio2**(Windows に入っている DirectX の音の部品)で、効果音と BGM を鳴らす `KR::Audio` を足した。ファイルは **WAV(dr_wav)と OGG(stb_vorbis)**を、全部メモリに読む。機能は、Ryusei の判断で**最低限**(読む・捨てる・鳴らす(ループ・音量)・止める・全体の音量)。入口は、Renderer と同じく Application が持つ(`GetAudio()`)。理由・選ばなかった案(miniaudio・MP3・ストリーミング・コールバックなど)は [Audio.md](Audio.md)。
 **merge のときに、したこと**:`main` に `--no-ff` で merge(衝突なし)・版 **0.8.0**(機能の追加)・`CHANGELOG.md`・`Versioning.md`・タグ `v0.8.0`。耳での確認は、Ryusei が、サンプル KRAudio で行った。
 **未了**:音の機器が無い PC での確認(コードの上では、警告 + 音なしで動く)。
+
+## 13. MP3 の読み込みを足した(0.9.0。2026-10-14。ブランチ feature/sound-mp3)
+**したこと**:0.8.0 では、Ryusei の判断で WAV と OGG だけにしていた(MP3 はループの継ぎ目にすき間が出やすいため)。配られている素材に MP3 が多いので、Ryusei の判断で、MP3 も読めるようにした。ライブラリ **dr_mp3** は、取り込み済みの dr_libs の同じコミットに入っていたので、新しい取り込みは無い。ループさせる BGM には、今までどおり OGG を勧める。理由・確認は [Audio.md](Audio.md)。
+**merge のときに、したこと**:`main` に `--no-ff` で merge(衝突なし)・版 **0.9.0**(機能の追加)・`CHANGELOG.md`・`Versioning.md`・タグ `v0.9.0`。
