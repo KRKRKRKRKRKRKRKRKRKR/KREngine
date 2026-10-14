@@ -57,7 +57,8 @@ namespace
 class EditorApp : public KR::Application
 {
 public:
-    EditorApp() : Application(KR::ApplicationDesc{ .title = "KR Behavior Editor (KR Engine " + KR::GetVersionString() + ")" }) {}
+    // enableEditorKey = false:ツール自身では、F1 で自分を開かない(ゲームの F1 で開かれる側)
+    EditorApp() : Application(KR::ApplicationDesc{ .title = "KR Behavior Editor (KR Engine " + KR::GetVersionString() + ")", .enableEditorKey = false }) {}
 
 protected:
     void OnInit() override

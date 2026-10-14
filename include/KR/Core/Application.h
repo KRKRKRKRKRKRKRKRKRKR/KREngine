@@ -10,12 +10,16 @@ namespace KR
     class Window;
     class Renderer;
     class Audio;
+    class EditorLauncher;
 
     struct ApplicationDesc
     {
         std::string title = "KR Engine";
         uint32_t width = 1280;
         uint32_t height = 720;
+
+        // Debug で F1 を押すと、敵の行動のツール(KRBehaviorEditor)を開く。ツール自身は false にする(自分を開かないように)
+        bool enableEditorKey = true;
     };
 
     class Application
@@ -47,12 +51,20 @@ namespace KR
         void OnWindowResize(uint32_t width, uint32_t height);
         void OnKeyDown(uint32_t virtualKey);
 
+        // Debug の F1:ツールを開く・ツールが開いている間の小さな窓(止める / 動かす)
+        void OpenBehaviorEditor();
+        void DrawEditorPanel();
+
         // 破棄は宣言の逆順。Renderer(SwapChain)がウィンドウより先に破棄されるよう、この順番にする
         std::unique_ptr<Window> m_Window;
         std::unique_ptr<Renderer> m_Renderer;
         // 音は、ウィンドウにも Renderer にも頼らない(どの順番で作っても・捨ててもよい)。最後に作り、最初に捨てる
         std::unique_ptr<Audio> m_Audio;
         bool m_Minimized = false;
+
+        // ツール(別の exe)を開く係。Debug で、enableEditorKey が true のときだけ作る
+        std::unique_ptr<EditorLauncher> m_EditorLauncher;
+        bool m_PauseWhileEditing = true; // ツールが開いている間、ゲームを止めるか(小さな窓で切り替える)
     };
 
     // Game 側で実装する。EntryPoint.cpp の main() から呼ばれる
