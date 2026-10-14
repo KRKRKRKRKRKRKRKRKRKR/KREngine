@@ -97,7 +97,7 @@ namespace KR::Behavior
         {
             return false; // 変わっていない(ファイルが無いままも、含む)
         }
-        const bool liveRemoved = lastLiveStamp_.has_value() && !liveStamp.has_value(); // ツールが、保存した・閉じた・変更を捨てた
+        [[maybe_unused]] const bool liveRemoved = lastLiveStamp_.has_value() && !liveStamp.has_value(); // ツールが、保存した・閉じた・変更を捨てた(ログ用。Release では INFO のログが消えるので、使われない)
         lastStamp_ = stamp; // 読めても読めなくても、この印は「見た」ことにする(壊れたファイルを、0.5 秒ごとに、読み直さない)
         lastLiveStamp_ = liveStamp;
 
