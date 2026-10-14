@@ -166,6 +166,7 @@ set(ENGINE_FILES
     src/Core/Version.cpp
     src/Core/InputState.h
     src/Platform/Windows/Window.h
+    src/Platform/Windows/KeyCodes.h
     src/Platform/Windows/Window.cpp
     src/Renderer/Renderer.cpp
     src/Renderer/Camera.cpp

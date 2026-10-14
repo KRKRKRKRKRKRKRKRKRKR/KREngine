@@ -28,6 +28,10 @@ namespace KR
         // (値は NewFrame のたびに更新されるので、キーを押した時点では、1フレーム前の状態)
         bool WantsKeyboard() const;
 
+        // ImGui が今、マウスを使っているか(マウスが窓の上にある・窓をドラッグしているときなど)。true の間は、ゲームにクリックを渡さない
+        // (WantsKeyboard と同じく、1フレーム前の状態)
+        bool WantsMouse() const;
+
         // OS のメッセージ(マウス・キー・文字入力)を ImGui に教える。ImGui が処理したら true
         static bool HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 

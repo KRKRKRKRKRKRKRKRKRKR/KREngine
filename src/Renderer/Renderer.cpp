@@ -363,6 +363,11 @@ namespace KR
         return m_ImGui && m_ImGui->WantsKeyboard();
     }
 
+    bool Renderer::ImGuiWantsMouse() const
+    {
+        return m_ImGui && m_ImGui->WantsMouse();
+    }
+
     //画面変化時の調整
     void Renderer::Resize(uint32_t width, uint32_t height)
     {

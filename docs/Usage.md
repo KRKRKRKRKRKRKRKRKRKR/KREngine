@@ -140,7 +140,21 @@ KR::Input::IsKeyDown(KR::Key::W)      // 今、押している
 KR::Input::IsKeyPressed(KR::Key::R)   // このフレームで、押した(最初の 1 フレームだけ true)
 KR::Input::IsKeyReleased(KR::Key::R)  // このフレームで、離した
 ```
-`Key`:`W A S D / Left Right Up Down / R Enter Space / F3 / O P`。足したいキーは、`KR/Core/Input.h` と `src/Core/Input.cpp` の対応表に、1 行ずつ。
+```cpp
+KR::Input::IsKeyPressed(KR::Key::MouseLeft)   // マウスのボタンも、キーと同じ関数で読む
+KR::MousePosition m = KR::Input::GetMousePosition(); // ウィンドウの中のピクセル(左上が (0, 0))
+KR::Ray ray = camera.ScreenPointToRay(m.x, m.y, 幅, 高さ); // クリックした場所へのレイ
+float wheel = KR::Input::GetMouseWheel();     // このフレームのホイール(目盛りの数。奥へ回すと +)
+KR::Input::GetKeyName(KR::Key::Space)         // "Space"(表示・設定のファイル用)
+```
+`Key`:
+- 文字 `A`〜`Z`/数字(上の段)`Num0`〜`Num9`/`F1`〜`F12`/`Left Right Up Down`
+- `Enter Space Escape Tab Backspace`/`Shift Ctrl Alt`(左右を区別しない)/`Insert Delete Home End PageUp PageDown`
+- テンキー `Numpad0`〜`Numpad9`・`NumpadAdd NumpadSubtract NumpadMultiply NumpadDivide NumpadDecimal NumpadEnter`(NumLock が ON のとき。`NumpadEnter` と `Enter` は別)
+- マウス `MouseLeft MouseRight MouseMiddle MouseX1 MouseX2`(X1・X2 = 横の「戻る」「進む」)
+- `Key::Count` = キーの数(全部を順に調べるとき:`for (int i = 0; i < (int)KR::Key::Count; ++i)`。見本は、サンプル KRMinimal)
+
+ImGui の窓を使っている間(文字入力・窓の上のクリック)は、「押した」とホイールが、ゲームに届かない。F10(シェーダーの再読み込み・Debug)・F11(ボーダーレス)は、エンジンも使う。記号のキー(; , . / など)は、無い。仕組みは [Input.md](Input.md)。
 
 ### 4-4. 当たり判定(`KR/Physics/Collision.h`)
 ```cpp

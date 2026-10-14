@@ -17,6 +17,25 @@ namespace KR
         // 3-7-2: キーを離した・非アクティブになった、を入力の状態表へ書く(Window は InputState を知らない)
         m_Window->SetKeyUpCallback([](uint32_t virtualKey) { InputState::OnKeyUp(virtualKey); });
         m_Window->SetFocusLostCallback([]() { InputState::ReleaseAll(); });
+
+        // マウス:ボタンは、キーと同じ状態表に書く(VK_LBUTTON などの番号)
+        // ImGui の窓の上では、「押した」とホイールをゲームに渡さない。「離した」と位置は、いつも書く(押しっぱなしで固まらないように)
+        m_Window->SetMouseButtonDownCallback([this](uint32_t virtualKey)
+        {
+            if (!(m_Renderer && m_Renderer->ImGuiWantsMouse()))
+            {
+                InputState::OnKeyDown(virtualKey);
+            }
+        });
+        m_Window->SetMouseButtonUpCallback([](uint32_t virtualKey) { InputState::OnKeyUp(virtualKey); });
+        m_Window->SetMouseMoveCallback([](int32_t x, int32_t y) { InputState::OnMouseMove(x, y); });
+        m_Window->SetMouseWheelCallback([this](float notches)
+        {
+            if (!(m_Renderer && m_Renderer->ImGuiWantsMouse()))
+            {
+                InputState::OnMouseWheel(notches);
+            }
+        });
         m_Renderer = std::make_unique<Renderer>(*m_Window);
 
         // ImGui I-4: メッセージを、Window が処理する前に ImGui に見せる(Window は ImGui を知らない。つなぐのは Application)

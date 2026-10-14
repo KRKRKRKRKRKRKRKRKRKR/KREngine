@@ -114,6 +114,9 @@ namespace KR
         // ImGui が今、キーボードを使っているか(使っている間は、ゲームにキーを渡さない)
         bool ImGuiWantsKeyboard() const;
 
+        // ImGui が今、マウスを使っているか(窓の上にある間は、ゲームにクリック・ホイールを渡さない)
+        bool ImGuiWantsMouse() const;
+
         // シェーダーをコンパイルしてパイプラインを作り直す。失敗したら false(前のパイプラインのまま)
         bool LoadShaders();
 

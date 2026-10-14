@@ -22,6 +22,11 @@ namespace KR
         using KeyDownCallback = std::function<void(uint32_t virtualKey)>; // virtualKey は VK_F10 などの Windows のキーコード
         using KeyUpCallback = std::function<void(uint32_t virtualKey)>;
         using FocusLostCallback = std::function<void()>; // 別のウィンドウに切り替わるなどで、非アクティブになった
+        // マウスのボタン。virtualKey は VK_LBUTTON・VK_RBUTTON・VK_MBUTTON・VK_XBUTTON1・VK_XBUTTON2(キーと同じ番号の表で扱う)
+        using MouseButtonDownCallback = std::function<void(uint32_t virtualKey)>;
+        using MouseButtonUpCallback = std::function<void(uint32_t virtualKey)>;
+        using MouseMoveCallback = std::function<void(int32_t x, int32_t y)>; // 描画される部分の左上が (0, 0)。ピクセル
+        using MouseWheelCallback = std::function<void(float notches)>;       // 1 = 1 目盛り。奥へ回すと +
 
         // OS のメッセージを、Window 自身が処理する前に見せる窓口。処理した(以降は Window が触らない)なら true を返す
         using MessageHook = std::function<bool(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)>;
@@ -39,6 +44,10 @@ namespace KR
         void SetKeyDownCallback(KeyDownCallback callback) { m_KeyDownCallback = std::move(callback); }
         void SetKeyUpCallback(KeyUpCallback callback) { m_KeyUpCallback = std::move(callback); }
         void SetFocusLostCallback(FocusLostCallback callback) { m_FocusLostCallback = std::move(callback); }
+        void SetMouseButtonDownCallback(MouseButtonDownCallback callback) { m_MouseButtonDownCallback = std::move(callback); }
+        void SetMouseButtonUpCallback(MouseButtonUpCallback callback) { m_MouseButtonUpCallback = std::move(callback); }
+        void SetMouseMoveCallback(MouseMoveCallback callback) { m_MouseMoveCallback = std::move(callback); }
+        void SetMouseWheelCallback(MouseWheelCallback callback) { m_MouseWheelCallback = std::move(callback); }
         void SetMessageHook(MessageHook hook) { m_MessageHook = std::move(hook); }
 
         HWND GetHandle() const { return m_Handle; }
@@ -53,6 +62,9 @@ namespace KR
         // ウィンドウ ⇔ ボーダーレス(枠なしでモニター全体を覆う)を切り替える
         void ToggleBorderless();
 
+        // マウスのボタンを押した・離したメッセージを、コールバックに渡す(押している間は、ウィンドウの外のマウスも受け取る)
+        void OnMouseButton(uint32_t virtualKey, bool down, WPARAM wParam);
+
         HWND m_Handle = nullptr;
         HINSTANCE m_Instance = nullptr;
         uint32_t m_Width = 0;
@@ -61,6 +73,10 @@ namespace KR
         KeyDownCallback m_KeyDownCallback;
         KeyUpCallback m_KeyUpCallback;
         FocusLostCallback m_FocusLostCallback;
+        MouseButtonDownCallback m_MouseButtonDownCallback;
+        MouseButtonUpCallback m_MouseButtonUpCallback;
+        MouseMoveCallback m_MouseMoveCallback;
+        MouseWheelCallback m_MouseWheelCallback;
         MessageHook m_MessageHook;
 
         bool m_Borderless = false;
