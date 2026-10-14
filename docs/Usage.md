@@ -354,3 +354,39 @@ if (asset.GetVersion() != seen) { runner.SetGraph(asset.GetGraph()); seen = asse
 - ゲームの CMake は、そのままでよい(imnodes・nlohmann/json は、エンジンの中だけ)。
 - ファイルの形式(JSON)には、版(`"version": 1`)がある。**版が違うファイルは、読まない**(エラー + 待機だけのグラフ)。
 - 壊れたファイル・欠けた項目でも、落ちない(エラー + 安全な既定)。
+
+## 9. 音(効果音・BGM)
+仕組み・決めたことは [Audio.md](Audio.md)。見本は、サンプル **KRAudio**(`samples/Audio/`。Space = 効果音・B = BGM・上下 = 全体の音量)。
+
+### 9-1. 音の用意
+- ゲームの **`Assets/Sounds/`** に置く。**効果音は WAV、BGM は OGG** がおすすめ(MP3 は読めない。Audacity などで OGG に変換する)。
+- モノラル・ステレオだけ(5.1ch などは読めない)。周波数(44100 Hz・48000 Hz など)は何でもよい。
+
+### 9-2. コード(最小)
+```cpp
+KR::SoundHandle m_Jump, m_Music;   // 読んだ音の札
+KR::VoiceHandle m_Bgm;             // 鳴っている BGM の札(止めるのに使う)
+
+void OnInit() override {
+    m_Jump  = GetAudio().Load("jump.wav");     // Assets/Sounds/jump.wav(全部、メモリに読む)
+    m_Music = GetAudio().Load("stage1.ogg");
+    m_Bgm   = GetAudio().Play(m_Music, true, 0.5f);  // ループ・音量 0.5
+}
+void OnUpdate(float) override {
+    if (KR::Input::IsKeyPressed(KR::Key::Space)) {
+        GetAudio().Play(m_Jump);               // 効果音。鳴らしっぱなしでよい(重ねて鳴る・鳴り終わると自動で片付く)
+    }
+}
+void OnShutdown() override {
+    GetAudio().Stop(m_Bgm);
+    GetAudio().Unload(m_Music);                // 鳴っている声も止まる。忘れても、終了時にエンジンが片付ける
+    GetAudio().Unload(m_Jump);
+}
+```
+- 全体の音量:`GetAudio().SetMasterVolume(0.0f〜1.0f)` / `GetMasterVolume()`。
+- 読めなかった音・音の機器が無い PC でも、落ちない(エラー・警告のログ。`Play` は何もしない)。
+
+### 9-3. 注意
+- **Release では、`Sounds` フォルダーが、exe の横に、コピーされる**。**`Sounds` を、初めて作ったあとは、CMake を、もう一度 configure する**(コピーする一覧は、configure のときに決まるため)。
+- ゲームの CMake は、そのままでよい(dr_wav・stb_vorbis・XAudio2 は、エンジンの中だけ)。
+- 無いもの:一時停止・BGM と効果音で別々の音量・フェード・ピッチ・3D の音(最初の版は、最低限。[Audio.md](Audio.md) の「既知の制限」)。
