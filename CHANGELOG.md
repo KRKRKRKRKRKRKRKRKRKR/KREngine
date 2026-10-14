@@ -16,6 +16,11 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 
 ## [未リリース]
 (次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
+- 追加:**音(`KR::Audio`。`KR/Audio/Audio.h`)**。XAudio2 で鳴らす。`Application::GetAudio()` で使う。`Load`(ゲームの `Assets/Sounds/` からの場所。WAV・OGG を全部メモリに読む)・`Unload`・`Play`(ループ・音量。同じ音を重ねて鳴らせる)・`Stop`・`SetMasterVolume` / `GetMasterVolume`。札は `SoundHandle`(読んだ音)・`VoiceHandle`(鳴っている音)。鳴り終わった音は、エンジンが毎フレーム片付ける。音の機器が無くても落ちない(警告 + 音なし)
+- 追加:外部ライブラリ **dr_wav**(`mackron/dr_libs` のコミット `dfe8377`。WAV を読む)。OGG は、取り込み済みの stb の **stb_vorbis**。どちらもエンジンの中だけ(PRIVATE)。リンクに `xaudio2`・`ole32`
+- 追加:サンプル **KRAudio**(`samples/Audio/`。Space = 効果音・B = BGM・上下 = 全体の音量)と、音 `samples/Assets/Sounds/`(プログラムで作った `Beep.wav`・Kenney の CC0 の `Jingle.ogg`)
+- 無いもの(最低限の版):一時停止・BGM と効果音で別々の音量・フェード・ピッチ・3D の音・ストリーミング(`docs/Audio.md` の「既知の制限」)
+- ゲーム側で必要な変更:なし(追加だけ)。音を使うときは、`Assets/Sounds/` を作って、CMake を、もう一度 configure する(Release で exe の横へコピーする一覧に入れるため)
 
 ## [0.7.0] — 2026-10-14
 入力の拡張(機能の追加)。キーボードの全部のキーと、マウス(ボタン・位置・ホイール)。

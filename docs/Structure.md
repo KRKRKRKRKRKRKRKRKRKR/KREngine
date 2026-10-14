@@ -23,6 +23,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | 光・フォグ・空・共通のシェーダー | [Lighting.md](Lighting.md) |
 | 入力(キーボード・マウス) | [Input.md](Input.md) |
 | 当たり判定(OBB・線の描画) | [Collision.md](Collision.md) |
+| 音(効果音・BGM。XAudio2) | [Audio.md](Audio.md) |
 | デバッグ用の画面(ImGui) | [ImGui.md](ImGui.md) |
 | ボーンアニメーション(調べ物・実装の記録) | [Animation.md](Animation.md) |
 | **アニメーションの調整ツール**(骨・判定の形) | [AnimationEditor.md](AnimationEditor.md) |
@@ -43,8 +44,10 @@ KREngine/
 │   ├─ Core/                       Application, Log, Input(IsKeyDown / IsKeyPressed / IsKeyReleased), Assets(アセット・シェーダーの場所。SetAssetRoot で、実行時に切り替え), CommandLine(起動の引数)
 │   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners・Raycast・RayToSegmentDistance。当たり判定)・Ray(光線)
 │   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf。型 ModelData)・FbxLoader(LoadFbx)・LoadModel(拡張子で、glTF か FBX を選ぶ)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・HitboxMirror(判定の形の左右反転・対の骨の名前)・SkeletonDebug(骨の表示)
+│   ├─ Audio/                      Audio(音の窓口。Load / Play / Stop / 全体の音量。札 SoundHandle・VoiceHandle。Application の GetAudio())
 │   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
 ├─ src/                          【非公開】ゲームからは見えない
+│   ├─ Audio/                      Audio(XAudio2・声の管理)・SoundLoader(WAV = dr_wav / OGG = stb_vorbis → 16 ビットの PCM)・AudioCodecs(ライブラリの本体)
 │   ├─ Core/                       Application, EntryPoint(main), Log, Input(状態表), InputState(書き込み口), Assets
 │   ├─ Platform/Windows/           Window(Win32)
 │   ├─ Physics/                    Collision(判定の計算)
@@ -104,6 +107,14 @@ classDiagram
         OnMouseMove / OnMouseWheel
         ReleaseAll / EndFrame
     }
+    class Audio {
+        <<公開>>
+        +Load(path) SoundHandle
+        +Unload(SoundHandle)
+        +Play(SoundHandle, loop, volume) VoiceHandle
+        +Stop(VoiceHandle)
+        +SetMasterVolume / GetMasterVolume
+    }
     class Renderer {
         <<公開>>
         +SetClearColor(r, g, b)
@@ -160,6 +171,7 @@ classDiagram
 
     Application *-- Window : 所有
     Application *-- Renderer : 所有
+    Application *-- Audio : 所有(毎フレーム Update)
     Renderer *-- DX12部品 : 所有
     Renderer *-- ImGuiLayer : 所有
     Application ..> Renderer : Window のメッセージを ImGui へ渡す(MessageHook)

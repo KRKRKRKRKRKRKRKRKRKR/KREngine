@@ -44,6 +44,14 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 - **ツール `KRBehaviorEditor`**(`tools/BehaviorEditor/`)は、開いたゲームの `Assets/Enemies/<名前>.json` に保存する(`KR::SetAssetRoot`。ゲームは、呼ばない)。フォルダーを選ぶ窓は、`tools/Common/`(`KRToolCommon`)で、調整ツールどうしで共有。見本は、サンプル `KRBehavior`(`samples/Behavior/`)。
 - 確認用の使い捨て exe は、`probe/BehaviorProbe/`(`-DKR_BUILD_PROBES=ON` のときだけ)。
 
+## 音(`Audio/`。2026-10-14 に、S-1〜S-4。最低限の機能)
+詳しくは `docs/Audio.md`(決めたこと・選ばなかった案・既知の制限)・`docs/Usage.md` の 9(使い方)。
+- **役割を分ける**:データと計算 = `SoundLoader`(ファイル → 16 ビットの PCM。XAudio2 を知らない。非公開)/ 窓口 = `Audio`(XAudio2・番号札 `SoundHandle` / `VoiceHandle`。Application が持つ = `GetAudio()`)。XAudio2・Windows の型は、公開ヘッダーに出さない(pimpl)
+- **WAV = dr_wav・OGG = stb_vorbis**(どちらも PRIVATE。本体は `AudioCodecs.cpp` だけ・`/W0`)。dr_libs はコミットとハッシュを固定。ファイルは自分でメモリに読んでから渡す(stb_vorbis のファイル名は CP932 で、日本語のフォルダーで開けないため)
+- 声は PCM を**指すだけ**(コピーしない)→ `Unload` は、その音の声を先に止める。鳴り終わりは、毎フレームの `Audio::Update` で `GetState` を見る(コールバックは使わない = 別のスレッドを避ける)
+- 音の機器が無くても落ちない(警告 + 音なし)。COM は STA(ツールの `FolderDialog` と形をそろえる)
+- 音は、ゲームの `Assets/Sounds/`。見本は、サンプル `KRAudio`(`samples/Audio/`)。サンプルの音は、プログラムで作った WAV と、Kenney の CC0 の OGG(`samples/Assets/Sounds/README.txt`)
+
 ## 文字コード・パス
 - ソースは UTF-8(`/utf-8`)。**日本語を含むフォルダーに置いても動く**ように、CMake が埋め込んだ場所(`KR_*_SOURCE_DIR`)は、`char8_t` の列として `std::filesystem::path` にする(`Assets.cpp` の `Utf8Path`)。`path(const char*)` は、日本語 Windows で、CP932 として読まれて、例外になる
 - 引数・設定ファイルなどで、UTF-8 の文字列と `path` を行き来するときも、`u8string()` / `char8_t` を使う(ツールの `EditorApp.cpp` の `ToUtf8` / `FromUtf8` が見本)
