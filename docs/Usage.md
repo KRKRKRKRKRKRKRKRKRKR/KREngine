@@ -3,7 +3,7 @@ title: KR エンジンの使い方(最短の入門)
 project: KREngine
 kind: 使い方
 status: 最新
-updated: 2026-10-12
+updated: 2026-10-14
 replaces:
 ---
 
@@ -140,7 +140,7 @@ KR::Input::IsKeyDown(KR::Key::W)      // 今、押している
 KR::Input::IsKeyPressed(KR::Key::R)   // このフレームで、押した(最初の 1 フレームだけ true)
 KR::Input::IsKeyReleased(KR::Key::R)  // このフレームで、離した
 ```
-`Key`:`W A S D / Left Right Up Down / R Enter Space / F3`。足したいキーは、`KR/Core/Input.h` と `src/Core/Input.cpp` の対応表に、1 行ずつ。
+`Key`:`W A S D / Left Right Up Down / R Enter Space / F3 / O P`。足したいキーは、`KR/Core/Input.h` と `src/Core/Input.cpp` の対応表に、1 行ずつ。
 
 ### 4-4. 当たり判定(`KR/Physics/Collision.h`)
 ```cpp

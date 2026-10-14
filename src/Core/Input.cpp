@@ -34,6 +34,8 @@ namespace KR
             case Key::Enter: return VK_RETURN;
             case Key::Space: return VK_SPACE;
             case Key::F3:    return VK_F3;
+            case Key::O:     return 'O';
+            case Key::P:     return 'P';
             }
             return 0;
         }
