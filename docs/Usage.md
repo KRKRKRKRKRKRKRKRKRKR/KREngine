@@ -280,6 +280,7 @@ for (const KR::WorldHitbox& shape : shapes)
 3. 左の名前の欄に名前(例 `Walker`)を書いて「保存」→ **`<Assets>/Enemies/Walker.json`** ができる。1 つの敵の種類 = 1 つのグラフ = 1 ファイル。
 - 上に出る「警告」は、つなぎ忘れの知らせ(動きはする)。
 - **ゲームから開く(Debug)**:ゲームを動かしている途中で **F1** → このツールが開き、ゲームは一時停止する(右上の小さな窓の ☑ で、動かしたままにもできる)。保存すると、ゲームが読み直す。ツールを閉じると、ゲームは再開する。使うには、ゲームの CMake で、エンジンを取り込む前に `set(KR_BUILD_TOOLS ON CACHE BOOL "" FORCE)`(詳しくは [BehaviorEditor.md](BehaviorEditor.md) の「ゲームから F1 で開く」)。
+- **リアルタイムに編集(Debug)**:ツールで直すと、**保存しなくても**、約 0.2〜0.7 秒で、動いている敵に反映する(本物のファイルは、保存したときだけ書き換わる。保存せずに閉じたら、ゲームは保存の内容に戻る)。ゲームのコードは、そのまま(`GraphAsset` が自動で見る)。F1 で開いても止めないなら `KR::ApplicationDesc{ ..., .pauseGameWhileEditing = false }`(詳しくは [BehaviorEditor.md](BehaviorEditor.md) の「リアルタイムに編集する」)。
 
 ### 8-2. ゲームのコード(契約に対応した、実際の呼び出し)
 ```cpp
