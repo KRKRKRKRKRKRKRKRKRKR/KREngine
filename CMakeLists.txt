@@ -77,8 +77,8 @@ FetchContent_Declare(stb
 FetchContent_MakeAvailable(stb)
 # 同じ stb の中の stb_vorbis.c(OGG の音を、PCM に、ほどく)も、音の読み込み(src/Audio/)で使う
 
-# dr_wav(WAV の音を、PCM に、ほどく。ヘッダー 1 つのライブラリ。パブリックドメイン / MIT-0)。エンジンの中だけ(PRIVATE)
-# dr_libs の、コミット dfe8377(2026-09-01。dr_wav 0.14.6)を固定。ハッシュで改ざんを検出。CMakeLists.txt は使わない(取得だけ)
+# dr_wav・dr_mp3(WAV・MP3 の音を、PCM に、ほどく。どちらもヘッダー 1 つのライブラリ。パブリックドメイン / MIT-0)。エンジンの中だけ(PRIVATE)
+# dr_libs の、コミット dfe8377(2026-09-01。dr_wav 0.14.6・dr_mp3 0.7.4)を固定。ハッシュで改ざんを検出。CMakeLists.txt は使わない(取得だけ)
 FetchContent_Declare(dr_libs
     URL      https://github.com/mackron/dr_libs/archive/dfe8377631000664666519fdb83da193fd8037f4.zip
     URL_HASH SHA256=1d7d0f3ffa117601ab848d7b191e68332b9b3610a049c81fc3e109dffa78bf69

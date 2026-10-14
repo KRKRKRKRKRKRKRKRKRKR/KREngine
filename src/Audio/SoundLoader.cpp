@@ -4,6 +4,7 @@
 
 // 音を読むライブラリの「宣言」だけを読む(関数の中身は AudioCodecs.cpp に 1 回だけ入れる)
 #include <dr_wav.h>
+#include <dr_mp3.h>
 #define STB_VORBIS_HEADER_ONLY
 #define STB_VORBIS_NO_STDIO // AudioCodecs.cpp と同じ(ファイルを開く関数は、使わない)
 #include <stb_vorbis.c>
@@ -48,6 +49,19 @@ namespace KR
             return bytes.size() >= 4 && std::memcmp(bytes.data(), magic, 4) == 0;
         }
 
+        // MP3 の先頭の印は 2 通り
+        //   "ID3" = 曲名などの情報(ID3v2 タグ)が先頭にある(多くの MP3 はこちら)
+        //   タグが無い MP3 は、いきなり音のかたまり(フレーム)で始まる。フレームの先頭は、11 ビットが全部 1(0xFF, 0xE0 以上)
+        //   さらに「レイヤー III」の印(2 ビットが 01)を見る(同じく 0xFF で始まる AAC などと、取り違えないため)
+        bool IsMp3(const std::vector<uint8_t>& bytes)
+        {
+            if (bytes.size() >= 3 && std::memcmp(bytes.data(), "ID3", 3) == 0)
+            {
+                return true;
+            }
+            return bytes.size() >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xE0) == 0xE0 && (bytes[1] & 0x06) == 0x02;
+        }
+
         // WAV(dr_wav)。どんな形式(8・24 ビット・小数など)でも、16 ビットの整数に直してもらう
         std::optional<SoundData> DecodeWav(const std::vector<uint8_t>& bytes)
         {
@@ -85,6 +99,25 @@ namespace KR
             std::free(pcm); // stb_vorbis は malloc で確保するので、free で返す
             return sound;
         }
+
+        // MP3(dr_mp3)。圧縮をほどいて、16 ビットの整数にする
+        // 注意:MP3 は、先頭と最後に、短い無音が足されている(エンコードの決まり)。ループさせると、継ぎ目にすき間が出やすい
+        std::optional<SoundData> DecodeMp3(const std::vector<uint8_t>& bytes)
+        {
+            drmp3_config config = {}; // ほどいた結果の、チャンネル数と周波数が入る
+            drmp3_uint64 frameCount = 0;
+            drmp3_int16* pcm = drmp3_open_memory_and_read_pcm_frames_s16(bytes.data(), bytes.size(), &config, &frameCount, nullptr);
+            if (!pcm)
+            {
+                return std::nullopt;
+            }
+            SoundData sound;
+            sound.channels = config.channels;
+            sound.sampleRate = config.sampleRate;
+            sound.samples.assign(pcm, pcm + frameCount * config.channels);
+            drmp3_free(pcm, nullptr);
+            return sound;
+        }
     }
 
     std::optional<SoundData> LoadSoundFile(const std::filesystem::path& path)
@@ -108,9 +141,14 @@ namespace KR
             format = "OGG";
             sound = DecodeOgg(*bytes);
         }
+        else if (IsMp3(*bytes))
+        {
+            format = "MP3";
+            sound = DecodeMp3(*bytes);
+        }
         else
         {
-            KR_LOG_ERROR("音のファイルの形式が分かりません(WAV・OGG に対応): {}", ToUtf8(path));
+            KR_LOG_ERROR("音のファイルの形式が分かりません(WAV・OGG・MP3 に対応): {}", ToUtf8(path));
             return std::nullopt;
         }
 

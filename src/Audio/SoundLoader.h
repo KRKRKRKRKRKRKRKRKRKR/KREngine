@@ -20,8 +20,8 @@ namespace KR
         float GetSeconds() const { return sampleRate == 0 ? 0.0f : static_cast<float>(GetFrameCount()) / static_cast<float>(sampleRate); }
     };
 
-    // 音のファイル(WAV・OGG)を読んで、16 ビットの PCM にほどく。XAudio2 は知らない(データと計算だけ)
-    // 形式は、ファイルの先頭の印("RIFF" = WAV、"OggS" = OGG)で決める(拡張子が違っていても読める)
+    // 音のファイル(WAV・OGG・MP3)を読んで、16 ビットの PCM にほどく。XAudio2 は知らない(データと計算だけ)
+    // 形式は、ファイルの先頭の印("RIFF" = WAV、"OggS" = OGG、"ID3" かフレームの印 = MP3)で決める(拡張子が違っていても読める)
     // 読めなければ、エラーをログに出して、空(nullopt)を返す
     std::optional<SoundData> LoadSoundFile(const std::filesystem::path& path);
 }

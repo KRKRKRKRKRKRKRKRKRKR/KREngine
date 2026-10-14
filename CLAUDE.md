@@ -47,7 +47,7 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 ## 音(`Audio/`。2026-10-14 に、S-1〜S-4。最低限の機能)
 詳しくは `docs/Audio.md`(決めたこと・選ばなかった案・既知の制限)・`docs/Usage.md` の 9(使い方)。
 - **役割を分ける**:データと計算 = `SoundLoader`(ファイル → 16 ビットの PCM。XAudio2 を知らない。非公開)/ 窓口 = `Audio`(XAudio2・番号札 `SoundHandle` / `VoiceHandle`。Application が持つ = `GetAudio()`)。XAudio2・Windows の型は、公開ヘッダーに出さない(pimpl)
-- **WAV = dr_wav・OGG = stb_vorbis**(どちらも PRIVATE。本体は `AudioCodecs.cpp` だけ・`/W0`)。dr_libs はコミットとハッシュを固定。ファイルは自分でメモリに読んでから渡す(stb_vorbis のファイル名は CP932 で、日本語のフォルダーで開けないため)
+- **WAV = dr_wav・OGG = stb_vorbis・MP3 = dr_mp3**(どれも PRIVATE。本体は `AudioCodecs.cpp` だけ・`/W0`)。dr_libs(dr_wav・dr_mp3)はコミットとハッシュを固定。MP3 はループの継ぎ目にすき間が出やすい(BGM は OGG を勧める)。ファイルは自分でメモリに読んでから渡す(stb_vorbis のファイル名は CP932 で、日本語のフォルダーで開けないため)
 - 声は PCM を**指すだけ**(コピーしない)→ `Unload` は、その音の声を先に止める。鳴り終わりは、毎フレームの `Audio::Update` で `GetState` を見る(コールバックは使わない = 別のスレッドを避ける)
 - 音の機器が無くても落ちない(警告 + 音なし)。COM は STA(ツールの `FolderDialog` と形をそろえる)
 - 音は、ゲームの `Assets/Sounds/`。見本は、サンプル `KRAudio`(`samples/Audio/`)。サンプルの音は、プログラムで作った WAV と、Kenney の CC0 の OGG(`samples/Assets/Sounds/README.txt`)

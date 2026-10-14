@@ -39,7 +39,7 @@ namespace KR
         Audio(const Audio&) = delete;
         Audio& operator=(const Audio&) = delete;
 
-        // 音のファイル(WAV・OGG)を、全部メモリに読む。relativePath は、ゲームの Assets/Sounds/ からの場所
+        // 音のファイル(WAV・OGG・MP3)を、全部メモリに読む。relativePath は、ゲームの Assets/Sounds/ からの場所
         // 読めなければ、エラーをログに出して、無効の札を返す
         SoundHandle Load(const std::filesystem::path& relativePath);
 
