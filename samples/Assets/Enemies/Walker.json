@@ -51,8 +51,8 @@
         "speed": 1.5
       },
       "pos": [
-        40.0,
-        60.0
+        29.0,
+        52.0
       ],
       "type": "Patrol"
     },
@@ -66,8 +66,8 @@
         "radius": 5.0
       },
       "pos": [
-        290.0,
-        60.0
+        362.0,
+        49.0
       ],
       "type": "PlayerWithin"
     },
@@ -78,8 +78,8 @@
         "speed": 3.0
       },
       "pos": [
-        540.0,
-        60.0
+        658.0,
+        50.0
       ],
       "type": "MoveToPlayer"
     },
@@ -93,8 +93,8 @@
         "radius": 1.2
       },
       "pos": [
-        780.0,
-        60.0
+        1021.0,
+        42.0
       ],
       "type": "PlayerWithin"
     },
@@ -110,8 +110,8 @@
         "windupSeconds": 0.5
       },
       "pos": [
-        1030.0,
-        40.0
+        1334.0,
+        44.0
       ],
       "type": "Attack"
     },
@@ -122,8 +122,8 @@
         "key": "attackFinished"
       },
       "pos": [
-        780.0,
-        340.0
+        897.0,
+        591.0
       ],
       "type": "AttackFinished"
     },
@@ -137,8 +137,8 @@
         "radius": 8.0
       },
       "pos": [
-        540.0,
-        260.0
+        601.0,
+        585.0
       ],
       "type": "PlayerOutside"
     }
