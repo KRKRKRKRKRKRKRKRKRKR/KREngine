@@ -20,6 +20,10 @@ namespace KR
 
         // Debug で F1 を押すと、敵の行動のツール(KRBehaviorEditor)を開く。ツール自身は false にする(自分を開かないように)
         bool enableEditorKey = true;
+
+        // F1 でツールを開いたときに、ゲームを止めるか(初期値。開くたびに、この値に戻る)。右上の小さな窓の ☑ で、切り替えられる
+        // true = 止める(直してから再開して確かめる)/ false = 動かしたまま(リアルタイム編集:直すと、約 0.2〜0.7 秒で、動いている敵に反映)
+        bool pauseGameWhileEditing = true;
     };
 
     class Application
@@ -65,6 +69,8 @@ namespace KR
         // ツール(別の exe)を開く係。Debug で、enableEditorKey が true のときだけ作る
         std::unique_ptr<EditorLauncher> m_EditorLauncher;
         bool m_PauseWhileEditing = true; // ツールが開いている間、ゲームを止めるか(小さな窓で切り替える)
+        bool m_PauseDefault = true;      // 開くたびに戻す値(ApplicationDesc::pauseGameWhileEditing)
+        bool m_EditorWasOpen = false;    // 前のフレームで、ツールが開いていたか(閉じたことに気づくため)
     };
 
     // Game 側で実装する。EntryPoint.cpp の main() から呼ばれる

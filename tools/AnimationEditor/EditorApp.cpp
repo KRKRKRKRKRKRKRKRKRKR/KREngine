@@ -271,13 +271,13 @@ protected:
             XMStoreFloat4x4(&leftBone, XMMatrixRotationY(XM_PIDIV2) * XMMatrixTranslation(1.0f, 0.0f, 0.0f));
             XMStoreFloat4x4(&rightBone, XMMatrixRotationY(-XM_PIDIV2) * XMMatrixTranslation(-1.0f, 0.0f, 0.0f));
 
-            KR::Hitbox box;
-            box.name = "Arm.L";
-            box.jointIndex = 0;
-            box.shape = KR::HitShape::Box;
-            box.center = { 0.2f, 0.5f, 0.1f };
-            XMStoreFloat4(&box.rotation, XMQuaternionRotationRollPitchYaw(0.3f, 0.5f, 0.2f)); // 斜めに回した箱(軸が、世界の軸に、そろわない)
-            box.halfSize = { 0.1f, 0.2f, 0.3f };
+            KR::Hitbox testBox;
+            testBox.name = "Arm.L";
+            testBox.jointIndex = 0;
+            testBox.shape = KR::HitShape::Box;
+            testBox.center = { 0.2f, 0.5f, 0.1f };
+            XMStoreFloat4(&testBox.rotation, XMQuaternionRotationRollPitchYaw(0.3f, 0.5f, 0.2f)); // 斜めに回した箱(軸が、世界の軸に、そろわない)
+            testBox.halfSize = { 0.1f, 0.2f, 0.3f };
 
             // 世界の形(骨の姿勢 = 左右の骨の行列・モデル全体の行列は、単位)
             const std::vector<XMFLOAT4X4> pose = { leftBone, rightBone };
@@ -305,9 +305,9 @@ protected:
                 return true;
             };
 
-            const KR::Hitbox mirrored = KR::MirrorHitbox(box, leftBone, 1, rightBone);
+            const KR::Hitbox mirrored = KR::MirrorHitbox(testBox, leftBone, 1, rightBone);
             check("左右反転 箱:骨の番号が、対の骨になる", mirrored.jointIndex == 1, true);
-            check("左右反転 箱:世界の形が、X = 0 の鏡映し(角が、すべて一致)", isMirrorImage(worldOf(box).box, worldOf(mirrored).box), true);
+            check("左右反転 箱:世界の形が、X = 0 の鏡映し(角が、すべて一致)", isMirrorImage(worldOf(testBox).box, worldOf(mirrored).box), true);
             const XMVECTOR q = XMLoadFloat4(&mirrored.rotation);
             check("左右反転 箱:向きは、普通の回転(クォータニオンの長さ 1・軸の行列式 +1)",
                   nearEnough(XMVectorGetX(XMVector4Length(q)), 1.0f) && XMVectorGetX(XMMatrixDeterminant(XMMatrixRotationQuaternion(q))) > 0.0f, true);
@@ -315,21 +315,21 @@ protected:
                   nearEnough(mirrored.halfSize.x, 0.1f) && nearEnough(mirrored.halfSize.y, 0.2f) && nearEnough(mirrored.halfSize.z, 0.3f), true);
 
             const KR::Hitbox back = KR::MirrorHitbox(mirrored, rightBone, 0, leftBone);
-            const KR::WorldHitbox original = worldOf(box);
+            const KR::WorldHitbox original = worldOf(testBox);
             const KR::WorldHitbox twice = worldOf(back);
             check("左右反転 箱:2 回反転で、もとの場所に戻る(中心)",
                   nearEnough(original.box.center.x, twice.box.center.x) && nearEnough(original.box.center.y, twice.box.center.y) && nearEnough(original.box.center.z, twice.box.center.z), true);
             check("左右反転 箱:2 回反転で、もとの形に戻る(角が、すべて一致)", isMirrorImage(original.box, [&] { KR::OBB m = twice.box; m.center.x = -m.center.x; for (auto& a : m.axes) { a.x = -a.x; } return m; }()), true);
-            check("左右反転 箱:2 回反転で、骨の中の座標も戻る", nearEnough(back.center.x, box.center.x) && nearEnough(back.center.y, box.center.y) && nearEnough(back.center.z, box.center.z), true);
+            check("左右反転 箱:2 回反転で、骨の中の座標も戻る", nearEnough(back.center.x, testBox.center.x) && nearEnough(back.center.y, testBox.center.y) && nearEnough(back.center.z, testBox.center.z), true);
 
             // 球:中心だけが鏡映し・半径は同じ。左の骨の x = 1 の先 → 世界 x = 1 + ... を、右の骨の中で
-            KR::Hitbox sphere;
-            sphere.jointIndex = 0;
-            sphere.shape = KR::HitShape::Sphere;
-            sphere.center = { 0.0f, 0.0f, 0.5f };
-            sphere.radius = 0.25f;
-            const KR::WorldHitbox sphereWorld = worldOf(sphere);
-            const KR::WorldHitbox mirroredSphere = worldOf(KR::MirrorHitbox(sphere, leftBone, 1, rightBone));
+            KR::Hitbox testSphere;
+            testSphere.jointIndex = 0;
+            testSphere.shape = KR::HitShape::Sphere;
+            testSphere.center = { 0.0f, 0.0f, 0.5f };
+            testSphere.radius = 0.25f;
+            const KR::WorldHitbox sphereWorld = worldOf(testSphere);
+            const KR::WorldHitbox mirroredSphere = worldOf(KR::MirrorHitbox(testSphere, leftBone, 1, rightBone));
             check("左右反転 球:中心が X = 0 の鏡映し・半径は同じ",
                   nearEnough(-sphereWorld.sphere.center.x, mirroredSphere.sphere.center.x) && nearEnough(sphereWorld.sphere.center.y, mirroredSphere.sphere.center.y)
                       && nearEnough(sphereWorld.sphere.center.z, mirroredSphere.sphere.center.z) && nearEnough(mirroredSphere.sphere.radius, 0.25f), true);

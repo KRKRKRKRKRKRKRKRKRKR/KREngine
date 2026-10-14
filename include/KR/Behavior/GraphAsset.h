@@ -17,6 +17,9 @@ namespace KR::Behavior
     //   毎フレーム:  asset.ReloadIfChanged(deltaTime);
     //                if (asset.GetVersion() != runnerVersion) { runner.SetGraph(asset.GetGraph()); runnerVersion = asset.GetVersion(); }
     //   (敵が複数いるなら、敵ごとに runnerVersion を持つ。Runner::SetGraph が、今の状態を引き継ぐ)
+    //
+    // リアルタイム編集(Debug だけ):ツールが、保存する前のグラフを「ライブファイル」(LiveGraph.h)に書く。
+    // ライブファイルがあれば、本物のファイルより先に、そちらを読む。ライブファイルが消えたら(ツールで保存・閉じた)、本物に戻る。ゲームのコードは、そのまま
     class GraphAsset
     {
     public:
@@ -51,13 +54,15 @@ namespace KR::Behavior
             bool operator==(const Stamp&) const = default;
         };
 
-        std::optional<Stamp> ReadStamp() const; // ファイルが無ければ nullopt
+        static std::optional<Stamp> ReadStamp(const std::filesystem::path& file); // ファイルが無い(場所が空)なら nullopt
         bool Reload();
 
         std::filesystem::path file_;
+        std::filesystem::path liveFile_; // ライブファイルの場所(Debug だけ。Release では空 = 見ない)
         GraphPtr graph_ = MakeDefaultGraph();
         uint32_t version_ = 0;
-        std::optional<Stamp> lastStamp_; // 最後に、読もうとしたときの、ファイルの印(読めても、読めなくても)
+        std::optional<Stamp> lastStamp_;     // 最後に、読もうとしたときの、本物のファイルの印(読めても、読めなくても)
+        std::optional<Stamp> lastLiveStamp_; // 同じく、ライブファイルの印
         float elapsed_ = 0.0f;
         float interval_ = 0.5f;
     };

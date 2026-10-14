@@ -160,6 +160,7 @@ set(ENGINE_FILES
     include/KR/Behavior/GraphEditor.h
     include/KR/Behavior/GraphDebug.h
     include/KR/Behavior/GraphAsset.h
+    include/KR/Behavior/LiveGraph.h
     include/KR/Behavior/GraphFile.h
     include/KR/Animation/HitboxFile.h
     include/KR/Animation/HitboxMirror.h
@@ -208,6 +209,7 @@ set(ENGINE_FILES
     src/Behavior/GraphEditor.cpp
     src/Behavior/GraphDebug.cpp
     src/Behavior/GraphAsset.cpp
+    src/Behavior/LiveGraph.cpp
     src/Behavior/Condition.h
     src/Behavior/Condition.cpp
     src/Behavior/GraphFile.cpp
