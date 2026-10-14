@@ -3,7 +3,7 @@ title: KR エンジンの構成(フォルダ・クラス・ビルド)
 project: KREngine
 kind: 設計
 status: 最新
-updated: 2026-10-12
+updated: 2026-10-14
 replaces:
 ---
 
@@ -21,7 +21,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | 形(メッシュ)・OBJ の読み込み | [Mesh.md](Mesh.md) |
 | 画像(テクスチャ) | [Textures.md](Textures.md) |
 | 光・フォグ・空・共通のシェーダー | [Lighting.md](Lighting.md) |
-| 入力(キーボード) | [Input.md](Input.md) |
+| 入力(キーボード・マウス) | [Input.md](Input.md) |
 | 当たり判定(OBB・線の描画) | [Collision.md](Collision.md) |
 | デバッグ用の画面(ImGui) | [ImGui.md](ImGui.md) |
 | ボーンアニメーション(調べ物・実装の記録) | [Animation.md](Animation.md) |
@@ -94,10 +94,14 @@ classDiagram
         +IsKeyDown(Key)
         +IsKeyPressed(Key)
         +IsKeyReleased(Key)
+        +GetKeyName(Key)
+        +GetMousePosition()
+        +GetMouseWheel()
     }
     class InputState {
         <<非公開>>
         OnKeyDown / OnKeyUp
+        OnMouseMove / OnMouseWheel
         ReleaseAll / EndFrame
     }
     class Renderer {

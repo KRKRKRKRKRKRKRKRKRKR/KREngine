@@ -3,7 +3,7 @@ title: 更新の記録(CHANGELOG)
 project: KREngine
 kind: 記録
 status: 最新
-updated: 2026-10-12
+updated: 2026-10-14
 replaces:
 ---
 
@@ -16,6 +16,16 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 
 ## [未リリース]
 (次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
+- 追加:**キー `Key::O`・`Key::P`**(Action2D の攻撃・パリィ。右手で押すキー)。`Input.h` の `Key` の最後に足し、`Input.cpp` の `ToVirtualKey` に `'O'`・`'P'`。キーの状態は、もともと 256 キー全部を持っているので、ほかは変えていない
+- 追加:**キーボードの全部のキー**(A〜Z・上の段の 0〜9 `Num0`〜`Num9`・F1〜F12・矢印・Enter Space Escape Tab Backspace・Shift Ctrl Alt(左右を区別しない)・Insert Delete Home End PageUp PageDown・テンキー `Numpad0`〜`9`・`NumpadAdd` `NumpadSubtract` `NumpadMultiply` `NumpadDivide` `NumpadDecimal` `NumpadEnter`)。記号のキー(; , . / など)は、入れていない(日本語の配列と英語の配列で、位置と意味が違うため)
+- 追加:**マウスのボタンを、キーと同じ `Key` に入れた**(`Key::MouseLeft` `MouseRight` `MouseMiddle` `MouseX1` `MouseX2`)。`IsKeyDown` / `IsKeyPressed` / `IsKeyReleased` が、そのまま使える
+- 追加:**マウスの位置 `Input::GetMousePosition()`**(ウィンドウの中のピクセル。`Camera::ScreenPointToRay` に、そのまま渡せる)と、**ホイール `Input::GetMouseWheel()`**(このフレームの目盛りの数。奥へ回すと +)
+- 追加:`Key::Count`(キーの数)と `Input::GetKeyName(Key)`(キーの名前。全部のキーを順に調べる・表示するときに使う)
+- 変更:ImGui の窓の上では、マウスの「押した」とホイールをゲームに渡さない(キーボードと同じ扱い。「離した」と位置は、いつも渡す)
+- 変更:**Alt(または F10)だけを押して離しても、Windows の「メニューを選ぶ状態」に入らない**ようにした(入ると、メインループが止まり、次のキーが Windows のメニューに取られていた)。Alt+Space(ウィンドウのメニュー)・Alt+F4 は、今までどおり
+- 変更:`Key` の並び(列挙の数値)が変わった。名前(`Key::W` など)は、今までのものを全部残してある
+- サンプル KRMinimal:ImGui の窓に、マウスの位置・ホイールの合計・押しているキーを出し、押した・離したキーをログに出す
+- ゲーム側で必要な変更:なし(名前は変わっていない)。ただし、`Key` を**数値として**ファイルに保存しているゲームは、読み直しが必要(並びが変わったため。名前で保存するなら `GetKeyName` を使う)
 
 ## [0.6.0] — 2026-10-12
 FBX の骨の拡大の修正(バグの修正)。版は、仲介担当が決める。

@@ -115,6 +115,11 @@ namespace KR
         return ImGui::GetIO().WantCaptureKeyboard;
     }
 
+    bool ImGuiLayer::WantsMouse() const
+    {
+        return ImGui::GetIO().WantCaptureMouse;
+    }
+
     bool ImGuiLayer::HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
     {
         return ImGui_ImplWin32_WndProcHandler(window, message, wParam, lParam) != 0;
