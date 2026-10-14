@@ -170,3 +170,8 @@ KR エンジンが、どういう順番で・どんな理由で・何を選ん�
 **したこと**:Action2D からの依頼(`2Dアクションゲーム/docs/EngineRequest_LiveEdit.md`)。F1 のツールで直すと、**保存しなくても**、動いている敵に反映する。渡し方は、Ryusei の判断で**一時ファイル(ライブファイル)**・置き場所は **Windows の一時フォルダー**(名前付きパイプ・本物の横は選ばなかった)。止める初期値 `ApplicationDesc::pauseGameWhileEditing`・AnimationEditor の C4456 も。理由・選ばなかった案は [BehaviorEditor.md](BehaviorEditor.md) の「リアルタイムに編集する」。
 **merge のときに、したこと**:`main` に `--no-ff` で merge(衝突なし)・版 **0.11.0**(機能の追加)・`CHANGELOG.md`・`Versioning.md`・タグ `v0.11.0`。
 **未了**:ツールでノードを直したときに、動いている敵が変わることの、手での確認(ImGui の操作は、自動で送れない)。
+
+## 16. ツールの中で、動いている敵の今の状態を光らせる(0.12.0。2026-10-14。ブランチ feature/live-observe)
+**したこと**:Action2D からの依頼(`2Dアクションゲーム/docs/EngineRequest_LiveObserve.md`)。リアルタイム編集の逆向き(ゲーム → ツール)。ゲームが毎フレーム `ObserveRunner(runner, asset)` で知らせた敵 1 体の今の状態を、F1 のツールのグラフの上で光らせる。Ryusei の判断:観測ファイルで渡す・違うグラフは知らせ + 開くボタン・毎フレーム呼ぶ・止まっている = 灰色 / 閉じた = 消す(選ばなかった案:共有メモリ・自動で開く・選び直したときだけ呼ぶ)。理由は [BehaviorEditor.md](BehaviorEditor.md) の「動いている敵の今の状態を光らせる」。
+**merge のときに、したこと**:`main` に `--no-ff` で merge(衝突なし)・版 **0.12.0**(機能の追加)・`CHANGELOG.md`・`Versioning.md`・タグ `v0.12.0`・push。
+**未了**:ツールの画面で、光り方(橙・灰色・開くボタン)の、手での確認。Action2D の `ObserveRunner` の呼び出しは、ゲーム側の作業。

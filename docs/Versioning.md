@@ -68,5 +68,6 @@ KR エンジンの版は、**メジャー.マイナー.パッチ**(例 `0.2.1`)�
 | v0.9.0 | MP3 の読み込み(dr_mp3。取り込み済みの dr_libs の同じコミット) |
 | v0.10.0 | Debug のゲームで F1 → 敵の行動のツール KRBehaviorEditor を開く(一時停止の切り替え・`ApplicationDesc::enableEditorKey`) |
 | v0.11.0 | リアルタイム編集(ツールで直すと、保存しなくても動いている敵に反映。`LiveGraph.h`)・`ApplicationDesc::pauseGameWhileEditing` |
+| v0.12.0 | ツールのグラフの上で、動いている敵の今の状態を光らせる(`ObserveRunner`・`Observe.h`・`GraphEditor::SetObservedNode`) |
 
 (版の番号は、あとから付けた。**v0.1.0・v0.2.0 は、後付けのタグなので、その版のコードには、`KR::GetVersion` も、起動のログの版も、無い**。v0.2.1 から。0.1.0 より前は、版が無い。ゲーム「すれすれ飛行」が、2026-10-08 に取り込んだ版 `4f5420d` は、0.2.0 の途中)
