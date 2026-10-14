@@ -5,6 +5,7 @@
 #include "KR/Audio/Audio.h"
 #include "KR/Core/Assets.h"
 #include "KR/Behavior/LiveGraph.h"
+#include "Behavior/ObserveState.h"
 #include "Core/EditorLauncher.h"
 #include "Core/InputState.h"
 #include "Platform/Windows/Window.h"
@@ -98,10 +99,14 @@ namespace KR
                 Behavior::DeleteAllLiveGraphFiles(GetAssetDirectory("Enemies"));
             }
             m_EditorWasOpen = editorOpen;
-            if (!(editorOpen && m_PauseWhileEditing))
+            const bool paused = editorOpen && m_PauseWhileEditing;
+            if (!paused)
             {
                 OnUpdate(deltaTime);
             }
+
+            // 見ている敵の今の状態(ゲームが OnUpdate で ObserveRunner した物)を、約 0.1 秒おきに観測ファイルへ(Debug だけ。F1 のツールが光らせる)
+            Behavior::ObserveState::EndFrame(deltaTime, paused, GetAssetDirectory("Enemies"));
 
             // 鳴り終わった音(声)を片付ける。OnUpdate で鳴らした・止めた後
             m_Audio->Update();
@@ -124,6 +129,7 @@ namespace KR
         }
 
         OnShutdown();
+        Behavior::ObserveState::Shutdown(GetAssetDirectory("Enemies")); // ツールは、すぐ「ゲームとつながっていません」になる
     }
 
     void Application::OnWindowResize(uint32_t width, uint32_t height)
