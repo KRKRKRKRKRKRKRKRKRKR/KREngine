@@ -3,7 +3,7 @@ title: エンジンの版(バージョン)の付け方
 project: KREngine
 kind: ルール
 status: 最新
-updated: 2026-10-12
+updated: 2026-10-14
 replaces:
 ---
 
@@ -63,5 +63,6 @@ KR エンジンの版は、**メジャー.マイナー.パッチ**(例 `0.2.1`)�
 | v0.4.0 | 敵の行動ノードエディタ(`KR::Behavior`・ツール KRBehaviorEditor・外部ライブラリ imnodes) |
 | v0.5.0 | FBX の読み込み(`LoadFbx`・`LoadModel`・`GltfModel` → `ModelData`。外部ライブラリ ufbx) |
 | v0.6.0 | FBX の骨の拡大の修正・骨の上限を 512 本に・サンプル HumanModel・ツールの取り出し(Publish-Tools.ps1) |
+| v0.7.0 | 入力の拡張(キーボードの全部のキー・マウスのボタン・位置・ホイール。`Key::MouseLeft` など) |
 
 (版の番号は、あとから付けた。**v0.1.0・v0.2.0 は、後付けのタグなので、その版のコードには、`KR::GetVersion` も、起動のログの版も、無い**。v0.2.1 から。0.1.0 より前は、版が無い。ゲーム「すれすれ飛行」が、2026-10-08 に取り込んだ版 `4f5420d` は、0.2.0 の途中)

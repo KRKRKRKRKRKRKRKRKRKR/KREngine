@@ -16,7 +16,10 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 
 ## [未リリース]
 (次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
-- 追加:**キー `Key::O`・`Key::P`**(Action2D の攻撃・パリィ。右手で押すキー)。`Input.h` の `Key` の最後に足し、`Input.cpp` の `ToVirtualKey` に `'O'`・`'P'`。キーの状態は、もともと 256 キー全部を持っているので、ほかは変えていない
+
+## [0.7.0] — 2026-10-14
+入力の拡張(機能の追加)。キーボードの全部のキーと、マウス(ボタン・位置・ホイール)。
+- 追加:**キー `Key::O`・`Key::P`**(Action2D の攻撃・パリィ。右手で押すキー)(このあと、全部のキーを足したので、下の項目に含まれる)
 - 追加:**キーボードの全部のキー**(A〜Z・上の段の 0〜9 `Num0`〜`Num9`・F1〜F12・矢印・Enter Space Escape Tab Backspace・Shift Ctrl Alt(左右を区別しない)・Insert Delete Home End PageUp PageDown・テンキー `Numpad0`〜`9`・`NumpadAdd` `NumpadSubtract` `NumpadMultiply` `NumpadDivide` `NumpadDecimal` `NumpadEnter`)。記号のキー(; , . / など)は、入れていない(日本語の配列と英語の配列で、位置と意味が違うため)
 - 追加:**マウスのボタンを、キーと同じ `Key` に入れた**(`Key::MouseLeft` `MouseRight` `MouseMiddle` `MouseX1` `MouseX2`)。`IsKeyDown` / `IsKeyPressed` / `IsKeyReleased` が、そのまま使える
 - 追加:**マウスの位置 `Input::GetMousePosition()`**(ウィンドウの中のピクセル。`Camera::ScreenPointToRay` に、そのまま渡せる)と、**ホイール `Input::GetMouseWheel()`**(このフレームの目盛りの数。奥へ回すと +)
