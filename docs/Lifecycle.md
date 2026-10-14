@@ -3,7 +3,7 @@ title: 起動から終了・1フレーム
 project: KREngine
 kind: 設計
 status: 最新
-updated: 2026-10-07
+updated: 2026-10-14
 replaces:
 ---
 
@@ -37,11 +37,13 @@ sequenceDiagram
     Note right of Game: チャンクを全部読む(LoadAllChunks)→ ChunkManager::Initialize
 
     loop 毎フレーム
-        App->>Game: OnUpdate(deltaTime)
+        App->>Game: OnUpdate(deltaTime)(Debug で F1 のツールが開いていて「ゲームを止める」なら、呼ばない)
+        App->>App: Audio::Update()(鳴り終わった音を片付ける)
         Note right of Game: 背景色 / Player::Update(入力を読んで速度・位置)<br/>ChunkManager::Update(前方に足す・後方を捨てる)<br/>SyncChunkMeshes(チャンクごとの形を、作る・捨てる)<br/>追従カメラの位置を決めて SetCamera
         App->>R: BeginFrame()
         App->>Game: OnRender()
         App->>Game: OnImGui()(Game が ImGui の窓を書く)
+        App->>App: DrawEditorPanel()(Debug で F1 のツールが開いている間だけ。右上の小さな窓)
         Game->>R: DrawMesh × 約 20(回るキューブ・OBJ のキューブ・木・自機(画像つき)・地面・チャンク 約 12 個。描画リストに積むだけ)
         App->>R: EndFrame()(描画リストを命令にして提出・表示)
         App->>App: InputState::EndFrame()(押した・離した の付箋を剥がす)
@@ -58,6 +60,7 @@ sequenceDiagram
 | Renderer のコンストラクタ | [Renderer.cpp:60](../src/Renderer/Renderer.cpp#L60) |
 | メインループ | [Application.cpp:27](../src/Core/Application.cpp#L27) |
 | 入力の付箋を剥がす(フレームの最後) | [Application.cpp:52](../src/Core/Application.cpp#L52) |
+| F1 でツールを開く・一時停止(Debug) | [Application.cpp](../src/Core/Application.cpp)(`OpenBehaviorEditor`・`Run`)。詳しくは [BehaviorEditor.md](BehaviorEditor.md) の「ゲームから F1 で開く」 |
 | Game の初期化(形を作る) | GameApp.cpp:33 |
 | Game の更新(自機の動き・追従カメラ) | GameApp.cpp:50 |
 | Game の描画(DrawMesh) | GameApp.cpp:92 |

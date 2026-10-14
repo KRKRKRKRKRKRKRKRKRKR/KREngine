@@ -3,8 +3,12 @@
 #include "KR/Core/Log.h"
 #include "KR/Renderer/Renderer.h"
 #include "KR/Audio/Audio.h"
+#include "KR/Core/Assets.h"
+#include "Core/EditorLauncher.h"
 #include "Core/InputState.h"
 #include "Platform/Windows/Window.h"
+
+#include <imgui.h>
 
 #include <chrono>
 
@@ -47,6 +51,14 @@ namespace KR
 
         // 音。音の機器が無くても失敗しない(警告を出して、音を出さずに動く)
         m_Audio = std::make_unique<Audio>();
+
+#ifdef KR_DEBUG
+        // F1 でツールを開く係(Debug だけ。Release のゲームには、編集の機能を入れない)
+        if (desc.enableEditorKey)
+        {
+            m_EditorLauncher = std::make_unique<EditorLauncher>();
+        }
+#endif
     }
 
     // unique_ptr<Window> の破棄には Window の完全な定義が必要なため、ヘッダーではなくここで定義する
@@ -74,7 +86,13 @@ namespace KR
             const float deltaTime = std::chrono::duration<float>(currentTime - previousTime).count();
             previousTime = currentTime;
 
-            OnUpdate(deltaTime);
+            // ツールが開いていて、「ゲームを止める」なら、OnUpdate を呼ばない(動き・タイマー・敵の行動が、全部止まる)
+            // 描画・ImGui・音は続ける(止まった画面を見ながら、窓を操作できる)
+            const bool editorOpen = m_EditorLauncher && m_EditorLauncher->IsRunning();
+            if (!(editorOpen && m_PauseWhileEditing))
+            {
+                OnUpdate(deltaTime);
+            }
 
             // 鳴り終わった音(声)を片付ける。OnUpdate で鳴らした・止めた後
             m_Audio->Update();
@@ -84,6 +102,10 @@ namespace KR
                 m_Renderer->BeginFrame();
                 OnRender();
                 OnImGui();
+                if (editorOpen)
+                {
+                    DrawEditorPanel(); // ゲームの窓より後 = 手前に出る
+                }
                 m_Renderer->EndFrame();
             }
 
@@ -125,6 +147,44 @@ namespace KR
         {
             m_Renderer->ReloadShaders();
         }
+
+        // F1: 敵の行動のツールを開く(Debug のみ。ツールで保存すると、ゲームが読み直す)
+        if (virtualKey == VK_F1 && m_EditorLauncher)
+        {
+            OpenBehaviorEditor();
+        }
 #endif
+    }
+
+    void Application::OpenBehaviorEditor()
+    {
+        // ツールは、ゲームの exe の横(Debug のビルドのとき、kr_copy_runtime_files がコピーする)
+        wchar_t exePath[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        const std::filesystem::path tool = std::filesystem::path(exePath).parent_path() / L"KRBehaviorEditor.exe";
+
+        // 渡すのは、ゲームの Assets フォルダー(Debug = 元のフォルダー。ツールの保存が、そのままゲームに届く)
+        const std::filesystem::path assets = GetAssetDirectory("Enemies").parent_path().make_preferred();
+
+        const bool wasRunning = m_EditorLauncher->IsRunning();
+        if (m_EditorLauncher->OpenOrFocus(tool, { L"--assets", assets.wstring() }) && !wasRunning)
+        {
+            m_PauseWhileEditing = true; // 開くたびに、まず止める(小さな窓で、動かせる)
+        }
+    }
+
+    void Application::DrawEditorPanel()
+    {
+        // 右上に、小さく出す(ゲームの窓と重なりにくいように)
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - 10.0f, viewport->WorkPos.y + 10.0f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+        const ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
+        if (ImGui::Begin("エディター(F1)", nullptr, flags))
+        {
+            ImGui::TextUnformatted("敵の行動のツールを開いています");
+            ImGui::Checkbox("ゲームを止める", &m_PauseWhileEditing);
+            ImGui::TextDisabled("ツールで保存すると、ゲームが読み直します");
+        }
+        ImGui::End();
     }
 }

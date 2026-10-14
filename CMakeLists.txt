@@ -176,6 +176,8 @@ set(ENGINE_FILES
     src/Core/CommandLine.cpp
     src/Core/Version.cpp
     src/Core/InputState.h
+    src/Core/EditorLauncher.h
+    src/Core/EditorLauncher.cpp
     src/Platform/Windows/Window.h
     src/Platform/Windows/KeyCodes.h
     src/Platform/Windows/Window.cpp
@@ -337,15 +339,19 @@ function(kr_copy_runtime_files target)
             endif()
         endforeach()
     endif()
-endfunction()
 
-# サンプル(エンジンの使い方の見本・動作確認)。KR_BUILD_SAMPLES が ON のときだけ
-if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
-    add_subdirectory(samples/Minimal)
-    add_subdirectory(samples/Animated)
-    add_subdirectory(samples/Behavior)
-    add_subdirectory(samples/Audio)
-endif()
+    # Debug の F1(敵の行動のツールを開く)のため、ツール KRBehaviorEditor を、exe の横にコピーする(Debug のビルドのときだけ)
+    # ツールが要る DLL・Shaders は、上で、もうコピーしてある。ツールがあるのは KR_BUILD_TOOLS が ON のときだけ(ゲームは、自分の CMake で ON にする)
+    # ゲームをビルドすると、ツールも一緒にビルドされる(add_dependencies)。ツール自身には、しない
+    if(TARGET KRBehaviorEditor AND NOT target STREQUAL "KRBehaviorEditor" AND NOT target STREQUAL "KRAnimationEditor")
+        add_dependencies(${target} KRBehaviorEditor)
+        add_custom_command(TARGET ${target} POST_BUILD
+            # Release では「何もしない」(cmake -E true)。配るゲームの横に、ツールを置かない
+            COMMAND ${CMAKE_COMMAND} -E $<IF:$<CONFIG:Debug>,copy_if_different,true> $<TARGET_FILE:KRBehaviorEditor> $<TARGET_FILE_DIR:${target}>
+            VERBATIM
+        )
+    endif()
+endfunction()
 
 # ツールの共通の部品(フォルダーを選ぶ窓。調整ツールどうしで、共有)。KR_BUILD_TOOLS が ON のときだけ。下のツールより、先に
 if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/Common/CMakeLists.txt")
@@ -360,6 +366,15 @@ endif()
 # 敵の行動のツール KRBehaviorEditor(ノードで、行動のグラフを作る)
 if(KR_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/BehaviorEditor/CMakeLists.txt")
     add_subdirectory(tools/BehaviorEditor)
+endif()
+
+# サンプル(エンジンの使い方の見本・動作確認)。KR_BUILD_SAMPLES が ON のときだけ
+# ツールより後に置く(kr_copy_runtime_files が、ツール KRBehaviorEditor を見つけて、サンプルの横にコピーできるように)
+if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMakeLists.txt")
+    add_subdirectory(samples/Minimal)
+    add_subdirectory(samples/Animated)
+    add_subdirectory(samples/Behavior)
+    add_subdirectory(samples/Audio)
 endif()
 
 # Visual Studio で、F5 で実行する物(指定しないと、実行できない ALL_BUILD になる)。エンジン単体のときだけ

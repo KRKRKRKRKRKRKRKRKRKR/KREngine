@@ -147,7 +147,8 @@ namespace
 class EditorApp : public KR::Application
 {
 public:
-    EditorApp() : Application(KR::ApplicationDesc{ .title = "KR Animation Editor (KR Engine " + KR::GetVersionString() + ")" }) {}
+    // enableEditorKey = false:ツール自身では、F1 で敵の行動のツールを開かない
+    EditorApp() : Application(KR::ApplicationDesc{ .title = "KR Animation Editor (KR Engine " + KR::GetVersionString() + ")", .enableEditorKey = false }) {}
 
 protected:
     // 当たり判定の確認:答えが分かっている例で、Intersects を調べる。全部合っていれば OK のログ・違えばエラーのログ
