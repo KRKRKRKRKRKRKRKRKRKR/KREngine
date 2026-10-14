@@ -165,3 +165,8 @@ KR エンジンが、どういう順番で・どんな理由で・何を選ん�
 **したこと**:ゲームを動かしている途中で、エディターを開いて編集したい(Ryusei)。案は「別のツール(exe)を開く」「ゲームの中にエディターを重ねる」「両方」の 3 つで、Ryusei の判断で**別のツールを開く**形にした(今のツールがそのまま使える)。最初の対象は敵の行動。キーは F1・Debug だけ・ゲームは止める / 動かすを切り替えられる。理由・選ばなかった案は [BehaviorEditor.md](BehaviorEditor.md) の「ゲームから F1 で開く」。
 **merge のときに、したこと**:`main` に `--no-ff` で merge(衝突なし)・版 **0.10.0**(機能の追加)・`CHANGELOG.md`・`Versioning.md`・タグ `v0.10.0`。
 **未了**:右上の小さな窓の ☑ で、ゲームが動き出すことの、手での確認。Action2D で使うには、ゲームの CMake で `KR_BUILD_TOOLS` を ON にする(ゲーム側の作業)。
+
+## 15. リアルタイム編集を足した(0.11.0。2026-10-14。ブランチ feature/live-edit)
+**したこと**:Action2D からの依頼(`2Dアクションゲーム/docs/EngineRequest_LiveEdit.md`)。F1 のツールで直すと、**保存しなくても**、動いている敵に反映する。渡し方は、Ryusei の判断で**一時ファイル(ライブファイル)**・置き場所は **Windows の一時フォルダー**(名前付きパイプ・本物の横は選ばなかった)。止める初期値 `ApplicationDesc::pauseGameWhileEditing`・AnimationEditor の C4456 も。理由・選ばなかった案は [BehaviorEditor.md](BehaviorEditor.md) の「リアルタイムに編集する」。
+**merge のときに、したこと**:`main` に `--no-ff` で merge(衝突なし)・版 **0.11.0**(機能の追加)・`CHANGELOG.md`・`Versioning.md`・タグ `v0.11.0`。
+**未了**:ツールでノードを直したときに、動いている敵が変わることの、手での確認(ImGui の操作は、自動で送れない)。
