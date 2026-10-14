@@ -192,6 +192,7 @@ replaces:
 - 確認用の `KRGraphEditorProbe`(`probe/BehaviorProbe/`。依頼の例のグラフを描く)。ツール `KRBehaviorEditor`(B4-7)ができたら、役目を終える。
 
 ## 10. ゲームの中で、動いている敵を見る DrawGraphDebug(`GraphDebug.h`。B5-1)
+- **ツールの中で見る(2026-10-14)**:ゲームが `ObserveRunner(runner, asset)`(`Observe.h`)を毎フレーム呼ぶと、F1 のツールのグラフの上でも、同じ見せ方(橙のノード・橙の線・状態の名前と秒)で光る。仕組みは [BehaviorEditor.md](BehaviorEditor.md) の「動いている敵の今の状態を光らせる」。
 - `DrawGraphDebug(runner)`(または `DrawGraphDebug(graph, runner)`):ゲームの `OnImGui` の中の、`ImGui::Begin` と `End` の間で呼ぶ。グラフを、**読むだけ**で描く(動かせない・編集できない)。
   - **光るノード = 今の状態**(橙の太い枠 + 広い半透明の枠)。**橙の線 = 今の状態から出る線**(次に移るかもしれない道)。左下に、今の状態の名前・id・**入ってからの時間**(入った直後は「★今、入った」)。
   - 状態 = 青・条件 = 緑(エディタと同じ)。各ノードに、登録の日本語の名前と、値(小数・整数 = 「名前 値」/ チェックは、true のときだけ名前/ **文字(キー名)は、出さない**)。

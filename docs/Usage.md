@@ -281,6 +281,7 @@ for (const KR::WorldHitbox& shape : shapes)
 - 上に出る「警告」は、つなぎ忘れの知らせ(動きはする)。
 - **ゲームから開く(Debug)**:ゲームを動かしている途中で **F1** → このツールが開き、ゲームは一時停止する(右上の小さな窓の ☑ で、動かしたままにもできる)。保存すると、ゲームが読み直す。ツールを閉じると、ゲームは再開する。使うには、ゲームの CMake で、エンジンを取り込む前に `set(KR_BUILD_TOOLS ON CACHE BOOL "" FORCE)`(詳しくは [BehaviorEditor.md](BehaviorEditor.md) の「ゲームから F1 で開く」)。
 - **リアルタイムに編集(Debug)**:ツールで直すと、**保存しなくても**、約 0.2〜0.7 秒で、動いている敵に反映する(本物のファイルは、保存したときだけ書き換わる。保存せずに閉じたら、ゲームは保存の内容に戻る)。ゲームのコードは、そのまま(`GraphAsset` が自動で見る)。F1 で開いても止めないなら `KR::ApplicationDesc{ ..., .pauseGameWhileEditing = false }`(詳しくは [BehaviorEditor.md](BehaviorEditor.md) の「リアルタイムに編集する」)。
+- **ツールで、敵の今の状態を光らせる(Debug)**:見てほしい敵を 1 体、**毎フレーム** `OnUpdate` の中で(`Runner::Update` の後に)`KR::Behavior::ObserveRunner(runner, asset);`。F1 のツールのグラフの上で、その敵の今の状態のノードが橙に光る(止めていれば灰色)。敵が消えたら、呼ぶのをやめるだけ。Release では何もしない(詳しくは [BehaviorEditor.md](BehaviorEditor.md) の「動いている敵の今の状態を光らせる」)。
 
 ### 8-2. ゲームのコード(契約に対応した、実際の呼び出し)
 ```cpp
