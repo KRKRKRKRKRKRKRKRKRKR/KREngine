@@ -75,6 +75,16 @@ FetchContent_Declare(stb
     URL_HASH SHA256=8e59f72b0780690cda64726804269f638a3be77b9d1506ea95f443f7964bccf0
 )
 FetchContent_MakeAvailable(stb)
+# 同じ stb の中の stb_vorbis.c(OGG の音を、PCM に、ほどく)も、音の読み込み(src/Audio/)で使う
+
+# dr_wav(WAV の音を、PCM に、ほどく。ヘッダー 1 つのライブラリ。パブリックドメイン / MIT-0)。エンジンの中だけ(PRIVATE)
+# dr_libs の、コミット dfe8377(2026-09-01。dr_wav 0.14.6)を固定。ハッシュで改ざんを検出。CMakeLists.txt は使わない(取得だけ)
+FetchContent_Declare(dr_libs
+    URL      https://github.com/mackron/dr_libs/archive/dfe8377631000664666519fdb83da193fd8037f4.zip
+    URL_HASH SHA256=1d7d0f3ffa117601ab848d7b191e68332b9b3610a049c81fc3e109dffa78bf69
+    SOURCE_SUBDIR do_not_add_subdirectory
+)
+FetchContent_MakeAvailable(dr_libs)
 
 # cgltf(glTF を読む。ヘッダー 1 つのライブラリ)。エンジンだけが使う。バージョンを固定(ハッシュで改ざんを検出)
 # cgltf も CMakeLists.txt の使い方が要らないので、取得だけして、下で、インクルードの場所を指定する
@@ -156,6 +166,7 @@ set(ENGINE_FILES
     include/KR/Animation/FbxLoader.h
     include/KR/Animation/LoadModel.h
     include/KR/Animation/AnimatedModel.h
+    include/KR/Audio/Audio.h
 
     src/Core/Application.cpp
     src/Core/EntryPoint.cpp
@@ -198,6 +209,10 @@ set(ENGINE_FILES
     src/Behavior/Condition.h
     src/Behavior/Condition.cpp
     src/Behavior/GraphFile.cpp
+    src/Audio/Audio.cpp
+    src/Audio/SoundLoader.h
+    src/Audio/SoundLoader.cpp
+    src/Audio/AudioCodecs.cpp
     src/Graphics/DX12/DX12Common.h
     src/Graphics/DX12/DX12Device.h
     src/Graphics/DX12/DX12Device.cpp
@@ -243,6 +258,10 @@ target_include_directories(KREngine
 # stb_image は、Engine の中だけで使う(PRIVATE)。SYSTEM = 他人のコードの警告は出さない
 target_include_directories(KREngine SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR})
 
+# 音を読むライブラリ(dr_wav・stb_vorbis)も、Engine の中だけ。本体(関数の中身)は AudioCodecs.cpp に集めて、そこだけ警告を出さない(他人のコード)
+target_include_directories(KREngine SYSTEM PRIVATE ${dr_libs_SOURCE_DIR})
+set_source_files_properties(src/Audio/AudioCodecs.cpp PROPERTIES COMPILE_OPTIONS "/W0")
+
 target_compile_definitions(KREngine
     PUBLIC  $<$<CONFIG:Debug>:KR_DEBUG>
     PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
@@ -279,6 +298,8 @@ target_link_libraries(KREngine PRIVATE
     dxgi
     dxcompiler
     shell32 # CommandLineToArgvW(GetCommandLineArguments)
+    xaudio2 # 音を鳴らす(XAudio2 2.9。Windows 10 以降に、最初から入っている)
+    ole32   # CoInitializeEx(XAudio2 の準備)
 )
 
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
@@ -323,6 +344,7 @@ if(KR_BUILD_SAMPLES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/Minimal/CMak
     add_subdirectory(samples/Minimal)
     add_subdirectory(samples/Animated)
     add_subdirectory(samples/Behavior)
+    add_subdirectory(samples/Audio)
 endif()
 
 # ツールの共通の部品(フォルダーを選ぶ窓。調整ツールどうしで、共有)。KR_BUILD_TOOLS が ON のときだけ。下のツールより、先に

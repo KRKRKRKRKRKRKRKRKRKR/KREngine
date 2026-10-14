@@ -2,6 +2,7 @@
 
 #include "KR/Core/Log.h"
 #include "KR/Renderer/Renderer.h"
+#include "KR/Audio/Audio.h"
 #include "Core/InputState.h"
 #include "Platform/Windows/Window.h"
 
@@ -43,6 +44,9 @@ namespace KR
         {
             return m_Renderer && m_Renderer->HandleWindowMessage(window, message, wParam, lParam);
         });
+
+        // 音。音の機器が無くても失敗しない(警告を出して、音を出さずに動く)
+        m_Audio = std::make_unique<Audio>();
     }
 
     // unique_ptr<Window> の破棄には Window の完全な定義が必要なため、ヘッダーではなくここで定義する
@@ -71,6 +75,9 @@ namespace KR
             previousTime = currentTime;
 
             OnUpdate(deltaTime);
+
+            // 鳴り終わった音(声)を片付ける。OnUpdate で鳴らした・止めた後
+            m_Audio->Update();
 
             if (!m_Minimized)
             {

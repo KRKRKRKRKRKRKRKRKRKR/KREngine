@@ -1,0 +1,7 @@
+# 音(KR::Audio)の、使い方の見本 KRAudio(効果音 = WAV・BGM = OGG のループ・全体の音量)
+# 音は、samples/Assets/Sounds/(Beep.wav・Jingle.ogg)
+add_executable(KRAudio AudioApp.cpp)
+target_link_libraries(KRAudio PRIVATE KREngine)
+kr_copy_runtime_files(KRAudio)
+set_target_properties(KRAudio PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Samples)
+target_link_options(KRAudio PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)

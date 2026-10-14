@@ -30,3 +30,4 @@
 #include "KR/Animation/FbxLoader.h"
 #include "KR/Animation/LoadModel.h"
 #include "KR/Animation/AnimatedModel.h"
+#include "KR/Audio/Audio.h"

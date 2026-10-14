@@ -9,6 +9,7 @@ namespace KR
     // 前方宣言のみ。Window.h(= Windows.h)を Game 側に漏らさないため
     class Window;
     class Renderer;
+    class Audio;
 
     struct ApplicationDesc
     {
@@ -39,6 +40,9 @@ namespace KR
 
         Renderer& GetRenderer() { return *m_Renderer; }
 
+        // 音を鳴らす窓口(使い方は KR/Audio/Audio.h)
+        Audio& GetAudio() { return *m_Audio; }
+
     private:
         void OnWindowResize(uint32_t width, uint32_t height);
         void OnKeyDown(uint32_t virtualKey);
@@ -46,6 +50,8 @@ namespace KR
         // 破棄は宣言の逆順。Renderer(SwapChain)がウィンドウより先に破棄されるよう、この順番にする
         std::unique_ptr<Window> m_Window;
         std::unique_ptr<Renderer> m_Renderer;
+        // 音は、ウィンドウにも Renderer にも頼らない(どの順番で作っても・捨ててもよい)。最後に作り、最初に捨てる
+        std::unique_ptr<Audio> m_Audio;
         bool m_Minimized = false;
     };
 
