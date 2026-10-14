@@ -47,7 +47,7 @@ KREngine/
 │   ├─ Audio/                      Audio(音の窓口。Load / Play / Stop / 全体の音量。札 SoundHandle・VoiceHandle。Application の GetAudio())
 │   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
 ├─ src/                          【非公開】ゲームからは見えない
-│   ├─ Audio/                      Audio(XAudio2・声の管理)・SoundLoader(WAV = dr_wav / OGG = stb_vorbis → 16 ビットの PCM)・AudioCodecs(ライブラリの本体)
+│   ├─ Audio/                      Audio(XAudio2・声の管理)・SoundLoader(WAV = dr_wav / OGG = stb_vorbis / MP3 = dr_mp3 → 16 ビットの PCM)・AudioCodecs(ライブラリの本体)
 │   ├─ Core/                       Application, EntryPoint(main), Log, Input(状態表), InputState(書き込み口), Assets
 │   ├─ Platform/Windows/           Window(Win32)
 │   ├─ Physics/                    Collision(判定の計算)

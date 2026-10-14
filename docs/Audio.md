@@ -9,7 +9,7 @@ replaces:
 
 # 音(Audio)
 
-効果音と BGM を鳴らす仕組み(2026-10-14。段階 S-1〜S-4)。使い方だけなら [Usage.md](Usage.md) の「9. 音」。
+効果音と BGM を鳴らす仕組み(2026-10-14。段階 S-1〜S-4。同じ日に、MP3 の読み込みを追加)。使い方だけなら [Usage.md](Usage.md) の「9. 音」。
 
 [← 資料の案内(Structure.md)に戻る](Structure.md)
 
@@ -31,7 +31,7 @@ replaces:
 
 ```mermaid
 flowchart LR
-    F["音のファイル<br/>Assets/Sounds/*.wav・*.ogg"] -- "Audio::Load" --> L["SoundLoader<br/>先頭の印で形式を判断<br/>WAV = dr_wav / OGG = stb_vorbis"]
+    F["音のファイル<br/>Assets/Sounds/*.wav・*.ogg・*.mp3"] -- "Audio::Load" --> L["SoundLoader<br/>先頭の印で形式を判断<br/>WAV = dr_wav / OGG = stb_vorbis / MP3 = dr_mp3"]
     L --> D["SoundData<br/>16 ビットの PCM(メモリに全部)<br/>札 SoundHandle"]
     D -- "Audio::Play(ループ・音量)<br/>PCM を指すだけ(コピーしない)" --> V["ソースの声(1 回ごとに 1 つ)<br/>札 VoiceHandle"]
     V --> M["マスターの声<br/>全体の音量"]
@@ -48,7 +48,7 @@ flowchart LR
 |---|---|---|
 | 窓口 `Audio`(Load / Unload / Play / Stop / 全体の音量 / Update)・札 `SoundHandle` / `VoiceHandle` | [Audio.h](../include/KR/Audio/Audio.h)(公開)・[Audio.cpp](../src/Audio/Audio.cpp) | ゲームが使う入口。**XAudio2 と Windows の型は、公開ヘッダーに出さない**(`Impl` を .cpp の中だけで定義する = pimpl。Renderer の DX12 と同じ考え方) |
 | ファイル → PCM(`LoadSoundFile`・`SoundData`) | [SoundLoader.h](../src/Audio/SoundLoader.h) / [.cpp](../src/Audio/SoundLoader.cpp)(非公開) | **データと計算**だけ。XAudio2 を知らない(アニメーションの GltfLoader と同じ分け方)。ライブラリを替えても、ここだけ直せばよい |
-| ライブラリの本体 | [AudioCodecs.cpp](../src/Audio/AudioCodecs.cpp) | dr_wav・stb_vorbis は「1 つの .cpp にだけ、本体を入れる」決まりのライブラリ。他人のコードの警告を出さないよう、このファイルだけ `/W0` |
+| ライブラリの本体 | [AudioCodecs.cpp](../src/Audio/AudioCodecs.cpp) | dr_wav・dr_mp3・stb_vorbis は「1 つの .cpp にだけ、本体を入れる」決まりのライブラリ。他人のコードの警告を出さないよう、このファイルだけ `/W0` |
 | 持ち主・毎フレームの `Update` | [Application](../src/Core/Application.cpp)(`GetAudio()`) | Ryusei の判断(Renderer と同じ形)。作る・捨てる時期がはっきりする |
 | 見本 | [サンプル KRAudio](../samples/Audio/AudioApp.cpp)・音は `samples/Assets/Sounds/` | Space = 効果音・B = BGM・上下 = 全体の音量 |
 
@@ -58,10 +58,12 @@ flowchart LR
 |---|---|---|
 | **XAudio2 + dr_wav・stb_vorbis**(Ryusei の判断) | XAudio2 は Windows 10 以降に最初から入っている、DirectX の音の部品(追加の DLL が要らない)。混ぜる・音量・ループは XAudio2 がする。読み込み・番号札の管理はエンジンで書くので、**中で何をしているかが見える** | **miniaudio**:1 ファイルで、読み込み・混ぜる・3D の音まで全部入り。コードは一番少ないが、中が見えにくい(前回のエンジンのブラックボックス化に近づく)。**XAudio2 だけ**(WAV を自分で読む):OGG が使えない |
 | **WAV と OGG**(Ryusei の判断) | 効果音は WAV(短いので大きさは問題にならず、読むのが一瞬)、BGM は OGG(WAV の約 1/10。3 分の曲で WAV 約 31 MB → OGG 約 3 MB) | **WAV だけ**:BGM でリポジトリが重くなる。**MP3 も**:MP3 は、先頭と最後に無音を足す決まりがあり、**ループの継ぎ目に、すき間ができやすい**。MP3 の素材は、Audacity などで OGG に変換して使う |
+| **MP3 も読めるようにした**(2026-10-14。0.8.0 のあと、Ryusei の判断) | 配られている素材に MP3 が多く、毎回 OGG に変換するのは手間。読むライブラリ **dr_mp3** は、取り込み済みの dr_libs(同じコミット)に入っているので、新しい取り込みが要らない。**ループさせる BGM には、今までどおり OGG がおすすめ**(MP3 は、先頭と最後の無音で、継ぎ目にすき間が出やすい。これは MP3 の決まりで、ライブラリでは直らない) | OGG への変換だけで済ませる(最初はこちらを選んでいた)。minimp3(dr_mp3 の元になったライブラリ。別の取り込みが要る) |
+| **MP3 の印**:"ID3"(曲名などのタグ)か、フレームの印(先頭の 11 ビットが全部 1 で、「レイヤー III」の 2 ビットが 01) | タグの無い MP3 は、いきなり音のかたまり(フレーム)で始まる。「レイヤー III」まで見るのは、同じく 0xFF で始まる AAC(レイヤーの 2 ビットが 00)を、MP3 と取り違えないため | 拡張子 `.mp3` で決める(ほかの形式と同じく、印で決めることにそろえた) |
 | **全部を、最初にメモリに読む**(Ryusei の判断) | 簡単。読む・鳴らすが、全部メインのスレッドで済む | **ストリーミング**(鳴らしながら少しずつ読む):メモリは少ないが、別のスレッドとバッファの受け渡しが要る。BGM が多くなってメモリが問題になったら、足す |
 | **WAV も OGG も、16 ビットの整数の PCM にそろえる** | 声を作るときの形式(`WAVEFORMATEX`)が 1 種類で済む。dr_wav・stb_vorbis の両方に、16 ビットで出す関数がある。音質は、ゲームには十分 | 32 ビットの小数(float)にそろえる(メモリが 2 倍。差は耳では分からない)・元の形式のまま(形式ごとに、声の作り方が変わる) |
 | **ファイルは、自分でメモリに読んでから、ライブラリに渡す** | stb_vorbis は、ファイル名を `char`(日本語の Windows では CP932)で開くため、**日本語のフォルダーで開けない**。`std::ifstream` に `path` を渡せば、Windows の UTF-16 で開ける | ライブラリにファイル名を渡す(日本語のフォルダーで失敗する) |
-| **形式は、ファイルの先頭の印で決める**("RIFF" = WAV、"OggS" = OGG) | 拡張子を間違えても読める。中身が違えば、はっきりエラーになる | 拡張子で決める(`LoadModel` はこちら。音は印が確実なので、印にした) |
+| **形式は、ファイルの先頭の印で決める**("RIFF" = WAV、"OggS" = OGG、"ID3" か MP3 のフレームの印 = MP3) | 拡張子を間違えても読める。中身が違えば、はっきりエラーになる | 拡張子で決める(`LoadModel` はこちら。音は印が確実なので、印にした) |
 | **声は、PCM を指すだけ(コピーしない)** | 同じ効果音を 10 回重ねても、メモリが増えない | 声ごとに PCM をコピーする(安全だが、無駄)。**そのため、`Unload` は、その音で鳴っている声を、先に止める**(捨てた PCM を、XAudio2 が読まないように) |
 | **鳴り終わりは、毎フレーム `Update` で、`GetState` を見に行く** | 全部の処理が、メインのスレッドで済む(鍵 = ロックが要らない)。声の数は多くても数十なので、毎フレーム見ても軽い。ループの声は、Stop するまで残り続ける | XAudio2 の「終わった」の知らせ(`IXAudio2VoiceCallback`)を使う:XAudio2 のスレッドで呼ばれるので、表を触るには鍵が要る。また、その知らせの中では、声を消してはいけない決まりがある |
 | **札の番号は使い回さない** | 古い札(もう Unload した音・鳴り終わった声)で、別の音を鳴らす・止める事故を防ぐ。古い札は、何もしないだけ | 空いた番号を使い回す(番号は小さく済むが、古い札が、別の物を指してしまう) |
@@ -71,7 +73,7 @@ flowchart LR
 | **Application の中で、最後に作り、最初に捨てる**(ウィンドウ・Renderer の後) | 音は、ウィンドウにも Renderer にも頼らない。最初に捨てるので、ゲームの `OnShutdown` の後、残った声と PCM は、ここで全部片付く | — |
 
 **外部ライブラリの固定**
-- **dr_wav**:`mackron/dr_libs` のコミット `dfe8377`(2026-09-01。dr_wav 0.14.6)。パブリックドメイン / MIT-0。`CMakeLists.txt` で、URL と SHA256 を固定。
+- **dr_wav・dr_mp3**:`mackron/dr_libs` のコミット `dfe8377`(2026-09-01。dr_wav 0.14.6・dr_mp3 0.7.4。同じ取り込みに、両方が入っている)。パブリックドメイン / MIT-0。`CMakeLists.txt` で、URL と SHA256 を固定。
 - **stb_vorbis**:取り込み済みの `stb`(stb_image と同じコミット)の中の `stb_vorbis.c`。パブリックドメイン / MIT。新しい取り込みは無い。
 - どちらも PRIVATE(ゲームには見えない)。リンクは `xaudio2`・`ole32`(Windows SDK)。
 
@@ -86,8 +88,13 @@ flowchart LR
   - BGM を鳴らしたまま終了 → 正常に終了し、DX12 の解放漏れなし。ウィンドウのタイトルが取れて、エラーのダイアログなし
 - 失敗:壊れた WAV(先頭だけ "RIFF" のでたらめ)・無い OGG → 落ちずに、エラーのログ。Play しても、何も起きない
 - **日本語のフォルダー**(`…\音のテスト\Sounds\`)から、WAV・OGG の両方を読めた
+- **耳での確認**:Ryusei が、KRAudio で行った(0.8.0 の merge の前)
+- **MP3(追加の分)**:Ryusei の手元の MP3(`斬撃4.mp3`。ライセンスが分からないので、リポジトリには入れていない)を、一時的にサンプルの音のフォルダーに置いて確かめた
+  - ID3 のタグつき・日本語のファイル名 → `斬撃4.mp3(MP3・2 ch・44100 Hz・0.57 秒)` と読めて、3 つ重ねて鳴り、鳴り終わって片付いた
+  - 同じファイルからタグを取り除いた物(フレームの印 `FF FB` で始まる)→ MP3 として読めて、ループ・停止もできた
+  - 先頭が AAC の形(`FF F1`)のでたらめ → 「形式が分かりません」のエラー(MP3 と取り違えない)
+  - 一時的に変えたサンプルのコードと、置いたファイルは、元に戻した
 - **確かめていないこと**:
-  - **耳での確認**(Claude は音を聞けない)。Ryusei が、KRAudio で、Space・B・上下キーを試す
   - 音の機器が無いときの動き(この PC では、機器を外せない)。コードの上では、警告を出して、音なしで動く
   - ツール(KRAnimationEditor など)のフォルダー選択の窓が、今までどおり開くこと(COM の形を STA にそろえたので、影響しないはず)
 

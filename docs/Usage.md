@@ -359,7 +359,7 @@ if (asset.GetVersion() != seen) { runner.SetGraph(asset.GetGraph()); seen = asse
 仕組み・決めたことは [Audio.md](Audio.md)。見本は、サンプル **KRAudio**(`samples/Audio/`。Space = 効果音・B = BGM・上下 = 全体の音量)。
 
 ### 9-1. 音の用意
-- ゲームの **`Assets/Sounds/`** に置く。**効果音は WAV、BGM は OGG** がおすすめ(MP3 は読めない。Audacity などで OGG に変換する)。
+- ゲームの **`Assets/Sounds/`** に置く。**WAV・OGG・MP3** が読める。**効果音は WAV、ループさせる BGM は OGG** がおすすめ(MP3 は、ループの継ぎ目に、短いすき間が出やすい。ループしない曲・効果音なら、MP3 のままでよい)。
 - モノラル・ステレオだけ(5.1ch などは読めない)。周波数(44100 Hz・48000 Hz など)は何でもよい。
 
 ### 9-2. コード(最小)
