@@ -261,9 +261,18 @@ Action2D の依頼:① ノードエディタを、**拡大縮小**できるよ�
   - **確認(`KRNodeEditorProbe`。`-DKR_BUILD_PROBES=ON`)**:今の ImGui で、ビルドできて、動いた。ノード・ピン・線・日本語の表示 / **ホイールでズーム**(`GetCurrentZoom()` の値は、**拡大率の逆数**:拡大すると小さくなる。0.25 = 4 倍に拡大・10 = 10 分の 1)/ ノードのドラッグ(位置が、`GetNodePosition` で読める)/ ピンから線をつなぐ(出力 → 入力は許可・出力 → 出力は、赤い線で拒否)/ 右クリックのメニュー(`Suspend` / `Resume` の間に出すと、普通の大きさの文字で出る)/ **設定ファイル(`NodeEditor.json`)を作らない**(`Config::SettingsFile = nullptr`)。
   - **使い方の注意(落とし穴)**:`ed::BeginCreate()` / `ed::BeginDelete()` が false を返したときも、**`ed::EndCreate()` / `ed::EndDelete()` を、必ず呼ぶ**(呼ばないと、次のフレームで、`IM_ASSERT(false == m_InActive)` で落ちる)。ノードの中の欄(`DragFloat` など)は、`SetNextItemWidth` で幅を決める(決めないと、窓の幅まで広がって、ノードが重なる)。
   - 線の削除(線を選んで Delete)は、C5b で、本物のエディタで確かめる。
+- **C1:新しいデータの形(JSON 版 2 の、メモリの中の形)とモデル操作**(`Graph.h`・`NodeTypes.h`・`src/Behavior/GraphEdit.*`)
+  - `Graph::links` を**やめた**。`Node` に、**`transitions`**(状態だけ。`Transition { condition, to }` の並び。**並びの順 = 調べる順**。0 = つながっていない)と、**`inputs`**(論理の条件だけ。入力の条件の id。0 = つながっていない)を足した。`Graph::version` の既定は 2。
+  - 2 種類のつながり(UE のブループリントの、実行の線とデータの線のように):**流れ** = 遷移の行 → 次の状態 / **真偽** = 条件のノード → 遷移の行の入口、または、論理の条件の入力。真偽の入口は、行・スロットごとに 1 つ(= 「入口は 1 本まで」は、データの形で、守られる)。条件の出口は、いくつでもつなげる。
+  - 登録:`And`(かつ。入力 2〜16)・`Or`(または。入力 2〜16)・`Not`(でない。入力 1 = 固定)。`NodeTypeInfo` に `minInputs` / `maxInputs` と `IsLogic()`。値は、なし。
+  - モデル操作(`GraphEdit`。画面から切り離して、確認ログで試せる):`AddNode`(論理は、最小の数の入力スロットを作る)・`RemoveNode`(**他のノードの、そのノードへのつながりを、全部外す**。行・スロットは残す = つなぎ直せる)・`AddTransition` / `RemoveTransition` / `MoveTransition` / `SetTransitionCondition` / `SetTransitionTarget`・`AddInput` / `RemoveInput` / `SetInput`・`DependsOn`・`SetStartNode`。
+  - **つなぎの規則**:行の条件には「条件」のノード・次の状態には「状態」のノードだけ / 論理の入力にも「条件」だけ・自分自身は不可 / **循環を作る線は、拒否**(`SetInput` が、`DependsOn` で、入力をたどって、自分に戻るかを調べる)。
+  - **選ばなかった案**:`Link { from, to, priority }` のままで、ピンの番号を足す(行の順・論理の入力の順が、`links` の並びに、暗黙に頼る)。遷移の行を、状態から切り離した、別のノード「遷移」にする(ノードが増えて、画面が散らかる)。
+  - 確認ログ 44 項目(登録・行の追加 / 消す / 入れ替え・規則・ネスト 3 段・循環の拒否(直接・2 段)・入力の増減(最小・最大)・ノードを消したときの掃除・id を使い回さない・見本のグラフ)。
+  - **C1〜C4 の間は、エンジンの全体ビルドが通らない**(`links` を使う部品 = `GraphFile`・`Runner`・`GraphValidate`・`GraphDebug`・`GraphEditor` が、まだ、古い形)。部品ごとの確認用 exe で確認する。
 ## 16. 進み具合(B1〜B6)
 済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2〜B2-3(条件の評価)・B2-4(Runner を作る・今の状態を読む)・B2-5〜B2-8(Update・分岐・SetGraph・Reset・共有)。= B2 は全部済。B3-1〜B3-3(imnodes の取り込み・相性の確認・ズームなしで進める判断)。
 済(続き):B4-1〜B4-6(GraphEditor:骨組み・値の欄・線・ノードの追加 / 削除・開始ノード・分岐の順番・検証の警告)・B4-7〜B4-11(ツール KRBehaviorEditor:骨組み・フォルダーを開く・一覧・開く・保存・新規・読み直し・保存していない印・確認の窓・設定の記憶・引数・参照 / 最近 = `docs/BehaviorEditor.md`)。= B4 は全部済。B5-1〜B5-2(DrawGraphDebug・GraphAsset)。= B5 は全部済。B6-1〜B6-4(サンプル KRBehavior・再起動なしの反映の確認・docs・最後の確認)。
 これから:**版 0.4.0・タグ `v0.4.0`・main への merge は、仲介担当**(私の担当のタスクは、全部済)。ゲームから使う手順は、`Usage.md` の 8。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
 使い方(`Usage.md` の 8)は、ゲームが呼べる形(Runner)ができてから書く(B6-3)。
-**追加の依頼(C シリーズ。2026-10-15〜)**:C0(imgui-node-editor の取り込みと、動作確認 = ゲート)済。次は C1(データの形 版 2・モデル操作)。詳しくは 15 節。
+**追加の依頼(C シリーズ。2026-10-15〜)**:C0(imgui-node-editor の取り込みと、動作確認 = ゲート)・C1(データの形 版 2・モデル操作)済。次は C2(JSON 版 2・版 1 からの変換)。詳しくは 15 節。

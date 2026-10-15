@@ -26,6 +26,14 @@ namespace KR::Behavior
         std::string type;        // "Wait"・"PlayerWithin" など。登録の中で重ならない
         std::string displayName; // 画面に出す日本語の名前
         std::vector<ParamSpec> params;
+
+        // 論理の条件(And・Or・Not)だけ:入力の数の範囲(Node::inputs の数)。葉の条件・状態は、0(入力なし)
+        // minInputs < maxInputs なら、エディタで、入力を増やせる(And・Or)。同じなら、固定(Not)
+        int minInputs = 0;
+        int maxInputs = 0;
+
+        // 論理の条件か(入力の条件を持つ = かつ・または・でない)
+        bool IsLogic() const { return kind == NodeKind::Condition && maxInputs > 0; }
     };
 
     // 種類を登録する。同じ type が既にあるか、type が空なら、登録せず false を返す
