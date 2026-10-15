@@ -130,6 +130,25 @@ target_include_directories(imnodes PUBLIC ${imnodes_SOURCE_DIR})
 target_link_libraries(imnodes PUBLIC imgui)
 target_compile_options(imnodes PRIVATE /utf-8 /W0)
 
+# imgui-node-editor(ノードエディタの部品。MIT。ズーム・スクロールがあり、見た目が UE のブループリント風)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
+# imnodes に、ズームの機能が無いため、替える(docs/Behavior.md)。コミット 1e0e494(2026-10-14 の master の先頭)を固定。ハッシュで改ざんを検出
+# 自身の CMakeLists.txt は無い。取得だけして(SOURCE_SUBDIR を、存在しない場所にして)、ライブラリは、下で、自分で定義する
+FetchContent_Declare(imgui_node_editor
+    URL      https://github.com/thedmd/imgui-node-editor/archive/1e0e494f1a86885eb332ca518543108ccd88d13e.zip
+    URL_HASH SHA256=15095ca5610bd93497c2ee726df9f23c5a7121f9d4456f3650176cb9dedeb342
+    SOURCE_SUBDIR do_not_add_subdirectory
+)
+FetchContent_MakeAvailable(imgui_node_editor)
+add_library(imgui_node_editor STATIC
+    ${imgui_node_editor_SOURCE_DIR}/crude_json.cpp
+    ${imgui_node_editor_SOURCE_DIR}/imgui_canvas.cpp
+    ${imgui_node_editor_SOURCE_DIR}/imgui_node_editor.cpp
+    ${imgui_node_editor_SOURCE_DIR}/imgui_node_editor_api.cpp
+)
+target_include_directories(imgui_node_editor PUBLIC ${imgui_node_editor_SOURCE_DIR})
+target_link_libraries(imgui_node_editor PUBLIC imgui)
+target_compile_options(imgui_node_editor PRIVATE /utf-8 /W0)
+
 set(ENGINE_FILES
     include/KR/KR.h
     include/KR/Core/Application.h
@@ -312,7 +331,7 @@ target_link_libraries(KREngine PRIVATE
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ENGINE_FILES})
 source_group(Shaders FILES ${SHADER_FILES})
-set_target_properties(DirectX-Headers DirectX-Guids imgui imnodes PROPERTIES FOLDER ThirdParty)
+set_target_properties(DirectX-Headers DirectX-Guids imgui imnodes imgui_node_editor PROPERTIES FOLDER ThirdParty)
 
 # 実行時に必要なファイル: DXC 本体(dxcompiler.dll)とシェーダー署名用(dxil.dll)は Windows SDK のものを使う
 set(PROGRAM_FILES_X86 "ProgramFiles(x86)")

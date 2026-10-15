@@ -20,3 +20,10 @@ target_link_libraries(KRDebugDrawProbe PRIVATE KREngine)
 kr_copy_runtime_files(KRDebugDrawProbe)
 set_target_properties(KRDebugDrawProbe PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Probes)
 target_link_options(KRDebugDrawProbe PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
+
+# imgui-node-editor の動作確認用(C0)。imnodes を、これに替えるための、ゲート
+add_executable(KRNodeEditorProbe NodeEditorProbe.cpp)
+target_link_libraries(KRNodeEditorProbe PRIVATE KREngine imgui_node_editor)
+kr_copy_runtime_files(KRNodeEditorProbe)
+set_target_properties(KRNodeEditorProbe PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release> FOLDER Probes)
+target_link_options(KRNodeEditorProbe PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
