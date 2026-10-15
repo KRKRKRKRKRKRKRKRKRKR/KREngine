@@ -18,6 +18,7 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 - ビルド(エンジン単体):`cmake --preset vs2026` → `cmake --build build --config Debug`(サンプル KRMinimal・KRAnimated・ツール KRAnimationEditor が、一緒にビルドされる)。Visual Studio の既定のスタートアップは KRAnimationEditor
 - 依存のルール:ゲームが使えるのは公開側 `include/KR/` だけ。`src/` と DX12 の部品は、ゲームから見せない。ゲームは GPU の実体に触らず、番号札(MeshHandle など)だけを持つ
 - ゲーム固有のこと(自機・コース・ゲームの設定)は、エンジンに入れない。ゲームのアセットの場所は `KR_GAME_ASSETS_DIR`(ゲームの CMake が決める)
+- **ゲームの CMake は、`kr_add_game(<名前>)` で書く**(0.14.0 から。`src/` の下を自動で集めて、`#include` の基点・リンク・DLL とアセットのコピー・Release の設定を、まとめて行う。ファイルを足しても、CMake を直さなくてよい。**足した後の最初のビルドは、古いプロジェクトで進む = 新しいファイルは、2 回目のビルドで入る**)。0.13.0 までの書き方(`add_executable` に 1 つずつ書く)も、動く。`docs/Usage.md` の 2-2
 - エンジンを変えたら、`docs/` の該当ファイルも直す。ゲーム側が使うサブモジュールの指す版は、ゲーム側で進める
 - コミットメッセージは日本語で、段階の番号を付ける(例:`切り出し E-5: …`)
 - **版**:`メジャー.マイナー.パッチ`(決まりは `docs/Versioning.md`)。機能を足す・バグを直す・ゲームのコードを直す必要がある変更をしたら、**版を上げる**(`CMakeLists.txt` の `project(KREngine VERSION ...)` が、唯一の置き場所)・**`CHANGELOG.md` に書く**(ゲーム側で必要な変更は、必ず)・main に merge したコミットに、**タグ `vX.Y.Z` を付ける**。タグの push は、別に頼まれたときだけ

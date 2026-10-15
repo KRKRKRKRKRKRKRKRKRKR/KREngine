@@ -19,7 +19,7 @@ replaces:
 | Debug | 編集中の元のフォルダー(ゲームの `Assets/<name>`。CMake の `KR_GAME_ASSETS_DIR`)。保存した変更が、コピーなしで、すぐ読める |
 | Release | exe の横のフォルダー(`<exe のあるフォルダー>/<name>`)。ビルドの後に、元のフォルダーから、自動でコピーされる |
 
-ゲームの `CMakeLists.txt` で、`KR_GAME_ASSETS_DIR` を決めて、`kr_copy_runtime_files(ゲーム名)` を呼ぶ(書き方は、`docs/Usage.md` の 2-2)。モデル・音・敵のグラフは、それぞれ `AnimatedModel::Load()`・`Audio::Load()`・`LoadGraph()` が、`Models/`・`Sounds/` の下から読むので、普通は、パスを自分で組み立てなくてよい。
+ゲームの `CMakeLists.txt` は、`kr_add_game(ゲーム名)` と書く。ゲームのアセットは、**省略すると、ゲームのフォルダーの `Assets/`**(別の場所にするなら、エンジンを取り込む前に `set(KR_GAME_ASSETS_DIR 場所)`)。`Assets/` の下のフォルダーは、`kr_add_game` が、exe の横へ、自動でコピーする(`Assets/` に、新しいフォルダーを足したときは、**次のビルドで自動で設定し直し、その次のビルドでコピー**される。書き方は `docs/Usage.md` の 2-2。0.13.0 までの `kr_copy_runtime_files(ゲーム名)` を使う書き方も、動く)。モデル・音・敵のグラフは、それぞれ `AnimatedModel::Load()`・`Audio::Load()`・`LoadGraph()` が、`Models/`・`Sounds/` の下から読むので、普通は、パスを自分で組み立てなくてよい。
 
 ヘッダー:`KR/Core/Assets.h`
 

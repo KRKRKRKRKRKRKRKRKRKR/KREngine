@@ -32,7 +32,7 @@ replaces:
 
 ```
 MyGame/
-├─ CMakeLists.txt                ← ⑥ ソースを 1 行ずつ書く
+├─ CMakeLists.txt                ← ⑥ 3 行(ソースは、自動で集まる)
 └─ src/
    ├─ GameApp.cpp                ← ⑤ ゲームの本体
    └─ Gameplay/
@@ -204,19 +204,14 @@ private:
 std::unique_ptr<KR::Application> KR::CreateApplication() { return std::make_unique<GameApp>(); }
 ```
 
-**⑥ CMakeLists.txt**(ゲームの CMake。エンジンを取り込む部分は、`docs/Usage.md` の 2-2)
+**⑥ CMakeLists.txt**(ゲームの CMake。`kr_add_game` を使う。エンジン 0.14.0 から)
 ```cmake
-add_executable(MyGame
-    src/GameApp.cpp
-    src/Gameplay/Coin.h
-    src/Gameplay/Coin.cpp
-    src/Gameplay/Ground.h
-    src/Gameplay/Ground.cpp
-)
-target_include_directories(MyGame PRIVATE src)          # #include "Gameplay/Coin.h" と書けるようにする
-target_link_libraries(MyGame PRIVATE KREngine)
-kr_copy_runtime_files(MyGame)
+cmake_minimum_required(VERSION 3.28)
+project(MyGame LANGUAGES CXX)
+add_subdirectory(External/KREngine)     # エンジン(サブモジュール)を取り込む
+kr_add_game(MyGame)                     # src/ の下の .cpp・.h を、自動で集めて、exe を作る
 ```
+**これだけ**。`src/` の下に、`.cpp` や `.h` を足しても、**この `CMakeLists.txt` は、直さなくてよい**(自動で集まる)。`#include "Gameplay/Coin.h"` と書けるようにする設定・エンジンへのリンク・DLL とアセットのコピーも、`kr_add_game` が行う。詳しくは、`docs/Usage.md` の 2-2(0.13.0 までの、ファイルを 1 つずつ書く方法も、そこにある)。
 
 **実行画面**(A / D キーで、青い箱を動かして、コインを拾う。拾ったコインは、消える)
 
@@ -231,10 +226,14 @@ kr_copy_runtime_files(MyGame)
 - エンジンを使うなら `#include <KR/KR.h>`(主な物が、全部入る)。
 - ヘッダーには、**宣言だけ**。長い処理は `.cpp` に書く(ビルドが速くなる)。
 
-### 手順 2　CMake に、ファイルを足す
-`CMakeLists.txt` の `add_executable(...)` に、**新しいファイルを 1 行ずつ**書く。**書き忘れると、ビルドで「未解決の外部シンボル」(LNK2019)になる**(`.cpp` が、ビルドされない)。ヘッダーも、書いておくと、Visual Studio に表示される。足したら、**CMake をもう一度 configure** する(`cmake --preset vs2026`。Visual Studio は、`CMakeLists.txt` を保存すると、自動で行う)。
+### 手順 2　ビルドする(CMake は、直さない)
+`kr_add_game`(⑥)を使っていれば、**新しいファイルを `src/` の下に置くだけ**で、次のビルドで、自動で入る。**`CMakeLists.txt` に、ファイル名を書かなくてよい**。
 
-`#include "Gameplay/Coin.h"` のように、`src` からの場所で書くには、`target_include_directories(ゲーム名 PRIVATE src)` を、1 度だけ書く。
+**ビルドは、2 回走ることがある**:新しいファイルを足した後の、**1 回目のビルドで、CMake が、ファイルが増えたことに気づいて、プロジェクトを自動で作り直す**(ログに `CMake is re-running because ... is out-of-date.` と出る)。**そのビルドは、古いプロジェクトで進む**ので、新しいファイルは、**2 回目のビルドで**入る。リンクエラー(LNK2001・LNK2019)が出たら、**もう 1 回ビルド**する。Visual Studio では、プロジェクトが変わったと聞かれたら、「再読み込み」を選ぶ。
+
+`#include "Gameplay/Coin.h"` のように、`src` からの場所で書けるのは、`kr_add_game` が、`src` を、`#include` の基点にしているため。
+
+0.13.0 までの書き方(`add_executable` に、ファイルを 1 つずつ書く)のゲームは、新しいファイルを、`add_executable` に**書く**。書き忘れると、リンクエラー(LNK2019)になる。足したら、`cmake --preset vs2026` で、設定し直す。
 
 ### 手順 3　動きのクラスを作る
 **位置・速度・HP などのデータ**と、`Update(float deltaTime)` を持つ。`Renderer` は、受け取らない。
@@ -268,11 +267,13 @@ kr_copy_runtime_files(MyGame)
 
 ## よくある間違い
 
-### リンクエラー(LNK2019)が出る
-`.cpp` を、`add_executable` に書き忘れている。書いて、CMake を configure し直す。
+### リンクエラー(LNK2001・LNK2019)が出る
+- **ファイルを足した直後**なら、**もう 1 回ビルド**する(1 回目で、CMake がプロジェクトを作り直して、2 回目で、新しいファイルが入る)。
+- 0.13.0 までの書き方なら、`.cpp` を `add_executable` に、書き忘れている。書いて、CMake を configure し直す。
+- `.cpp` を、`kr_add_game` の `SOURCES`(省略すると `src`)の**外**に置いている。
 
 ### `#include "Gameplay/Coin.h"` が見つからない
-`target_include_directories(ゲーム名 PRIVATE src)` が無い。または、`src` の下の場所が違う。
+`src` の下の場所が違う。`kr_add_game` を使っているなら、`src/Gameplay/Coin.h` に置いたかを確認する(`SOURCES` に、別のフォルダーを書いたなら、そのフォルダーが基点)。
 
 ### 形が出ない・落ちる
 - `Shutdown` の後に `Draw` を呼んでいる(捨てた番号札は、描けない)。
