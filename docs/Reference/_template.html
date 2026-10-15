@@ -1,0 +1,314 @@
+<title>KR エンジン リファレンス</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: 参照サイト。左に機能の一覧・右に本文。目次 → 機能ごとのページ → サンプルコード・関数の一覧。 */
+:root {
+  --bg: #f4f6f7; --surface: #ffffff; --surface-2: #eaeff1; --fg: #15222b; --muted: #55646f; --line: #d5dde2;
+  --accent: #0a766f; --accent-ink: #ffffff;
+  --code-bg: #101c24; --code-fg: #d8e4ea;
+  --t-kw: #7fd4cc; --t-str: #e8c37a; --t-num: #e8c37a; --t-com: #7f93a0; --t-fn: #9fc4ff; --t-type: #c9b6f2;
+  --font-body: "Noto Sans JP", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e151a; --surface: #152028; --surface-2: #1c2a33; --fg: #e3ecf0; --muted: #94a5b0; --line: #28373f;
+    --accent: #55cfc5; --accent-ink: #0b1a1d; --code-bg: #0a1116; --code-fg: #d8e4ea; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e151a; --surface: #152028; --surface-2: #1c2a33; --fg: #e3ecf0; --muted: #94a5b0; --line: #28373f;
+  --accent: #55cfc5; --accent-ink: #0b1a1d; --code-bg: #0a1116; --code-fg: #d8e4ea; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.75; padding-inline: 16px; padding-block: 0 64px; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; margin-inline: -16px; padding: 10px 16px; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin-right: auto; }
+.brand a { color: var(--fg); text-decoration: none; font-weight: 700; font-size: 1.05rem; letter-spacing: .02em; }
+.ver { font-family: var(--font-mono); font-size: .78rem; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+.search { flex: 1 1 220px; max-width: 360px; min-width: 0; }
+.search input { width: 100%; font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; }
+.search input::placeholder { color: var(--muted); }
+.btn { font: inherit; font-size: .82rem; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+
+.page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; max-width: 1180px; margin-inline: auto; padding-top: 28px; }
+@media (min-width: 960px) { .page { grid-template-columns: 230px minmax(0, 1fr); } }
+nav.side { font-size: .86rem; }
+@media (min-width: 960px) { nav.side { position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); align-self: start; max-height: calc(100vh - 96px); overflow: auto; } }
+nav.side details { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 14px; }
+@media (min-width: 960px) { nav.side details { border: 0; background: transparent; padding: 0; } nav.side summary { display: none; } }
+nav.side summary { cursor: pointer; font-weight: 700; }
+nav.side h4 { margin: 14px 0 4px; font-size: .74rem; letter-spacing: .08em; color: var(--muted); text-transform: none; }
+nav.side ul { list-style: none; margin: 0; padding: 0; }
+nav.side a { display: block; padding: 3px 10px; color: var(--fg); text-decoration: none; border-radius: 6px; line-height: 1.5; }
+nav.side a:hover { background: var(--surface-2); }
+nav.side a.on { color: var(--accent); background: var(--surface-2); font-weight: 700; }
+nav.side .all a { color: var(--accent); }
+
+main { min-width: 0; max-width: 880px; }
+#doc h1 { font-size: clamp(1.55rem, 4.4vw, 2.2rem); line-height: 1.3; margin: 0 0 .4em; text-wrap: balance; }
+#doc h2 { font-size: 1.3rem; margin: 2.4em 0 .6em; padding-bottom: .3em; border-bottom: 2px solid var(--accent); line-height: 1.4; scroll-margin-top: 80px; }
+#doc h3 { font-size: 1.08rem; margin: 2.2em 0 .5em; line-height: 1.5; scroll-margin-top: 80px; display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline; padding-top: 1.2em; border-top: 1px solid var(--line); }
+#doc h3 .fn { font-family: var(--font-mono); font-size: .98rem; color: var(--accent); overflow-wrap: anywhere; }
+#doc h3 .fd { font-weight: 500; color: var(--fg); }
+#doc p { margin: .8em 0; }
+#doc ul, #doc ol { padding-left: 1.4em; }
+#doc li { margin: .25em 0; }
+#doc strong { font-weight: 700; }
+#doc code { font-family: var(--font-mono); font-size: .86em; background: var(--surface-2); border-radius: 5px; padding: .12em .4em; overflow-wrap: anywhere; }
+#doc pre { position: relative; margin: 1em 0; background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 18px; overflow-x: auto; line-height: 1.6; }
+#doc pre code { background: none; padding: 0; font-size: .82rem; color: inherit; overflow-wrap: normal; white-space: pre; }
+.copy { position: absolute; top: 8px; right: 8px; font: inherit; font-size: .74rem; color: var(--code-fg); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; padding: 2px 9px; cursor: pointer; }
+.copy:hover { background: rgba(255,255,255,.16); }
+.hljs-keyword, .hljs-built_in, .hljs-literal { color: var(--t-kw); }
+.hljs-string { color: var(--t-str); }
+.hljs-number { color: var(--t-num); }
+.hljs-comment { color: var(--t-com); font-style: italic; }
+.hljs-title.function_, .hljs-function .hljs-title { color: var(--t-fn); }
+.hljs-title.class_, .hljs-type { color: var(--t-type); }
+.hljs-meta, .hljs-meta .hljs-keyword { color: var(--t-com); }
+
+.tablewrap { overflow-x: auto; margin: 1em 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+#doc table { border-collapse: collapse; width: 100%; min-width: 480px; font-size: .88rem; line-height: 1.6; }
+#doc th { text-align: left; font-weight: 700; font-size: .78rem; letter-spacing: .04em; color: var(--muted); background: var(--surface-2); padding: 9px 14px; }
+#doc td { padding: 9px 14px; vertical-align: top; border-top: 1px solid var(--line); }
+#doc td:first-child { min-width: 9em; }
+#doc tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+/* 目次ページの表は、リンクの一覧として見せる */
+.index-table table { min-width: 0; }
+.index-table td:first-child { white-space: nowrap; font-weight: 700; }
+.index-table th { display: none; }
+
+.contents { margin: 1.4em 0 .4em; padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+#doc .contents h2 { all: unset; display: block; font-size: .8rem; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
+.contents ul { list-style: none; margin: 0; padding: 0; }
+.contents li { margin: 0; padding: 3px 0; display: flex; flex-wrap: wrap; gap: 0 14px; }
+.contents li a.fn { font-family: var(--font-mono); font-size: .9rem; }
+.contents li span { color: var(--muted); font-size: .88rem; }
+.contents .grp { margin-top: 8px; font-size: .78rem; color: var(--muted); font-weight: 700; letter-spacing: .06em; }
+
+.fnlist { display: flex; flex-direction: column; margin: 1em 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.fnlist a { display: grid; grid-template-columns: minmax(0, 24rem) minmax(0, 1fr) 9rem; gap: 4px 14px; align-items: baseline; padding: 9px 14px; text-decoration: none; color: var(--fg); border-top: 1px solid var(--line); }
+.fnlist a:first-child { border-top: 0; }
+.fnlist a:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.fnlist .n { font-family: var(--font-mono); font-size: .9rem; color: var(--accent); overflow-wrap: anywhere; }
+.fnlist .d { font-size: .9rem; }
+.fnlist .p { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+@media (max-width: 640px) { .fnlist a { grid-template-columns: 1fr; } }
+.count { color: var(--muted); font-size: .85rem; margin: 0 0 .6em; }
+.foot { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<header class="bar">
+  <div class="brand"><a href="#/index">KR エンジン リファレンス</a><span class="ver" id="ver"></span></div>
+  <label class="search"><input id="q" type="search" placeholder="関数・クラスを探す(例:Play、Raycast)" aria-label="関数を探す" autocomplete="off"></label>
+  <button class="btn" id="theme" type="button" aria-label="表示の明るさを切り替える">自動</button>
+</header>
+
+<div class="page">
+  <nav class="side" aria-label="機能の一覧"><details open><summary>機能の一覧</summary><div id="side"></div></details></nav>
+  <main>
+    <div id="doc"><p>読み込み中…</p></div>
+    <p class="foot">KR エンジン(<a href="https://github.com/KRKRKRKRKRKRKRKRKRKR/KREngine" target="_blank" rel="noopener">GitHub</a>)の公開ヘッダー <code>include/KR/</code> から書いたリファレンス。関数の正確な型は、ヘッダーを見る。</p>
+  </main>
+</div>
+
+@@PAGES@@
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  var BASE = 'https://github.com/KRKRKRKRKRKRKRKRKRKR/KREngine/blob/main/docs/';
+  marked.setOptions({ gfm: true, breaks: false, headerIds: false, mangle: false });
+
+  // ---------- ページ(markdown)を集める ----------
+  var pages = {};
+  Array.prototype.forEach.call(document.querySelectorAll('script[data-page]'), function (s) {
+    var name = s.getAttribute('data-page');
+    var text = s.textContent.replace(/^\s*---[\s\S]*?---\s*/, '');
+    var h1 = text.match(/^#\s+(.+)$/m);
+    pages[name] = { name: name, md: text, title: h1 ? h1[1].trim() : name };
+  });
+  var doc = document.getElementById('doc');
+  var q = document.getElementById('q');
+  var engineVersion = '@@VERSION@@';   // Build-Reference.ps1 が、CMakeLists.txt の版を入れる
+
+  // ---------- 関数の一覧(全ページの h3 から作る)----------
+  function splitHead(text) {
+    var i = text.indexOf('　');
+    return i === -1 ? { name: text.trim(), desc: '' } : { name: text.slice(0, i).trim(), desc: text.slice(i + 1).trim() };
+  }
+  var allFns = [];
+  Object.keys(pages).forEach(function (n) {
+    // 見出し(h2・h3)の並び。コードの中の行は、数えない。番号は、描いたときの id(s0, s1, ...)と同じ
+    var section = '', fence = false, i = 0;
+    pages[n].md.split('\n').forEach(function (line) {
+      if (/^```/.test(line)) { fence = !fence; return; }
+      if (fence) { return; }
+      var m = line.match(/^(###?)\s+(.+)$/);
+      if (!m) { return; }
+      var key = 's' + i; i++;
+      if (m[1] === '##') { section = m[2].trim(); return; }
+      if (n !== 'index') { var h = splitHead(m[2]); allFns.push({ page: n, section: section, name: h.name, desc: h.desc, key: key }); }
+    });
+  });
+
+  // ---------- 左の一覧(index.md の見出しと表から)----------
+  var side = document.getElementById('side');
+  (function () {
+    var html = '<div class="all"><ul><li><a href="#/index" data-p="index">目次</a></li><li><a href="#/functions" data-p="functions">全部の関数</a></li></ul></div>';
+    var open = false;
+    pages.index.md.split('\n').forEach(function (line) {
+      var h = line.match(/^##\s+(.+)$/);
+      if (h) {
+        if (open) { html += '</ul>'; }
+        if (/ほかの資料/.test(h[1])) { open = false; return; }
+        html += '<h4>' + h[1] + '</h4><ul>'; open = true; return;
+      }
+      var r = line.match(/^\|\s*\[([A-Za-z]+)\]\(([A-Za-z]+)\.md\)\s*\|/);
+      if (r && open && pages[r[2]]) { html += '<li><a href="#/' + r[2] + '" data-p="' + r[2] + '">' + r[1] + '</a></li>'; }
+    });
+    if (open) { html += '</ul>'; }
+    side.innerHTML = html;
+  })();
+
+  function setActive(name) {
+    Array.prototype.forEach.call(side.querySelectorAll('a'), function (a) { a.classList.toggle('on', a.getAttribute('data-p') === name); });
+  }
+
+  // ---------- ページを描く ----------
+  function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function fixLinks(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('a[href]'), function (a) {
+      var h = a.getAttribute('href');
+      var m = h.match(/^([A-Za-z]+)\.md$/);
+      if (m && pages[m[1]]) { a.setAttribute('href', '#/' + m[1]); return; }
+      var up = h.match(/^\.\.\/([A-Za-z]+\.md)$/);
+      if (up) { a.setAttribute('href', BASE + up[1]); a.target = '_blank'; a.rel = 'noopener'; return; }
+      if (/^https?:/.test(h)) { a.target = '_blank'; a.rel = 'noopener'; }
+    });
+  }
+
+  function decorate(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('table'), function (t) {
+      var w = document.createElement('div'); w.className = 'tablewrap';
+      t.parentNode.insertBefore(w, t); w.appendChild(t);
+    });
+    Array.prototype.forEach.call(root.querySelectorAll('pre'), function (pre) {
+      var code = pre.querySelector('code');
+      if (code && /language-/.test(code.className)) { try { hljs.highlightElement(code); } catch (e) {} }
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'copy'; b.textContent = 'コピー';
+      b.addEventListener('click', function () {
+        var text = code ? code.textContent : pre.textContent;
+        var done = function () { b.textContent = 'コピーした'; setTimeout(function () { b.textContent = 'コピー'; }, 1400); };
+        var fallback = function () {
+          var r = document.createRange(); r.selectNodeContents(code || pre);
+          var s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = '選択した';
+          setTimeout(function () { b.textContent = 'コピー'; }, 1400);
+        };
+        try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+      });
+      pre.appendChild(b);
+    });
+  }
+
+  function renderPage(name, anchor) {
+    var p = pages[name];
+    doc.className = name === 'index' ? 'index-page' : '';
+    doc.innerHTML = marked.parse(p.md);
+    document.title = (name === 'index' ? '' : p.title.replace(/\(.*/, '') + ' - ') + 'KR エンジン リファレンス';
+    fixLinks(doc);
+    if (name === 'index') {
+      Array.prototype.forEach.call(doc.querySelectorAll('table'), function (t) { t.parentNode.classList.add('index-table'); });
+    }
+    // 見出しに id。h3 は「名前」と「説明」に分ける
+    var heads = Array.prototype.slice.call(doc.querySelectorAll('h2, h3'));
+    heads.forEach(function (h, i) {
+      h.id = 's' + i;
+      if (h.tagName === 'H3') {
+        var s = splitHead(h.textContent);
+        h.setAttribute('data-fn', s.name); h.setAttribute('data-fd', s.desc);
+        h.innerHTML = '<span class="fn">' + esc(s.name) + '</span>' + (s.desc ? '<span class="fd">' + esc(s.desc) + '</span>' : '');
+      }
+    });
+    decorate(doc);
+    if (name !== 'index') { insertContents(name, heads); }
+    setActive(name);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (anchor) { var el = document.getElementById(anchor); if (el) { el.scrollIntoView({ block: 'start', behavior: 'instant' }); } }
+  }
+
+  // 「概要」のあとに、ページの内容の一覧(学校のサイトと同じ形:サンプルコード・関数・アクセサー一覧)
+  function insertContents(name, heads) {
+    var first = heads.filter(function (h) { return h.tagName === 'H2' && h.textContent.trim() !== '概要'; })[0];
+    if (!first) { return; }
+    var html = '<h2>このページの内容</h2><ul>', section = '';
+    heads.forEach(function (h) {
+      if (h.tagName === 'H2') {
+        section = h.textContent.trim();
+        if (section === '概要') { return; }
+        if (section === '関数' || section === '列挙型・構造体') { html += '<li class="grp">' + esc(section) + '</li>'; }
+        else { html += '<li><a href="#/' + name + '~' + h.id + '">' + esc(section) + '</a></li>'; }
+      } else if (h.tagName === 'H3') {
+        var fn = h.getAttribute('data-fn'), fd = h.getAttribute('data-fd');
+        html += '<li><a class="fn" href="#/' + name + '~' + h.id + '">' + esc(fn) + '</a>' + (fd ? '<span>' + esc(fd) + '</span>' : '') + '</li>';
+      }
+    });
+    html += '</ul>';
+    var box = document.createElement('nav'); box.className = 'contents'; box.setAttribute('aria-label', 'このページの内容'); box.innerHTML = html;
+    first.parentNode.insertBefore(box, first);
+  }
+
+  function renderFunctions() {
+    var term = q.value.trim().toLowerCase();
+    var list = allFns.filter(function (f) { return !term || (f.name + ' ' + f.desc + ' ' + f.page).toLowerCase().indexOf(term) !== -1; });
+    var html = '<h1>全部の関数・構造体</h1><p class="count">' + (term ? '「' + esc(q.value.trim()) + '」に一致:' : '全部:') + list.length + ' 件</p><div class="fnlist">';
+    list.forEach(function (f) {
+      html += '<a href="#/' + f.page + '~' + f.key + '"><span class="n">' + esc(f.name) + '</span><span class="d">' + esc(f.desc) + '</span><span class="p">' + esc(f.page) + '</span></a>';
+    });
+    html += '</div>';
+    doc.className = ''; doc.innerHTML = html; document.title = '全部の関数 - KR エンジン リファレンス';
+    setActive('functions');
+  }
+
+  // ---------- ルーティング ----------
+  var current = '';
+  function route() {
+    var h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+    var parts = h.split('~'), name = parts[0] || 'index', anchor = parts[1] || '';
+    if (name === 'functions') { current = 'functions'; renderFunctions(); return; }
+    if (!pages[name]) { name = 'index'; }
+    if (name !== current) { current = name; renderPage(name, anchor); }
+    else if (anchor) { var el = document.getElementById(anchor); if (el) { el.scrollIntoView({ block: 'start', behavior: 'instant' }); } }
+  }
+  window.addEventListener('hashchange', route);
+  q.addEventListener('input', function () {
+    if (current !== 'functions') { location.hash = '#/functions'; } else { renderFunctions(); }
+  });
+
+  // 版
+  document.getElementById('ver').textContent = /^\d/.test(engineVersion) ? 'エンジン ' + engineVersion : '';
+
+  // ---------- 明るさ:自動 → 明 → 暗 ----------
+  var themeBtn = document.getElementById('theme'), modes = ['auto', 'light', 'dark'], labels = { auto: '自動', light: '明るい', dark: '暗い' }, mode = 'auto';
+  try { var saved = localStorage.getItem('kr-ref-theme'); if (modes.indexOf(saved) !== -1) { mode = saved; } } catch (e) {}
+  function applyTheme() {
+    if (mode === 'auto') { document.documentElement.removeAttribute('data-theme'); } else { document.documentElement.setAttribute('data-theme', mode); }
+    themeBtn.textContent = labels[mode];
+  }
+  themeBtn.addEventListener('click', function () {
+    mode = modes[(modes.indexOf(mode) + 1) % modes.length]; applyTheme();
+    try { localStorage.setItem('kr-ref-theme', mode); } catch (e) {}
+  });
+  applyTheme();
+  route();
+})();
+</script>

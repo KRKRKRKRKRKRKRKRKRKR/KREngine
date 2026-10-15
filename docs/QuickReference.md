@@ -263,6 +263,7 @@ GetAudio().Stop(m_Bgm);
 | `External/KREngine が、空です` | サブモジュールを取っていない。`git submodule update --init`(すれすれ飛行は、`Setup.ps1`) |
 
 ## 7. 次に読む資料
+- **関数の詳しい説明(機能ごとのページ。サンプルコード・引数・戻り値)**:[Reference/index.md](Reference/index.md)
 - **この文書の次**:[Usage.md](Usage.md)(CMake の書き方・Debug と Release・エンジンをゲームと一緒に開発する・モデル・敵の行動・音の詳しい手順)
 - **全体の目次**:[Structure.md](Structure.md)
 - **なぜ、こう作ったか**:[History.md](History.md)(経緯・決めたこと・選ばなかった案)

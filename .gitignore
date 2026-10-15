@@ -14,3 +14,6 @@ imgui.ini
 
 # ツールの exe の取り出し先(tools\Publish-Tools.ps1 が作る)
 dist/
+
+# リファレンスのサイト(tools/Build-Reference.ps1 が、docs/Reference/*.md から作る)
+docs/Reference/reference.html
