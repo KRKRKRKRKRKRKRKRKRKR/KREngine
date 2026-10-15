@@ -14,7 +14,8 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 ## 資料の案内
 | 知りたいこと | ファイル |
 |---|---|
-| **使い方(最短の入門)** | [Usage.md](Usage.md) |
+| **はじめての人はここから(最短の流れ・関数の早見表・逆引き)** | [QuickReference.md](QuickReference.md) |
+| **使い方(CMake・Debug と Release・モデル・敵の行動・音の詳しい手順)** | [Usage.md](Usage.md) |
 | 起動から終了までの流れ・初期化・メインループ | [Lifecycle.md](Lifecycle.md) |
 | ウィンドウ・OS メッセージ・ログ | [Platform.md](Platform.md) |
 | 描画の仕組み(DX12 の部品・描画の流れ) | [Rendering.md](Rendering.md) |
