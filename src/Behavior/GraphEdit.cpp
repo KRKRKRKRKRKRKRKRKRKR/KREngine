@@ -275,3 +275,87 @@ namespace KR::Behavior
         return true;
     }
 }
+
+namespace KR::Behavior
+{
+    namespace
+    {
+        // 出力のピンと、入力のピンを、(出力, 入力)の順に並べる。同じ向きどうしなら、false
+        bool OrderPins(PinRef a, PinRef b, PinRef& output, PinRef& input)
+        {
+            if (a.IsOutput() == b.IsOutput())
+            {
+                return false;
+            }
+            output = a.IsOutput() ? a : b;
+            input = a.IsOutput() ? b : a;
+            return true;
+        }
+    }
+
+    bool CanConnectPins(const Graph& graph, PinRef a, PinRef b)
+    {
+        PinRef output;
+        PinRef input;
+        if (!a.IsValid() || !b.IsValid() || !OrderPins(a, b, output, input))
+        {
+            return false;
+        }
+        const Node* outputNode = graph.FindNode(output.node);
+        const Node* inputNode = graph.FindNode(input.node);
+        if (outputNode == nullptr || inputNode == nullptr)
+        {
+            return false;
+        }
+
+        if (output.type == PinType::RowFlowOut && input.type == PinType::FlowIn)
+        {
+            // 遷移の行の出口 → 状態の「入」
+            return outputNode->kind == NodeKind::State && inputNode->kind == NodeKind::State
+                && output.index >= 0 && static_cast<size_t>(output.index) < outputNode->transitions.size();
+        }
+        if (output.type == PinType::ConditionOut && input.type == PinType::RowCondition)
+        {
+            // 条件の出口 → 遷移の行の条件の入口
+            return outputNode->kind == NodeKind::Condition && inputNode->kind == NodeKind::State
+                && input.index >= 0 && static_cast<size_t>(input.index) < inputNode->transitions.size();
+        }
+        if (output.type == PinType::ConditionOut && input.type == PinType::LogicInput)
+        {
+            // 条件の出口 → 論理の入力(自分自身・循環は、不可)
+            return outputNode->kind == NodeKind::Condition && inputNode->kind == NodeKind::Condition
+                && input.index >= 0 && static_cast<size_t>(input.index) < inputNode->inputs.size()
+                && !DependsOn(graph, output.node, input.node);
+        }
+        return false; // 流れと真偽の混ぜ・同じ種類の出口・入口 など
+    }
+
+    bool ConnectPins(Graph& graph, PinRef a, PinRef b)
+    {
+        if (!CanConnectPins(graph, a, b))
+        {
+            return false;
+        }
+        PinRef output;
+        PinRef input;
+        OrderPins(a, b, output, input);
+        switch (input.type)
+        {
+        case PinType::FlowIn: return SetTransitionTarget(graph, output.node, output.index, input.node);
+        case PinType::RowCondition: return SetTransitionCondition(graph, input.node, input.index, output.node);
+        case PinType::LogicInput: return SetInput(graph, input.node, input.index, output.node);
+        default: return false;
+        }
+    }
+
+    bool DisconnectPin(Graph& graph, PinRef pin)
+    {
+        switch (pin.type)
+        {
+        case PinType::RowFlowOut: return SetTransitionTarget(graph, pin.node, pin.index, 0);
+        case PinType::RowCondition: return SetTransitionCondition(graph, pin.node, pin.index, 0);
+        case PinType::LogicInput: return SetInput(graph, pin.node, pin.index, 0);
+        default: return false;
+        }
+    }
+}

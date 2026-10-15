@@ -7,6 +7,7 @@
 #include <imgui.h>
 
 #include <memory>
+#include <string>
 
 using namespace KR::Behavior;
 
@@ -38,10 +39,34 @@ protected:
 
     void OnImGui() override
     {
-        ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(1240.0f, 560.0f), ImGuiCond_FirstUseEver);
-        ImGui::Begin("GraphEditor");
+        ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always); // 確認用:窓の場所・大きさを固定する(実行ごとに、画面の合わせ方が変わらないように)
+        ImGui::SetNextWindowSize(ImVec2(1240.0f, 680.0f), ImGuiCond_Always);
+        ImGui::Begin("GraphEditor", nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
         ImGui::Text("edits=%d  nodes=%d  nextId=%d", m_Edits, static_cast<int>(m_Graph.nodes.size()), m_Graph.nextNodeId);
+        // つながりの一覧(確認用):状態 = 遷移の行 [条件 → 次の状態] / 論理の条件 = 入力
+        std::string dump;
+        for (const Node& node : m_Graph.nodes)
+        {
+            if (node.kind == NodeKind::State)
+            {
+                dump += "#" + std::to_string(node.id) + "(" + std::to_string(static_cast<int>(node.posX)) + "," + std::to_string(static_cast<int>(node.posY)) + ") 行:";
+                for (const Transition& row : node.transitions)
+                {
+                    dump += " [" + std::to_string(row.condition) + "→" + std::to_string(row.to) + "]";
+                }
+                dump += "   ";
+            }
+            else if (!node.inputs.empty())
+            {
+                dump += "#" + std::to_string(node.id) + " 入力:";
+                for (const NodeId input : node.inputs)
+                {
+                    dump += " " + std::to_string(input);
+                }
+                dump += "   ";
+            }
+        }
+        ImGui::TextUnformatted(dump.c_str());
         m_Editor->DrawWarnings(m_Graph);
         m_Editor->SetObservedNode(m_Observed < 0 ? -m_Observed : m_Observed, m_Observed < 0);
         if (m_Editor->Draw(m_Graph))

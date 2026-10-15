@@ -14,6 +14,7 @@
 
 #include "KR/Behavior/Graph.h"
 
+#include <cstdint>
 #include <string>
 
 namespace KR::Behavior
@@ -63,4 +64,54 @@ namespace KR::Behavior
 
     // from の条件が、(入力をたどって)target の条件に、依存しているか(自分自身も含む)。循環の判定に使う
     bool DependsOn(const Graph& graph, NodeId from, NodeId target);
+}
+
+namespace KR::Behavior
+{
+    // ---- ピン(エディタの、つなぐ操作の、規則。画面から切り離して、確認ログで試せる)----
+    // ピンの種類:状態の「入」・遷移の行の左(条件の入口)・遷移の行の右(次の状態の出口)・条件の出口・論理の入力
+    enum class PinType : std::uintptr_t
+    {
+        FlowIn = 1,         // 状態の「入」(流れの入口)
+        RowCondition = 2,   // 遷移の行の、条件の入口(真偽。index = 行の番号)
+        RowFlowOut = 3,     // 遷移の行の、次の状態への出口(流れ。index = 行の番号)
+        ConditionOut = 4,   // 条件のノードの、出口(真偽)
+        LogicInput = 5,     // かつ・または・でない の、入力(真偽。index = 入力の番号)
+    };
+
+    struct PinRef
+    {
+        NodeId node = 0;
+        PinType type = PinType::FlowIn;
+        int index = 0;
+
+        // 出力のピンか(線の出発点)。入力のピン = 線の行き先
+        bool IsOutput() const { return type == PinType::RowFlowOut || type == PinType::ConditionOut; }
+        bool IsValid() const { return node != 0; }
+
+        // imgui-node-editor の、ピンの番号(uintptr_t)との、行き来:(ノード id << 20) | (種類 << 16) | 番号
+        std::uintptr_t Pack() const
+        {
+            return (static_cast<std::uintptr_t>(node) << 20) | (static_cast<std::uintptr_t>(type) << 16) | static_cast<std::uintptr_t>(index & 0xFFFF);
+        }
+        static PinRef Unpack(std::uintptr_t id)
+        {
+            PinRef pin;
+            pin.node = static_cast<NodeId>(id >> 20);
+            pin.type = static_cast<PinType>((id >> 16) & 0xF);
+            pin.index = static_cast<int>(id & 0xFFFF);
+            return pin;
+        }
+    };
+
+    // 2 つのピンを、つなげるか(どちらが先でも、よい)。つなげるのは、次の 3 通りだけ:
+    //   遷移の行の出口(流れ)→ 状態の「入」/ 条件の出口 → 遷移の行の条件の入口 / 条件の出口 → 論理の入力(循環・自分自身は、不可)
+    //   同じ向きどうし・種類が違う組み合わせ(流れと真偽)・存在しない行・入力は、不可
+    bool CanConnectPins(const Graph& graph, PinRef a, PinRef b);
+
+    // つなぐ(CanConnectPins が true のときだけ)。入口・出口の、元のつながりは、置き換わる。つないだら true
+    bool ConnectPins(Graph& graph, PinRef a, PinRef b);
+
+    // ピンの、つながりを外す(条件の入口・論理の入力・行の出口。それ以外のピンは、何もしない)。外したら true
+    bool DisconnectPin(Graph& graph, PinRef pin);
 }

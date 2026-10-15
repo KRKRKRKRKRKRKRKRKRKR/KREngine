@@ -47,18 +47,14 @@ namespace KR::Behavior
         // ---- id(imgui-node-editor の、ノード・ピン・線の番号)----
         // ノードの番号 = グラフのノードの id(小さい整数)。ピン = (ノード id << 20) | (種類 << 16) | 番号(行・入力の番号)= ノードの番号と、重ならない。
         // 線の番号 = 目的のピン(真偽)/ 出発のピン(流れ)から作る(ピンごとに、線は 1 本まで = 番号が、毎フレーム、同じ)
-        enum class PinType : std::uintptr_t
-        {
-            FlowIn = 1,         // 状態の「入」(流れの入口)
-            RowCondition = 2,   // 遷移の行の、条件の入口(真偽。左)
-            RowFlowOut = 3,     // 遷移の行の、次の状態への出口(流れ。右)
-            ConditionOut = 4,   // 条件のノードの、出口(真偽)
-            LogicInput = 5,     // かつ・または・でない の、入力(真偽。左)
-        };
-
+        // ピンの種類・番号の組み立ては、GraphEdit.h の PinRef(画面から切り離して、確認ログで試せる)
         std::uintptr_t MakePinId(NodeId node, PinType type, int index = 0)
         {
-            return (static_cast<std::uintptr_t>(node) << 20) | (static_cast<std::uintptr_t>(type) << 16) | static_cast<std::uintptr_t>(index & 0xFFFF);
+            PinRef pin;
+            pin.node = node;
+            pin.type = type;
+            pin.index = index;
+            return pin.Pack();
         }
         std::uintptr_t BoolLinkId(std::uintptr_t destinationPin) { return (std::uintptr_t(1) << 62) | destinationPin; }
         std::uintptr_t FlowLinkId(std::uintptr_t sourcePin) { return (std::uintptr_t(1) << 61) | sourcePin; }
@@ -132,6 +128,8 @@ namespace KR::Behavior
         int navigateFrames = 0;            // > 0 の間、数えて、0 になったフレームで、全体が見えるように、画面を合わせる(ノードの大きさが、分かってから)
         NodeId observedNode = 0;           // 光らせるノード(ゲームの敵の今の状態。0 = 光らせない)
         bool observedPaused = false;       // ゲームが止まっている(灰色で光らせる)
+        NodeId menuNode = 0;               // 「ノードのメニュー」を開いた、対象のノード
+        ImVec2 menuPosition;               // 「ノードを足す」を開いた場所(エディタの座標)
     };
 
     GraphEditor::GraphEditor()
@@ -169,6 +167,7 @@ namespace KR::Behavior
     bool GraphEditor::Draw(Graph& graph)
     {
         ed::SetCurrentEditor(impl_->context);
+        ed::EnableShortcuts(!ImGui::GetIO().WantTextInput); // 文字欄に入力中の Delete などで、ノード・線を消さない
         if (impl_->lastGraph != &graph)
         {
             impl_->placed.clear(); // 別のグラフ
@@ -398,15 +397,148 @@ namespace KR::Behavior
             }
         }
 
+        // ---- 線をつなぐ(ピンから、ピンへドラッグ)。つなげるのは、規則(CanConnectPins)に合うものだけ。合わないものは、赤い線で、断る ----
+        if (ed::BeginCreate())
+        {
+            ed::PinId a;
+            ed::PinId b;
+            if (ed::QueryNewLink(&a, &b) && a && b && a != b)
+            {
+                const PinRef pinA = PinRef::Unpack(a.Get());
+                const PinRef pinB = PinRef::Unpack(b.Get());
+                if (CanConnectPins(graph, pinA, pinB))
+                {
+                    const bool isFlow = pinA.type == PinType::RowFlowOut || pinB.type == PinType::RowFlowOut;
+                    if (ed::AcceptNewItem(isFlow ? flowLinkColor : boolLinkColor, 2.5f)) // ボタンを離したとき、true
+                    {
+                        changed |= ConnectPins(graph, pinA, pinB);
+                    }
+                }
+                else
+                {
+                    ed::RejectNewItem(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), 2.0f);
+                }
+            }
+        }
+        ed::EndCreate(); // BeginCreate が false でも、必ず呼ぶ(呼ばないと、次のフレームで落ちる)
+
+        // ---- 削除(線やノードを選んで Delete / 線をピンから引き離す)。ノードを消すと、つながる線も消える ----
+        if (ed::BeginDelete())
+        {
+            constexpr std::uintptr_t LinkFlags = (std::uintptr_t(1) << 62) | (std::uintptr_t(1) << 61);
+            ed::LinkId linkId;
+            while (ed::QueryDeletedLink(&linkId))
+            {
+                if (ed::AcceptDeletedItem())
+                {
+                    // 線の番号から、外すピンを戻す:真偽の線 = 目的のピン(条件の入口・論理の入力)/ 流れの線 = 出発のピン(行の出口)
+                    changed |= DisconnectPin(graph, PinRef::Unpack(linkId.Get() & ~LinkFlags));
+                }
+            }
+            ed::NodeId nodeId;
+            while (ed::QueryDeletedNode(&nodeId))
+            {
+                if (ed::AcceptDeletedItem())
+                {
+                    const NodeId id = static_cast<NodeId>(nodeId.Get());
+                    changed |= RemoveNode(graph, id); // 他のノードの、このノードへのつながりも、外れる
+                    impl_->placed.erase(id);
+                }
+            }
+        }
+        ed::EndDelete(); // BeginDelete が false でも、必ず呼ぶ
+
+        // ---- 右クリックのメニュー(拡大していても、文字は、普通の大きさ = Suspend / Resume の間に出す)----
+        ed::Suspend();
+        ed::NodeId contextNode;
+        if (ed::ShowNodeContextMenu(&contextNode))
+        {
+            impl_->menuNode = static_cast<NodeId>(contextNode.Get());
+            ImGui::OpenPopup("ノードのメニュー");
+        }
+        else if (ed::ShowBackgroundContextMenu())
+        {
+            impl_->menuPosition = ed::ScreenToCanvas(ImGui::GetMousePos()); // 押した場所に、ノードを置く
+            ImGui::OpenPopup("ノードを足す");
+        }
+
+        if (ImGui::BeginPopup("ノードのメニュー"))
+        {
+            const Node* target = graph.FindNode(impl_->menuNode);
+            if (target == nullptr)
+            {
+                ImGui::CloseCurrentPopup();
+            }
+            else
+            {
+                const NodeId targetId = target->id;
+                const NodeTypeInfo* targetInfo = FindNodeType(target->type);
+                if (target->kind == NodeKind::State)
+                {
+                    const bool isStart = targetId == graph.startNode;
+                    if (ImGui::MenuItem("ここから始める", nullptr, isStart, !isStart))
+                    {
+                        changed |= SetStartNode(graph, targetId);
+                    }
+                    if (ImGui::MenuItem("遷移の行を足す"))
+                    {
+                        changed |= AddTransition(graph, targetId) >= 0;
+                    }
+                }
+                else if (targetInfo != nullptr && targetInfo->IsLogic())
+                {
+                    const bool canAdd = static_cast<int>(target->inputs.size()) < targetInfo->maxInputs;
+                    if (ImGui::MenuItem("入力を足す", nullptr, false, canAdd))
+                    {
+                        changed |= AddInput(graph, targetId);
+                    }
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("このノードを消す"))
+                {
+                    changed |= RemoveNode(graph, targetId);
+                    impl_->placed.erase(targetId);
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        if (ImGui::BeginPopup("ノードを足す"))
+        {
+            const auto addItems = [&](const char* header, auto predicate)
+            {
+                ImGui::TextDisabled("%s", header);
+                for (const NodeTypeInfo& type : GetNodeTypes())
+                {
+                    if (predicate(type) && ImGui::MenuItem(type.displayName.c_str()))
+                    {
+                        const NodeId id = AddNode(graph, type.type, impl_->menuPosition.x, impl_->menuPosition.y); // 位置は、次のフレームで、渡される(placed に無いため)
+                        changed |= id != 0;
+                    }
+                }
+            };
+            addItems("状態", [](const NodeTypeInfo& t) { return t.kind == NodeKind::State; });
+            ImGui::Separator();
+            addItems("条件(状況を調べる)", [](const NodeTypeInfo& t) { return t.kind == NodeKind::Condition && !t.IsLogic(); });
+            ImGui::Separator();
+            addItems("論理(かつ・または・でない)", [](const NodeTypeInfo& t) { return t.IsLogic(); });
+            ImGui::EndPopup();
+        }
+        ed::Resume();
+
         // 読み込んだ(開いた)直後は、全体が見えるように、画面を合わせる(ノードの大きさが、1 フレーム分かってから)
         if (impl_->navigateFrames > 0 && --impl_->navigateFrames == 0)
         {
             ed::NavigateToContent(); // 既定の時間(短い動き)で、画面を合わせる
         }
 
-        // ドラッグで動いた位置を、グラフに書き戻す(保存したとき、位置が残る)
+        // ドラッグで動いた位置を、グラフに書き戻す(保存したとき、位置が残る)。同じ位置の不定値(NaN)は、書き戻さない
         for (Node& node : graph.nodes)
         {
+            if (!impl_->placed.contains(node.id))
+            {
+                continue; // このフレームで足したノード:まだ、位置を渡していない(描かれていない = 位置が、不定)。次のフレームで、位置が、渡される
+            }
             const ImVec2 position = ed::GetNodePosition(ed::NodeId(static_cast<std::uintptr_t>(node.id)));
             if (std::fabs(position.x - node.posX) > 0.01f || std::fabs(position.y - node.posY) > 0.01f)
             {
@@ -423,17 +555,23 @@ namespace KR::Behavior
 
     void GraphEditor::DrawWarnings(const Graph& graph)
     {
+        // 固定の高さの枠に入れる(警告が、増えたり減ったりしても、下のエディタの位置・見え方が、動かない。多いときは、枠の中で、スクロール)
+        const float height = ImGui::GetTextLineHeightWithSpacing() * 4.0f + ImGui::GetStyle().WindowPadding.y * 2.0f;
+        ImGui::BeginChild("##graph_warnings", ImVec2(0.0f, height), ImGuiChildFlags_Borders);
         const std::vector<GraphWarning> warnings = ValidateGraph(graph);
         if (warnings.empty())
         {
             ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.55f, 1.0f), "警告なし");
-            return;
         }
-        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.25f, 1.0f), "警告 %d 件", static_cast<int>(warnings.size()));
-        for (const GraphWarning& warning : warnings)
+        else
         {
-            ImGui::Bullet();
-            ImGui::TextWrapped("%s", warning.message.c_str());
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.25f, 1.0f), "警告 %d 件", static_cast<int>(warnings.size()));
+            for (const GraphWarning& warning : warnings)
+            {
+                ImGui::Bullet();
+                ImGui::TextWrapped("%s", warning.message.c_str());
+            }
         }
+        ImGui::EndChild();
     }
 }
