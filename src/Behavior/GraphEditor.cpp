@@ -39,7 +39,7 @@ namespace KR::Behavior
         constexpr ImU32 DimTextColor = IM_COL32(165, 165, 172, 255);
 
         constexpr float FieldWidth = 130.0f; // 値の欄の幅
-        constexpr float RowWidth = 250.0f;   // 遷移の行・論理の入力の行の、幅(左右のピンを、そろえるため)
+        constexpr float RowWidth = 330.0f;   // 遷移の行・論理の入力の行の、幅(左右のピンを、そろえるため。中央に、「▲▼×」を置く)
         constexpr float PinIconSize = 14.0f;
 
         ImVec4 ToVec4(ImU32 color) { return ImGui::ColorConvertU32ToFloat4(color); }
@@ -215,6 +215,17 @@ namespace KR::Behavior
             }
         }
 
+        // ノードの形を変える操作(行の入れ替え・行の追加 / 削除・入力の追加 / 削除)。描画の途中で、行・ピンの数が変わらないように、フレームの最後に、まとめて行う
+        struct PendingOp
+        {
+            enum class Kind { MoveRow, RemoveRow, AddRow, RemoveInput, AddInput };
+            Kind kind;
+            NodeId node;
+            int index;
+            int direction;
+        };
+        std::vector<PendingOp> pending;
+
         // ---- ノード ----
         for (size_t nodeIndex = 0; nodeIndex < graph.nodes.size(); ++nodeIndex)
         {
@@ -295,7 +306,9 @@ namespace KR::Behavior
                 }
             }
 
-            // 状態:遷移の行(左 = 条件の入口 / 右 = 次の状態の出口。行ごとに、別のピン)
+            // 状態:遷移の行(左 = 条件の入口 / 右 = 次の状態の出口。行ごとに、別のピン)。中央の「▲▼×」= 調べる順を入れ替える・行を消す
+            //   ノードの形を変える操作は、このフレームの最後に、まとめて行う(今の描画の途中で、行・ピンの数が変わらないように)
+            const float buttonHeight = ImGui::GetFrameHeight();
             if (isState)
             {
                 if (!node.transitions.empty())
@@ -310,6 +323,7 @@ namespace KR::Behavior
                     const std::string right = row.to != 0 ? "→ " + nameOf(row.to) : "→ 次の状態";
                     const float rightWidth = ImGui::CalcTextSize(right.c_str()).x + PinIconSize + 4.0f;
                     const float leftWidth = PinIconSize + 4.0f + ImGui::CalcTextSize("もし 条件").x;
+                    const float buttonsWidth = buttonHeight * 3.0f + 10.0f;
 
                     BeginPinAt(MakePinId(node.id, PinType::RowCondition, index), true);
                     DrawPinIcon(row.condition != 0, BoolPinColor);
@@ -317,7 +331,29 @@ namespace KR::Behavior
                     ImGui::TextColored(ToVec4(row.condition != 0 ? TextColor : DimTextColor), "もし 条件");
                     ed::EndPin();
                     ImGui::SameLine();
-                    ImGui::Dummy(ImVec2(std::max(RowWidth - leftWidth - rightWidth - 16.0f, 8.0f), 1.0f));
+                    ImGui::Dummy(ImVec2(std::max(RowWidth - leftWidth - buttonsWidth - rightWidth - 16.0f, 8.0f), 1.0f));
+
+                    // 調べる順の入れ替え(▲ = 1 つ上・▼ = 1 つ下)・行を消す(×)
+                    ImGui::SameLine();
+                    ImGui::BeginDisabled(i == 0);
+                    if (ImGui::ArrowButton("##up", ImGuiDir_Up))
+                    {
+                        pending.push_back({ PendingOp::Kind::MoveRow, node.id, index, -1 });
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine(0.0f, 2.0f);
+                    ImGui::BeginDisabled(i + 1 == node.transitions.size());
+                    if (ImGui::ArrowButton("##down", ImGuiDir_Down))
+                    {
+                        pending.push_back({ PendingOp::Kind::MoveRow, node.id, index, 1 });
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine(0.0f, 2.0f);
+                    if (ImGui::Button("×", ImVec2(buttonHeight, buttonHeight)))
+                    {
+                        pending.push_back({ PendingOp::Kind::RemoveRow, node.id, index, 0 });
+                    }
+
                     ImGui::SameLine();
                     BeginPinAt(MakePinId(node.id, PinType::RowFlowOut, index), false);
                     ImGui::TextColored(ToVec4(row.to != 0 ? TextColor : DimTextColor), "%s", right.c_str());
@@ -326,20 +362,48 @@ namespace KR::Behavior
                     ed::EndPin();
                     ImGui::PopID();
                 }
+                if (ImGui::SmallButton("＋ 遷移の行を足す"))
+                {
+                    pending.push_back({ PendingOp::Kind::AddRow, node.id, 0, 0 });
+                }
             }
 
-            // 論理の条件:入力の行(左 = 真偽の入口)
+            // 論理の条件:入力の行(左 = 真偽の入口)。右の「×」= その入力を消す(最小の数までしか、減らせない)/ 下の「＋」= 入力を足す(最大まで)
             if (isLogic)
             {
+                const bool canRemove = static_cast<int>(node.inputs.size()) > info->minInputs;
+                const bool canAdd = static_cast<int>(node.inputs.size()) < info->maxInputs;
                 for (size_t i = 0; i < node.inputs.size(); ++i)
                 {
-                    ImGui::PushID(static_cast<int>(i));
-                    BeginPinAt(MakePinId(node.id, PinType::LogicInput, static_cast<int>(i)), true);
+                    const int index = static_cast<int>(i);
+                    ImGui::PushID(index);
+                    BeginPinAt(MakePinId(node.id, PinType::LogicInput, index), true);
                     DrawPinIcon(node.inputs[i] != 0, BoolPinColor);
                     ImGui::SameLine(0.0f, 4.0f);
-                    ImGui::TextColored(ToVec4(node.inputs[i] != 0 ? TextColor : DimTextColor), "入力 %d", static_cast<int>(i) + 1);
+                    ImGui::TextColored(ToVec4(node.inputs[i] != 0 ? TextColor : DimTextColor), "入力 %d", index + 1);
                     ed::EndPin();
+                    if (info->maxInputs > info->minInputs) // 固定(でない)は、増減しない
+                    {
+                        ImGui::SameLine();
+                        ImGui::Dummy(ImVec2(std::max(RowWidth - PinIconSize - 4.0f - ImGui::CalcTextSize("入力 00").x - buttonHeight - 16.0f, 8.0f), 1.0f));
+                        ImGui::SameLine();
+                        ImGui::BeginDisabled(!canRemove);
+                        if (ImGui::Button("×", ImVec2(buttonHeight, buttonHeight)))
+                        {
+                            pending.push_back({ PendingOp::Kind::RemoveInput, node.id, index, 0 });
+                        }
+                        ImGui::EndDisabled();
+                    }
                     ImGui::PopID();
+                }
+                if (info->maxInputs > info->minInputs)
+                {
+                    ImGui::BeginDisabled(!canAdd);
+                    if (ImGui::SmallButton("＋ 入力を足す"))
+                    {
+                        pending.push_back({ PendingOp::Kind::AddInput, node.id, 0, 0 });
+                    }
+                    ImGui::EndDisabled();
                 }
             }
 
@@ -550,6 +614,18 @@ namespace KR::Behavior
 
         ed::End();
         ed::SetCurrentEditor(nullptr);
+
+        for (const PendingOp& op : pending)
+        {
+            switch (op.kind)
+            {
+            case PendingOp::Kind::MoveRow: changed |= MoveTransition(graph, op.node, op.index, op.direction); break;
+            case PendingOp::Kind::RemoveRow: changed |= RemoveTransition(graph, op.node, op.index); break;
+            case PendingOp::Kind::AddRow: changed |= AddTransition(graph, op.node) >= 0; break;
+            case PendingOp::Kind::RemoveInput: changed |= RemoveInput(graph, op.node, op.index); break;
+            case PendingOp::Kind::AddInput: changed |= AddInput(graph, op.node); break;
+            }
+        }
         return changed;
     }
 
