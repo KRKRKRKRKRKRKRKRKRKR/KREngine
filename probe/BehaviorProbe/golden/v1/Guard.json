@@ -1,0 +1,84 @@
+{
+  "graph": "fsm",
+  "links": [
+    {
+      "from": 1,
+      "priority": 0,
+      "to": 2
+    },
+    {
+      "from": 2,
+      "priority": 0,
+      "to": 3
+    },
+    {
+      "from": 3,
+      "priority": 0,
+      "to": 4
+    },
+    {
+      "from": 4,
+      "priority": 0,
+      "to": 1
+    }
+  ],
+  "nextId": 5,
+  "nodes": [
+    {
+      "id": 1,
+      "kind": "state",
+      "params": {},
+      "pos": [
+        40.0,
+        60.0
+      ],
+      "type": "Wait"
+    },
+    {
+      "id": 2,
+      "kind": "condition",
+      "params": {
+        "includeVertical": true,
+        "key": "distanceToPlayerX",
+        "keyY": "distanceToPlayerY",
+        "radius": 2.5
+      },
+      "pos": [
+        321.0,
+        53.0
+      ],
+      "type": "PlayerWithin"
+    },
+    {
+      "id": 3,
+      "kind": "state",
+      "params": {
+        "activeSeconds": 0.25,
+        "boxHeight": 1.0,
+        "boxWidth": 1.5,
+        "damage": 1,
+        "recoverySeconds": 0.8,
+        "windupSeconds": 0.5
+      },
+      "pos": [
+        741.0,
+        58.0
+      ],
+      "type": "Attack"
+    },
+    {
+      "id": 4,
+      "kind": "condition",
+      "params": {
+        "key": "attackFinished"
+      },
+      "pos": [
+        340.0,
+        363.0
+      ],
+      "type": "AttackFinished"
+    }
+  ],
+  "start": 1,
+  "version": 1
+}

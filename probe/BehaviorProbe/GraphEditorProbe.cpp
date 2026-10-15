@@ -1,9 +1,8 @@
-// GraphEditor(部品)の動作確認用:依頼の例のグラフ(待機 → 接近 → 移動 → 接近 → 攻撃)を、描く
-// ツール KRBehaviorEditor(B4-7)ができたら、役目を終える
+// GraphEditor(部品)の動作確認用:見本のグラフ(待機 → 接近 → 移動 → 接近 → 攻撃)を描く
+// C5 で、GraphEditor を imgui-node-editor で書き直したあとの、確認に使う(今は、作り直し中の表示)
 
 #include <KR/KR.h>
 #include <KR/Behavior/GraphEditor.h>
-#include <KR/Behavior/NodeTypes.h>
 
 #include <imgui.h>
 
@@ -21,60 +20,55 @@ protected:
     void OnInit() override
     {
         m_Editor = std::make_unique<GraphEditor>();
-
-        const auto add = [this](NodeId id, const char* type, float x, float y)
+        m_Graph = MakeStarterGraph();
+        // 使い方:KRGraphEditorProbe.exe [--graph <グラフの JSON>](無ければ、見本のグラフ)
+        const std::vector<std::filesystem::path> args = KR::GetCommandLineArguments();
+        for (size_t i = 1; i + 1 < args.size(); ++i)
         {
-            const NodeTypeInfo* info = FindNodeType(type);
-            Node node;
-            node.id = id;
-            node.kind = info->kind;
-            node.type = type;
-            node.posX = x;
-            node.posY = y;
-            for (const ParamSpec& spec : info->params)
+            Graph loaded;
+            if (args[i] == L"--observe")
             {
-                node.params[spec.name] = spec.defaultValue;
+                m_Observed = std::stoi(args[i + 1].string()); // 光らせるノードの id(SetObservedNode の確認)。負の数 = 止まっている(灰色)
             }
-            m_Graph.nodes.push_back(node);
-        };
-        add(1, "Wait", 20, 100);
-        add(2, "PlayerWithin", 340, 100);
-        add(3, "MoveToPlayer", 600, 100);
-        add(4, "PlayerWithin", 790, 100);
-        add(5, "Attack", 1050, 100);
-        add(6, "PlayerOutside", 440, 330); // 攻撃のあと、離れたら、待機へ戻る(例)
-        add(7, "TimeElapsed", 340, 400);   // 待機から、秒がたったら、移動へ(分岐の 2 本目)
-        m_Graph.startNode = 1;
-        m_Graph.links = { { 1, 2, 0 }, { 2, 3, 0 }, { 3, 4, 0 }, { 4, 5, 0 }, { 5, 6, 0 }, { 6, 1, 0 }, { 1, 7, 1 }, { 7, 3, 0 } };
+            if (args[i] == L"--graph" && LoadGraphFile(args[i + 1], loaded) == GraphLoadResult::Loaded)
+            {
+                m_Graph = std::move(loaded);
+            }
+        }
     }
 
     void OnImGui() override
     {
-        ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(1240.0f, 560.0f), ImGuiCond_FirstUseEver);
-        ImGui::Begin("GraphEditor");
-        // 状態の表示。ノードは、並びの番号ではなく id で探す(削除で並びが変わるため)。無い・型が違うときは、「-」
-        const auto number = [this](NodeId id, const char* name) -> std::string
+        ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always); // 確認用:窓の場所・大きさを固定する(実行ごとに、画面の合わせ方が変わらないように)
+        ImGui::SetNextWindowSize(ImVec2(1240.0f, 680.0f), ImGuiCond_Always);
+        ImGui::Begin("GraphEditor", nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+        ImGui::Text("edits=%d  nodes=%d  nextId=%d", m_Edits, static_cast<int>(m_Graph.nodes.size()), m_Graph.nextNodeId);
+        // つながりの一覧(確認用):状態 = 遷移の行 [条件 → 次の状態] / 論理の条件 = 入力
+        std::string dump;
+        for (const Node& node : m_Graph.nodes)
         {
-            const Node* node = m_Graph.FindNode(id);
-            if (node == nullptr)
+            if (node.kind == NodeKind::State)
             {
-                return "-";
+                dump += "#" + std::to_string(node.id) + "(" + std::to_string(static_cast<int>(node.posX)) + "," + std::to_string(static_cast<int>(node.posY)) + ") 行:";
+                for (const Transition& row : node.transitions)
+                {
+                    dump += " [" + std::to_string(row.condition) + "→" + std::to_string(row.to) + "]";
+                }
+                dump += "   ";
             }
-            const auto found = node->params.find(name);
-            if (found == node->params.end())
+            else if (!node.inputs.empty())
             {
-                return "-";
+                dump += "#" + std::to_string(node.id) + " 入力:";
+                for (const NodeId input : node.inputs)
+                {
+                    dump += " " + std::to_string(input);
+                }
+                dump += "   ";
             }
-            if (const float* f = std::get_if<float>(&found->second)) { return std::to_string(*f); }
-            if (const int* i = std::get_if<int>(&found->second)) { return std::to_string(*i); }
-            if (const bool* b = std::get_if<bool>(&found->second)) { return *b ? "true" : "false"; }
-            return "-";
-        };
-        ImGui::Text("edits=%d  radius(id2)=%s  vertical(id2)=%s  damage(id5)=%s  nodes=%d  links=%d  nextId=%d", m_Edits,
-            number(2, "radius").c_str(), number(2, "includeVertical").c_str(), number(5, "damage").c_str(),
-            static_cast<int>(m_Graph.nodes.size()), static_cast<int>(m_Graph.links.size()), m_Graph.nextNodeId);
+        }
+        ImGui::TextUnformatted(dump.c_str());
         m_Editor->DrawWarnings(m_Graph);
+        m_Editor->SetObservedNode(m_Observed < 0 ? -m_Observed : m_Observed, m_Observed < 0);
         if (m_Editor->Draw(m_Graph))
         {
             ++m_Edits;
@@ -88,6 +82,7 @@ private:
     std::unique_ptr<GraphEditor> m_Editor;
     Graph m_Graph;
     int m_Edits = 0;
+    int m_Observed = 0;
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()

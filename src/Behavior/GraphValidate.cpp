@@ -1,5 +1,6 @@
 #include "KR/Behavior/GraphValidate.h"
 
+#include "GraphEdit.h"
 #include "KR/Behavior/NodeTypes.h"
 
 #include <set>
@@ -14,6 +15,12 @@ namespace KR::Behavior
             const NodeTypeInfo* info = FindNodeType(node.type);
             return "「" + (info ? info->displayName : node.type) + "」(#" + std::to_string(node.id) + ")";
         }
+
+        // 使える行 = 入口も出口も、つながっている行(Runner が、実際に使う行)
+        bool IsUsable(const Transition& row)
+        {
+            return row.condition != 0 && row.to != 0;
+        }
     }
 
     std::vector<GraphWarning> ValidateGraph(const Graph& graph)
@@ -24,10 +31,10 @@ namespace KR::Behavior
         const bool hasStart = start != nullptr && start->kind == NodeKind::State;
         if (!hasStart)
         {
-            warnings.push_back({ GraphWarningKind::NoStart, 0, "開始ノードがありません(状態のノードを右クリックして「ここから始める」)。今は、最初の状態から始まります" });
+            warnings.push_back({ GraphWarningKind::NoStart, 0, -1, "開始ノードがありません(状態のノードを右クリックして「ここから始める」)。今は、最初の状態から始まります" });
         }
 
-        // 開始からたどり着ける所(線の向きどおりに、たどる)
+        // 開始からたどり着ける状態(使える行だけを、たどる)
         std::set<NodeId> reachable;
         if (hasStart)
         {
@@ -40,11 +47,49 @@ namespace KR::Behavior
                 {
                     continue;
                 }
-                for (const Link& link : graph.links)
+                if (const Node* node = graph.FindNode(id))
                 {
-                    if (link.from == id)
+                    for (const Transition& row : node->transitions)
                     {
-                        pending.push_back(link.to);
+                        if (IsUsable(row))
+                        {
+                            pending.push_back(row.to);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 使われている条件(遷移の行の入口・論理の入力。使われている条件の入力も、たどる)
+        std::set<NodeId> used;
+        {
+            std::vector<NodeId> pending;
+            for (const Node& node : graph.nodes)
+            {
+                for (const Transition& row : node.transitions)
+                {
+                    if (row.condition != 0)
+                    {
+                        pending.push_back(row.condition);
+                    }
+                }
+            }
+            while (!pending.empty())
+            {
+                const NodeId id = pending.back();
+                pending.pop_back();
+                if (!used.insert(id).second)
+                {
+                    continue;
+                }
+                if (const Node* node = graph.FindNode(id))
+                {
+                    for (const NodeId input : node->inputs)
+                    {
+                        if (input != 0)
+                        {
+                            pending.push_back(input);
+                        }
                     }
                 }
             }
@@ -52,38 +97,57 @@ namespace KR::Behavior
 
         for (const Node& node : graph.nodes)
         {
-            bool hasIncoming = false;
-            bool hasOutgoing = false;
-            for (const Link& link : graph.links)
-            {
-                hasIncoming |= link.to == node.id;
-                hasOutgoing |= link.from == node.id;
-            }
-
             if (node.kind == NodeKind::State)
             {
-                if (!hasOutgoing)
+                bool anyUsable = false;
+                for (size_t i = 0; i < node.transitions.size(); ++i)
                 {
-                    warnings.push_back({ GraphWarningKind::StateDeadEnd, node.id,
-                        Describe(node) + " から出る線がありません(この状態のまま、ずっと続きます)" });
+                    const Transition& row = node.transitions[i];
+                    anyUsable |= IsUsable(row);
+                    if (!IsUsable(row))
+                    {
+                        const std::string number = std::to_string(i + 1);
+                        const char* what = (row.condition == 0 && row.to == 0) ? "の条件も、次の状態も、つながっていません"
+                            : (row.condition == 0) ? "の条件が、つながっていません"
+                            : "の次の状態が、つながっていません";
+                        warnings.push_back({ GraphWarningKind::TransitionIncomplete, node.id, static_cast<int>(i),
+                            Describe(node) + " の遷移の行 " + number + " " + what + "(この行は、使われません)" });
+                    }
+                }
+                if (!anyUsable)
+                {
+                    warnings.push_back({ GraphWarningKind::StateDeadEnd, node.id, -1,
+                        Describe(node) + " から出る、使える遷移がありません(この状態のまま、ずっと続きます)" });
                 }
                 if (hasStart && !reachable.contains(node.id))
                 {
-                    warnings.push_back({ GraphWarningKind::StateUnreachable, node.id,
+                    warnings.push_back({ GraphWarningKind::StateUnreachable, node.id, -1,
                         Describe(node) + " は、開始ノードからたどり着けません(使われません)" });
                 }
             }
             else
             {
-                if (!hasIncoming)
+                const NodeTypeInfo* info = FindNodeType(node.type);
+                if (info != nullptr && info->IsLogic())
                 {
-                    warnings.push_back({ GraphWarningKind::ConditionNoInput, node.id,
-                        Describe(node) + " の入力がつながっていません(調べられることがありません)" });
+                    for (size_t i = 0; i < node.inputs.size(); ++i)
+                    {
+                        if (node.inputs[i] == 0)
+                        {
+                            warnings.push_back({ GraphWarningKind::LogicInputMissing, node.id, static_cast<int>(i),
+                                Describe(node) + " の入力 " + std::to_string(i + 1) + " が、つながっていません" });
+                        }
+                        else if (DependsOn(graph, node.inputs[i], node.id))
+                        {
+                            warnings.push_back({ GraphWarningKind::ConditionCycle, node.id, static_cast<int>(i),
+                                Describe(node) + " の入力 " + std::to_string(i + 1) + " が、循環しています(評価すると、偽になります)" });
+                        }
+                    }
                 }
-                if (!hasOutgoing)
+                if (!used.contains(node.id))
                 {
-                    warnings.push_back({ GraphWarningKind::ConditionNoOutput, node.id,
-                        Describe(node) + " の出力がつながっていません(成り立っても、移る先がありません)" });
+                    warnings.push_back({ GraphWarningKind::ConditionUnused, node.id, -1,
+                        Describe(node) + " は、どの遷移の行にも、使われていません(調べられることがありません)" });
                 }
             }
         }

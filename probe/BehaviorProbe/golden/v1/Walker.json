@@ -1,0 +1,83 @@
+{
+  "graph": "fsm",
+  "links": [
+    {
+      "from": 1,
+      "priority": 0,
+      "to": 3
+    },
+    {
+      "from": 3,
+      "priority": 0,
+      "to": 2
+    },
+    {
+      "from": 2,
+      "priority": 0,
+      "to": 4
+    },
+    {
+      "from": 4,
+      "priority": 0,
+      "to": 1
+    }
+  ],
+  "nextId": 5,
+  "nodes": [
+    {
+      "id": 1,
+      "kind": "state",
+      "params": {
+        "speed": 2.0
+      },
+      "pos": [
+        56.0,
+        46.0
+      ],
+      "type": "Patrol"
+    },
+    {
+      "id": 2,
+      "kind": "state",
+      "params": {
+        "activeSeconds": 0.2,
+        "boxHeight": 0.5,
+        "boxWidth": 1.0,
+        "damage": 1,
+        "recoverySeconds": 0.4,
+        "windupSeconds": 0.4
+      },
+      "pos": [
+        570.0,
+        73.0
+      ],
+      "type": "Attack"
+    },
+    {
+      "id": 3,
+      "kind": "condition",
+      "params": {
+        "seconds": 2.4
+      },
+      "pos": [
+        310.0,
+        99.0
+      ],
+      "type": "TimeElapsed"
+    },
+    {
+      "id": 4,
+      "kind": "condition",
+      "params": {
+        "key": "attackFinished"
+      },
+      "pos": [
+        329.97656,
+        466.2021
+      ],
+      "type": "AttackFinished"
+    }
+  ],
+  "start": 1,
+  "version": 1
+}

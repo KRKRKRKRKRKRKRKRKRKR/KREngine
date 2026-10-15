@@ -2,8 +2,11 @@
 
 #include "KR/Core/Log.h"
 
+#include <algorithm>
 #include <cmath>
 #include <set>
+#include <utility>
+#include <vector>
 
 namespace KR::Behavior
 {
@@ -115,5 +118,145 @@ namespace KR::Behavior
             return HasKeyOrWarn(context, key) && context.GetBool(key);
         }
         return false;
+    }
+
+    namespace
+    {
+        constexpr int MaxConditionDepth = 32; // 論理の条件の、ネストの深さの上限(深すぎるグラフで、スタックを使い切らないように)
+
+        // 1 回の評価(1 つの行の入口)の間だけ使う入れ物
+        struct TreeEvaluation
+        {
+            const Graph& graph;
+            const Context& context;
+            float timeInState;
+            bool failed = false; // 循環・深すぎるネストを見つけた → 全体の結果を、偽にする
+            // ノードごとの結果(同じノードを、何度もたどらない = 共有された部分の木で、爆発的に遅くならない)。-1 = 評価の途中 / 0 = 偽 / 1 = 真
+            std::vector<std::pair<NodeId, signed char>> memo;
+
+            signed char* Find(NodeId id)
+            {
+                for (auto& entry : memo)
+                {
+                    if (entry.first == id)
+                    {
+                        return &entry.second;
+                    }
+                }
+                return nullptr;
+            }
+        };
+
+        void WarnTreeOnce(NodeId id)
+        {
+            static bool warned = false; // 1 回だけ(毎フレームの洪水を防ぐ)
+            if (!warned)
+            {
+                warned = true;
+                KR_LOG_WARN("Behavior: 論理の条件が、循環している(または、深すぎる)ので、この条件は偽にします(ノード {}。上限 {})", id, MaxConditionDepth);
+            }
+        }
+
+        bool EvaluateTree(TreeEvaluation& e, NodeId id, int depth)
+        {
+            if (id == 0)
+            {
+                return false; // つながっていない入力・入口 = 偽
+            }
+            const Node* node = e.graph.FindNode(id);
+            if (node == nullptr || node->kind != NodeKind::Condition)
+            {
+                return false;
+            }
+
+            if (signed char* known = e.Find(id))
+            {
+                if (*known < 0) // 評価の途中のノードに、戻ってきた = 循環
+                {
+                    e.failed = true;
+                    WarnTreeOnce(id);
+                    return false;
+                }
+                return *known == 1;
+            }
+            if (depth > MaxConditionDepth)
+            {
+                e.failed = true;
+                WarnTreeOnce(id);
+                return false;
+            }
+            e.memo.emplace_back(id, static_cast<signed char>(-1));
+            const size_t slot = e.memo.size() - 1;
+
+            bool result = false;
+            if (node->type == "And")
+            {
+                // すべての入力が成り立つ。つながっていない入力は、偽(= つなぎ終わるまで、成り立たない)。1 つ偽なら、そこで止める
+                result = !node->inputs.empty();
+                for (const NodeId input : node->inputs)
+                {
+                    if (!EvaluateTree(e, input, depth + 1))
+                    {
+                        result = false;
+                        break;
+                    }
+                }
+            }
+            else if (node->type == "Or")
+            {
+                // どれかの入力が成り立つ。つながっていない入力は、偽(ほかの入力に、影響しない)。1 つ真なら、そこで止める
+                for (const NodeId input : node->inputs)
+                {
+                    if (EvaluateTree(e, input, depth + 1))
+                    {
+                        result = true;
+                        break;
+                    }
+                }
+            }
+            else if (node->type == "Not")
+            {
+                // 入力が成り立たない。**つながっていない入力のときは、偽**(「偽の否定 = 真」にすると、つなぐ前に、すぐ移ってしまう)
+                if (!node->inputs.empty() && node->inputs.front() != 0)
+                {
+                    result = !EvaluateTree(e, node->inputs.front(), depth + 1);
+                }
+            }
+            else
+            {
+                result = EvaluateCondition(*node, e.context, e.timeInState); // 葉の条件(状況を読む)
+            }
+            e.memo[slot].second = result ? 1 : 0;
+            return result;
+        }
+    }
+
+    bool EvaluateConditionTree(const Graph& graph, NodeId conditionId, const Context& context, float timeInState,
+        std::vector<ConditionResult>* results)
+    {
+        TreeEvaluation evaluation{ graph, context, timeInState };
+        const bool result = EvaluateTree(evaluation, conditionId, 0);
+        const bool finalResult = evaluation.failed ? false : result; // 循環・深すぎるときは、途中の結果が、どうであっても、偽
+
+        if (results != nullptr && !evaluation.failed)
+        {
+            for (const auto& [id, value] : evaluation.memo)
+            {
+                if (value < 0)
+                {
+                    continue; // 評価の途中(ここには、来ないはず)
+                }
+                const auto existing = std::find_if(results->begin(), results->end(), [id = id](const ConditionResult& r) { return r.node == id; });
+                if (existing != results->end())
+                {
+                    existing->value = value == 1;
+                }
+                else
+                {
+                    results->push_back({ id, value == 1 });
+                }
+            }
+        }
+        return finalResult;
     }
 }

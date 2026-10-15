@@ -1,0 +1,135 @@
+{
+  "graph": "fsm",
+  "nextId": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "kind": "state",
+      "params": {},
+      "pos": [
+        40.0,
+        40.0
+      ],
+      "transitions": [
+        {
+          "condition": 4,
+          "to": 2
+        }
+      ],
+      "type": "Wait"
+    },
+    {
+      "id": 2,
+      "kind": "state",
+      "params": {},
+      "pos": [
+        620.0,
+        40.0
+      ],
+      "transitions": [
+        {
+          "condition": 6,
+          "to": 3
+        },
+        {
+          "condition": 7,
+          "to": 1
+        }
+      ],
+      "type": "Wait"
+    },
+    {
+      "id": 3,
+      "kind": "state",
+      "params": {
+        "activeSeconds": 0.2,
+        "boxHeight": 0.5,
+        "boxWidth": 1.0,
+        "damage": 1,
+        "recoverySeconds": 0.4,
+        "windupSeconds": 0.4
+      },
+      "pos": [
+        1200.0,
+        40.0
+      ],
+      "transitions": [
+        {
+          "condition": 8,
+          "to": 1
+        }
+      ],
+      "type": "Attack"
+    },
+    {
+      "id": 4,
+      "kind": "condition",
+      "params": {
+        "includeVertical": false,
+        "key": "distanceToPlayerX",
+        "keyY": "distanceToPlayerY",
+        "radius": 5.0
+      },
+      "pos": [
+        40.0,
+        250.0
+      ],
+      "type": "PlayerWithin"
+    },
+    {
+      "id": 5,
+      "kind": "condition",
+      "params": {
+        "seconds": 1.0
+      },
+      "pos": [
+        330.0,
+        470.0
+      ],
+      "type": "TimeElapsed"
+    },
+    {
+      "id": 6,
+      "inputs": [
+        4,
+        5
+      ],
+      "kind": "condition",
+      "params": {},
+      "pos": [
+        620.0,
+        340.0
+      ],
+      "type": "And"
+    },
+    {
+      "id": 7,
+      "kind": "condition",
+      "params": {
+        "includeVertical": false,
+        "key": "distanceToPlayerX",
+        "keyY": "distanceToPlayerY",
+        "radius": 8.0
+      },
+      "pos": [
+        620.0,
+        520.0
+      ],
+      "type": "PlayerOutside"
+    },
+    {
+      "id": 8,
+      "kind": "condition",
+      "params": {
+        "key": "attackFinished"
+      },
+      "pos": [
+        1200.0,
+        380.0
+      ],
+      "type": "AttackFinished"
+    }
+  ],
+  "start": 1,
+  "version": 2
+}

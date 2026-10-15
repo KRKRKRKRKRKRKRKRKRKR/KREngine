@@ -1,6 +1,6 @@
 # 敵の行動の調整ツール KRBehaviorEditor(状態と条件を、ノードでつないで、行動のグラフを作る)
 # 作ったグラフは、ゲームの Assets/Enemies/<名前>.json に保存する。ゲームは、それを読み込むだけ(KR::Behavior::LoadGraph)
-# imnodes は、エンジンの中(GraphEditor)だけ。KRToolCommon = フォルダーを選ぶ窓(tools/Common/)
+# imgui-node-editor は、エンジンの中(GraphEditor)だけ。KRToolCommon = フォルダーを選ぶ窓(tools/Common/)
 add_executable(KRBehaviorEditor EditorApp.cpp)
 target_link_libraries(KRBehaviorEditor PRIVATE KREngine KRToolCommon)
 kr_copy_runtime_files(KRBehaviorEditor)

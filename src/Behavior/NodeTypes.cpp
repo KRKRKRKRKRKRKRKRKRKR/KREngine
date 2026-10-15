@@ -30,6 +30,18 @@ namespace KR::Behavior
                 return info;
             };
 
+            // 論理の条件(かつ・または・でない):入力の条件の真偽を、組み合わせる。値は、なし。入力の数の範囲 = [minInputs, maxInputs]
+            const auto logic = [](const char* type, const char* displayName, int minInputs, int maxInputs)
+            {
+                NodeTypeInfo info;
+                info.kind = NodeKind::Condition;
+                info.type = type;
+                info.displayName = displayName;
+                info.minInputs = minInputs;
+                info.maxInputs = maxInputs;
+                return info;
+            };
+
             // 距離の条件の値。横(X)だけの距離が基本。includeVertical が true のときだけ、縦(keyY)も使う
             const auto distanceParams = [](float radius)
             {
@@ -65,6 +77,9 @@ namespace KR::Behavior
                 condition("AttackFinished", "攻撃が終わった", {
                     {"key", "終わりのキー", std::string("attackFinished")},
                 }),
+                logic("And", "かつ(すべて成り立つ)", 2, 16),
+                logic("Or", "または(どれかが成り立つ)", 2, 16),
+                logic("Not", "でない(成り立たない)", 1, 1),
             };
         }
 

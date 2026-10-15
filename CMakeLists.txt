@@ -116,19 +116,24 @@ FetchContent_MakeAvailable(ufbx)
 set(UFBX_SOURCE_DIR ${ufbx_SOURCE_DIR})
 add_subdirectory(third_party/ufbx)
 
-# imnodes(ノードエディタの部品。MIT。ImGui の上に、ノードと線を描く)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
-# コミット eb36902(2026 年 10 月時点の master の先頭)を固定。ハッシュで改ざんを検出
-# imnodes 自身の CMakeLists.txt は使わない(imgui を探しに行くため)。SOURCE_SUBDIR に無い場所を指して、add_subdirectory を飛ばし、下で、自分で static ライブラリにする
-FetchContent_Declare(imnodes
-    URL      https://github.com/Nelarius/imnodes/archive/eb36902c892548ef94f88f51ad7e7c9c7058a71c.zip
-    URL_HASH SHA256=45c5e408b13d5702cead6f506db50105d7d082db80199b17870e730cabea18ca
+# imgui-node-editor(ノードエディタの部品。MIT。ズーム・スクロールがあり、見た目が UE のブループリント風)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
+# imnodes に、ズームの機能が無いため、替える(docs/Behavior.md)。コミット 1e0e494(2026-10-14 の master の先頭)を固定。ハッシュで改ざんを検出
+# 自身の CMakeLists.txt は無い。取得だけして(SOURCE_SUBDIR を、存在しない場所にして)、ライブラリは、下で、自分で定義する
+FetchContent_Declare(imgui_node_editor
+    URL      https://github.com/thedmd/imgui-node-editor/archive/1e0e494f1a86885eb332ca518543108ccd88d13e.zip
+    URL_HASH SHA256=15095ca5610bd93497c2ee726df9f23c5a7121f9d4456f3650176cb9dedeb342
     SOURCE_SUBDIR do_not_add_subdirectory
 )
-FetchContent_MakeAvailable(imnodes)
-add_library(imnodes STATIC ${imnodes_SOURCE_DIR}/imnodes.cpp)
-target_include_directories(imnodes PUBLIC ${imnodes_SOURCE_DIR})
-target_link_libraries(imnodes PUBLIC imgui)
-target_compile_options(imnodes PRIVATE /utf-8 /W0)
+FetchContent_MakeAvailable(imgui_node_editor)
+add_library(imgui_node_editor STATIC
+    ${imgui_node_editor_SOURCE_DIR}/crude_json.cpp
+    ${imgui_node_editor_SOURCE_DIR}/imgui_canvas.cpp
+    ${imgui_node_editor_SOURCE_DIR}/imgui_node_editor.cpp
+    ${imgui_node_editor_SOURCE_DIR}/imgui_node_editor_api.cpp
+)
+target_include_directories(imgui_node_editor PUBLIC ${imgui_node_editor_SOURCE_DIR})
+target_link_libraries(imgui_node_editor PUBLIC imgui)
+target_compile_options(imgui_node_editor PRIVATE /utf-8 /W0)
 
 set(ENGINE_FILES
     include/KR/KR.h
@@ -289,8 +294,8 @@ target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
 # ufbx も、エンジンの中だけ(PRIVATE)。公開ヘッダーには、ufbx の型を出さない
 target_link_libraries(KREngine PRIVATE ufbx)
 
-# imnodes も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい
-target_link_libraries(KREngine PRIVATE imnodes)
+# imgui-node-editor も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい(imnodes は、外した = docs/Behavior.md の 15 節)
+target_link_libraries(KREngine PRIVATE imgui_node_editor)
 
 # C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
 target_compile_features(KREngine PUBLIC cxx_std_23)
@@ -312,7 +317,7 @@ target_link_libraries(KREngine PRIVATE
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ENGINE_FILES})
 source_group(Shaders FILES ${SHADER_FILES})
-set_target_properties(DirectX-Headers DirectX-Guids imgui imnodes PROPERTIES FOLDER ThirdParty)
+set_target_properties(DirectX-Headers DirectX-Guids imgui imgui_node_editor PROPERTIES FOLDER ThirdParty)
 
 # 実行時に必要なファイル: DXC 本体(dxcompiler.dll)とシェーダー署名用(dxil.dll)は Windows SDK のものを使う
 set(PROGRAM_FILES_X86 "ProgramFiles(x86)")

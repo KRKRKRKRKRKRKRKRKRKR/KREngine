@@ -1,5 +1,6 @@
 #include "KR/Behavior/GraphFile.h"
 
+#include "GraphEdit.h"
 #include "KR/Behavior/NodeTypes.h"
 #include "KR/Core/Log.h"
 
@@ -17,7 +18,8 @@ namespace KR::Behavior
 {
     namespace
     {
-        constexpr int FileVersion = 1; // ファイルの形式の版。形式を変えたら、上げる
+        constexpr int FileVersion = 2;        // いま書く、ファイルの形式の版。形式を変えたら、上げる
+        constexpr int OldestReadable = 1;     // 読める、いちばん古い版(版 1 = 状態 → 条件 → 状態の線。読み込むときに、版 2 に変換する)
 
         // ログ用。path::string() は、日本語の Windows で CP932 になり、ログ(UTF-8)が文字化けする(2Dアクションゲーム のフォルダーなど)
         std::string ToUtf8(const std::filesystem::path& path)
@@ -45,7 +47,7 @@ namespace KR::Behavior
             return std::visit([](const auto& v) { return ToJson(v); }, value);
         }
 
-        json ToJson(const Node& node)
+        json ToJson(const Node& node, const NodeTypeInfo* info)
         {
             json item;
             item["id"] = node.id;
@@ -56,6 +58,19 @@ namespace KR::Behavior
             for (const auto& [name, value] : node.params)
             {
                 item["params"][name] = ToJson(value);
+            }
+            if (node.kind == NodeKind::State)
+            {
+                // 遷移の行:並びの順 = 調べる順。0 = つながっていない
+                item["transitions"] = json::array();
+                for (const Transition& transition : node.transitions)
+                {
+                    item["transitions"].push_back({ { "condition", transition.condition }, { "to", transition.to } });
+                }
+            }
+            else if (info != nullptr && info->IsLogic())
+            {
+                item["inputs"] = node.inputs; // かつ・または・でない の入力(条件の id。0 = つながっていない)
             }
             return item;
         }
@@ -73,12 +88,7 @@ namespace KR::Behavior
             root["nodes"] = json::array();
             for (const Node& node : graph.nodes)
             {
-                root["nodes"].push_back(ToJson(node));
-            }
-            root["links"] = json::array();
-            for (const Link& link : graph.links)
-            {
-                root["links"].push_back({ { "from", link.from }, { "to", link.to }, { "priority", link.priority } });
+                root["nodes"].push_back(ToJson(node, FindNodeType(node.type)));
             }
 
             std::error_code error;
@@ -145,6 +155,7 @@ namespace KR::Behavior
             return spec.defaultValue;
         }
 
+        // ノード 1 つ(版 1・版 2 で共通の部分:id・種類・位置・値)。遷移の行・入力は、あとで、つなぐ
         Node NodeFromJson(const json& item)
         {
             Node node;
@@ -167,7 +178,116 @@ namespace KR::Behavior
                 const auto found = params.find(spec.name);
                 node.params[spec.name] = (found != params.end()) ? ParamFromJson(*found, spec) : spec.defaultValue;
             }
+            node.inputs.assign(static_cast<size_t>(info->minInputs), 0); // 論理の条件:入力のスロット(あとで、ファイルの値を入れる)
             return node;
+        }
+
+        // 版 1 の線 1 本:from → to。意味は「状態 → 条件 → 状態」。priority の小さい順に調べる
+        struct OldLink
+        {
+            NodeId from = 0;
+            NodeId to = 0;
+            int priority = 0;
+        };
+
+        // 版 1 → 版 2:状態から出る線(状態 → 条件)ごとに、その状態に、遷移の行 { 条件, 条件の出力の先の状態 } を足す
+        //   行の順 = 状態から出る線の priority の順(同じなら、ファイルの並び)。条件から出る線が複数なら、その順に、行を足す(版 1 の Runner は、最初の「状態」への線を使う = 先頭の行が、先に成り立つ)
+        //   条件の出力が、つながっていない(または、状態でない)なら、行は { 条件, 0 }(to = 0 の行は、成り立っても、移らない = 次の行を調べる。版 1 の Runner と同じ)
+        //   状態 → 状態・条件 → 条件の線は、版 1 の Runner が、使わなかった(エディタも、作れなかった)ので、捨てる
+        void ConvertOldLinks(Graph& graph, std::vector<OldLink> links, const std::string& fileName)
+        {
+            std::stable_sort(links.begin(), links.end(), [](const OldLink& a, const OldLink& b) { return a.priority < b.priority; });
+            for (const OldLink& stateToCondition : links)
+            {
+                Node* state = graph.FindNode(stateToCondition.from);
+                const Node* condition = graph.FindNode(stateToCondition.to);
+                if (state == nullptr || condition == nullptr || state->kind != NodeKind::State || condition->kind != NodeKind::Condition)
+                {
+                    if (state != nullptr && condition != nullptr && state->kind == condition->kind)
+                    {
+                        KR_LOG_WARN("Behavior: 版 1 の、使われない線(同じ種類どうし)を捨てました: {} → {}({})", stateToCondition.from, stateToCondition.to, fileName);
+                    }
+                    continue;
+                }
+
+                bool hasState = false;
+                for (const OldLink& conditionToState : links) // 条件から出る線(priority の順)
+                {
+                    const Node* target = graph.FindNode(conditionToState.to);
+                    if (conditionToState.from == condition->id && target != nullptr && target->kind == NodeKind::State)
+                    {
+                        state->transitions.push_back({ condition->id, target->id });
+                        hasState = true;
+                    }
+                }
+                if (!hasState)
+                {
+                    state->transitions.push_back({ condition->id, 0 });
+                }
+            }
+        }
+
+        // 版 2:遷移の行と、論理の入力を、つなぐ。存在しない id・種類が合わない・循環になる つながりは、警告して、外す(0 にする)
+        void ApplyV2Connections(Graph& graph, const json& nodesJson, const std::string& fileName)
+        {
+            for (const json& item : nodesJson)
+            {
+                Node* node = graph.FindNode(item.at("id").get<int>());
+                if (node == nullptr)
+                {
+                    continue;
+                }
+
+                if (node->kind == NodeKind::State && item.contains("transitions") && item["transitions"].is_array())
+                {
+                    for (const json& row : item["transitions"])
+                    {
+                        const int index = AddTransition(graph, node->id);
+                        const int condition = row.value("condition", 0);
+                        const int to = row.value("to", 0);
+                        if (!SetTransitionCondition(graph, node->id, index, condition))
+                        {
+                            KR_LOG_WARN("Behavior: 遷移の行の条件({})を外しました(無い・条件でない)({})", condition, fileName);
+                        }
+                        if (!SetTransitionTarget(graph, node->id, index, to))
+                        {
+                            KR_LOG_WARN("Behavior: 遷移の行の次の状態({})を外しました(無い・状態でない)({})", to, fileName);
+                        }
+                    }
+                }
+            }
+
+            // 論理の入力は、すべてのノードが、そろってから(循環の判定のため)
+            for (const json& item : nodesJson)
+            {
+                const NodeId id = item.at("id").get<int>();
+                const Node* node = graph.FindNode(id);
+                if (node == nullptr || node->kind != NodeKind::Condition || !item.contains("inputs") || !item["inputs"].is_array())
+                {
+                    continue;
+                }
+                const NodeTypeInfo* info = FindNodeType(node->type);
+                if (info == nullptr || !info->IsLogic())
+                {
+                    continue;
+                }
+                const json& inputs = item["inputs"];
+                while (static_cast<int>(inputs.size()) > static_cast<int>(graph.FindNode(id)->inputs.size()) && AddInput(graph, id))
+                {
+                }
+                if (static_cast<int>(inputs.size()) > info->maxInputs)
+                {
+                    KR_LOG_WARN("Behavior: 論理の条件({})の入力が、多すぎるので、{} 個までにしました({})", id, info->maxInputs, fileName);
+                }
+                for (size_t i = 0; i < inputs.size() && i < graph.FindNode(id)->inputs.size(); ++i)
+                {
+                    const int source = inputs[i].is_number_integer() ? inputs[i].get<int>() : 0;
+                    if (!SetInput(graph, id, static_cast<int>(i), source))
+                    {
+                        KR_LOG_WARN("Behavior: 論理の条件({})の入力({})を外しました(無い・条件でない・循環)({})", id, source, fileName);
+                    }
+                }
+            }
         }
     }
 
@@ -185,13 +305,13 @@ namespace KR::Behavior
         {
             const json root = json::parse(stream);
             const int version = root.at("version").get<int>();
-            if (version != FileVersion)
+            if (version < OldestReadable || version > FileVersion)
             {
                 throw std::runtime_error("版が違う: " + std::to_string(version));
             }
+            const std::string fileName = ToUtf8(file.filename());
 
-            Graph graph;
-            graph.version = version;
+            Graph graph; // graph.version は 2(版 1 のファイルも、読み込むときに、版 2 に変換する)
             graph.graphType = root.value("graph", std::string("fsm"));
             graph.startNode = root.value("start", 0);
             for (const json& item : root.at("nodes"))
@@ -211,19 +331,29 @@ namespace KR::Behavior
                 graph.nextNodeId = std::max(graph.nextNodeId, node.id + 1);
             }
 
-            // 線は、無くてもよい(つながっていない = その状態のまま)。存在しないノードへの線は、警告して捨てる
-            if (root.contains("links"))
+            if (version == 1)
             {
-                for (const json& item : root.at("links"))
+                // 版 1:線の一覧(無くてもよい = つながっていない)。存在しないノードへの線は、警告して捨てる
+                std::vector<OldLink> links;
+                if (root.contains("links"))
                 {
-                    const Link link{ item.at("from").get<int>(), item.at("to").get<int>(), item.value("priority", 0) };
-                    if (graph.FindNode(link.from) == nullptr || graph.FindNode(link.to) == nullptr)
+                    for (const json& item : root.at("links"))
                     {
-                        KR_LOG_WARN("Behavior: 存在しないノードへの線を捨てました: {} → {}({})", link.from, link.to, ToUtf8(file.filename()));
-                        continue;
+                        const OldLink link{ item.at("from").get<int>(), item.at("to").get<int>(), item.value("priority", 0) };
+                        if (graph.FindNode(link.from) == nullptr || graph.FindNode(link.to) == nullptr)
+                        {
+                            KR_LOG_WARN("Behavior: 存在しないノードへの線を捨てました: {} → {}({})", link.from, link.to, fileName);
+                            continue;
+                        }
+                        links.push_back(link);
                     }
-                    graph.links.push_back(link);
                 }
+                ConvertOldLinks(graph, std::move(links), fileName);
+                KR_LOG_INFO("Behavior: 版 1 のグラフを、版 2 に変換して読みました(保存すると、版 2 になります): {}", fileName);
+            }
+            else
+            {
+                ApplyV2Connections(graph, root.at("nodes"), fileName);
             }
 
             // 開始ノードが無い・状態でないときは、最初の状態にする。状態が 1 つも無ければ、壊れたファイル
@@ -237,7 +367,7 @@ namespace KR::Behavior
                     throw std::runtime_error("状態のノードが 1 つも無い");
                 }
                 KR_LOG_WARN("Behavior: 開始ノード({})が正しくないので、最初の状態({})から始めます({})",
-                    graph.startNode, firstState->id, ToUtf8(file.filename()));
+                    graph.startNode, firstState->id, fileName);
                 graph.startNode = firstState->id;
             }
             out = std::move(graph);
@@ -249,7 +379,12 @@ namespace KR::Behavior
             return GraphLoadResult::Invalid;
         }
 
-        KR_LOG_INFO("Behavior: グラフを読みました: {}(ノード {}・線 {})", ToUtf8(file.filename()), out.nodes.size(), out.links.size());
+        size_t rows = 0;
+        for (const Node& node : out.nodes)
+        {
+            rows += node.transitions.size();
+        }
+        KR_LOG_INFO("Behavior: グラフを読みました: {}(ノード {}・遷移の行 {})", ToUtf8(file.filename()), out.nodes.size(), rows);
         return GraphLoadResult::Loaded;
     }
 

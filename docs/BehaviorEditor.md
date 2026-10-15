@@ -46,18 +46,18 @@ replaces:
 - 確認:`日本語のフォルダー\ゲームの Assets\Enemies\` に、日本語の名前のファイル(`歩く敵.json`・`壊れた.json`)と、英語の名前のファイルを置いて、`--assets` で開く → 3 つとも、一覧に出た。正常なファイルは開き、壊れたファイルは、理由が出て、今のグラフのままだった。
 
 ## つくり
-- 窓の中身は、`GraphEditor`(エンジンの中。imnodes を使う)に、任せる。ツールは、`KREngine` にリンクするだけ(imnodes の型は見えない)。
+- 窓の中身は、`GraphEditor`(エンジンの中。imgui-node-editor を使う)に、任せる。ツールは、`KREngine` にリンクするだけ(imnodes の型は見えない)。
 - 画面いっぱいの 1 枚の窓(タイトルバー・移動・大きさ変更なし)。左 = フォルダー・一覧(幅 280)/ 右 = 警告 + グラフ。
 - ビルド:`KR_BUILD_TOOLS` が ON のとき(エンジン単体のビルドでは、既定で ON)。Visual Studio の既定のスタートアップは、変えていない(`KRAnimationEditor` のまま)。
 
 ## まだ、ないこと
 
-- 元に戻す・コピー・ズーム(imnodes に、ズームの機能がない = `docs/Behavior.md` の相性の記録)
+- 元に戻す・コピー(ズームは、ホイールでできる = imgui-node-editor。`docs/Behavior.md` の 15 節)
 
 ## 最初の 1 回(使い方)
 1. ビルド:`cmake --preset vs2026` → `cmake --build build --config Debug`(`KRBehaviorEditor` は、一緒にビルドされる)。実行ファイルは、`build/tools/BehaviorEditor/Debug/KRBehaviorEditor.exe`。
 2. 起動:`KRBehaviorEditor.exe --assets "<ゲームの Assets フォルダー>"`(「参照...」でも選べる。2 回目からは、前回のフォルダーとグラフが、自動で開く)。
-3. グラフを作る(右クリックでノードを足す・ピンからピンへドラッグ・値を直す・「ここから始める」)。上の「警告」を、見る。
+3. グラフを作る(右クリックでノードを足す・遷移の行ごとのピンからピンへドラッグ(かつ / または でネスト)・ホイールでズーム・値を直す・「ここから始める」)。上の「警告」を、見る。
 4. 名前を書いて「保存」→ `<Assets>/Enemies/<名前>.json`。ゲームでの使い方は、[Usage.md](Usage.md) の 8。サンプル `KRBehavior` が、動く見本(`samples/Assets/Enemies/Walker.json`)。
 - ゲームが動いている間に保存すると、約 0.5 秒で、反映される(ゲームが `GraphAsset` を使っているとき)。
 

@@ -1,3 +1,8 @@
+// GraphEditor(ノードエディタの部品)
+// imgui-node-editor で描く(ズームあり。見た目は、UE のブループリント風)。imnodes から替えた経緯は docs/Behavior.md の 15 節
+//   C5a(ここ):表示(状態・条件・論理の条件・遷移の行ごとの別のピン・線)・ズーム・移動・ノードのドラッグ・値の欄・開始ノードの印・SetObservedNode・警告の一覧
+//   C5b:線をつなぐ・消す(規則つき)・右クリックのメニュー・Delete  /  C5c:遷移の行の「＋」「▲▼」「✕」・論理の入力の「＋」
+
 #include "KR/Behavior/GraphEditor.h"
 
 #include "GraphEdit.h"
@@ -5,32 +10,81 @@
 #include "KR/Behavior/NodeTypes.h"
 
 #include <imgui.h>
-#include <imnodes.h>
+#include <imgui_node_editor.h>
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <set>
 #include <string>
 #include <vector>
 
+namespace ed = ax::NodeEditor;
+
 namespace KR::Behavior
 {
     namespace
     {
-        // imnodes の id は、ノード・ピン・線で、別々の番号の空間。ピンは、ノードの id から作る(入力 = 1・出力 = 2)
-        int InputPinId(NodeId node) { return node * 4 + 1; }
-        int OutputPinId(NodeId node) { return node * 4 + 2; }
-
+        // ---- 色 ----
         constexpr ImU32 StateColor = IM_COL32(50, 100, 190, 255);
-        constexpr ImU32 StateColorHover = IM_COL32(70, 125, 220, 255);
         constexpr ImU32 ConditionColor = IM_COL32(40, 150, 90, 255);
-        constexpr ImU32 ConditionColorHover = IM_COL32(60, 180, 110, 255);
+        constexpr ImU32 LogicColor = IM_COL32(120, 95, 170, 255);
         constexpr ImU32 StartOutlineColor = IM_COL32(255, 160, 40, 255);
-        // 観測(ゲームの敵の今の状態):DrawGraphDebug と同じ橙。ゲームが止まっているときは灰色
         constexpr ImU32 ObservedColor = IM_COL32(255, 165, 40, 255);
         constexpr ImU32 ObservedPausedColor = IM_COL32(150, 150, 155, 255);
+        constexpr ImU32 FlowPinColor = IM_COL32(235, 235, 240, 255);   // 流れのピン・線(UE の実行の線のように、白)
+        constexpr ImU32 BoolPinColor = IM_COL32(210, 65, 65, 255);     // 真偽のピン・線(UE の bool のように、赤)
+        constexpr ImU32 TextColor = IM_COL32(235, 235, 235, 255);
+        constexpr ImU32 DimTextColor = IM_COL32(165, 165, 172, 255);
+
         constexpr float FieldWidth = 130.0f; // 値の欄の幅
+        constexpr float RowWidth = 330.0f;   // 遷移の行・論理の入力の行の、幅(左右のピンを、そろえるため。中央に、「▲▼×」を置く)
+        constexpr float PinIconSize = 14.0f;
+
+        ImVec4 ToVec4(ImU32 color) { return ImGui::ColorConvertU32ToFloat4(color); }
+
+        // ---- id(imgui-node-editor の、ノード・ピン・線の番号)----
+        // ノードの番号 = グラフのノードの id(小さい整数)。ピン = (ノード id << 20) | (種類 << 16) | 番号(行・入力の番号)= ノードの番号と、重ならない。
+        // 線の番号 = 目的のピン(真偽)/ 出発のピン(流れ)から作る(ピンごとに、線は 1 本まで = 番号が、毎フレーム、同じ)
+        // ピンの種類・番号の組み立ては、GraphEdit.h の PinRef(画面から切り離して、確認ログで試せる)
+        std::uintptr_t MakePinId(NodeId node, PinType type, int index = 0)
+        {
+            PinRef pin;
+            pin.node = node;
+            pin.type = type;
+            pin.index = index;
+            return pin.Pack();
+        }
+        std::uintptr_t BoolLinkId(std::uintptr_t destinationPin) { return (std::uintptr_t(1) << 62) | destinationPin; }
+        std::uintptr_t FlowLinkId(std::uintptr_t sourcePin) { return (std::uintptr_t(1) << 61) | sourcePin; }
+
+        // ---- 部品 ----
+        // ピンの丸:つながっていれば塗る・つながっていなければ、輪だけ。ImGui の部品として、場所をとる(ed::BeginPin の中で呼ぶ)
+        void DrawPinIcon(bool connected, ImU32 color)
+        {
+            ImGui::Dummy(ImVec2(PinIconSize, PinIconSize));
+            const ImVec2 minimum = ImGui::GetItemRectMin();
+            const ImVec2 maximum = ImGui::GetItemRectMax();
+            const ImVec2 center((minimum.x + maximum.x) * 0.5f, (minimum.y + maximum.y) * 0.5f);
+            ImDrawList* draw = ImGui::GetWindowDrawList();
+            if (connected)
+            {
+                draw->AddCircleFilled(center, 5.0f, color);
+            }
+            else
+            {
+                draw->AddCircle(center, 5.0f, color, 0, 1.8f);
+            }
+        }
+
+        // ピンを置く:入力 = 丸 + 文字 / 出力 = 文字 + 丸。リンクは、ピンの左端(入力)・右端(出力)の、まん中につながる
+        void BeginPinAt(std::uintptr_t id, bool isInput)
+        {
+            ed::BeginPin(ed::PinId(id), isInput ? ed::PinKind::Input : ed::PinKind::Output);
+            ed::PinPivotAlignment(ImVec2(isInput ? 0.0f : 1.0f, 0.5f));
+            ed::PinPivotSize(ImVec2(0.0f, 0.0f));
+        }
 
         // 登録(spec)から、値の欄を 1 つ出す。値の型は spec の既定値の型で決まる。変えたら true
         bool DrawParamField(ParamValue& value, const ParamSpec& spec)
@@ -68,61 +122,407 @@ namespace KR::Behavior
 
     struct GraphEditor::Impl
     {
-        ImNodesContext* context = nullptr;
-        std::set<NodeId> placed;       // 位置を、imnodes に渡した(= 以後は imnodes が持つ)ノード
+        ed::EditorContext* context = nullptr;
+        std::set<NodeId> placed;           // 位置を、imgui-node-editor に渡した(= 以後は、そちらが持つ)ノード
         const Graph* lastGraph = nullptr;
-        NodeId hoveredNode = 0;        // 直前のフレームで、マウスが乗っていたノード(右クリックで、どのメニューを出すかの判定)
-        NodeId menuNode = 0;           // 「ノードのメニュー」を開いた、対象のノード
-        NodeId observedNode = 0;       // 光らせるノード(ゲームの敵の今の状態。0 = 光らせない)
-        bool observedPaused = false;   // ゲームが止まっている(灰色で光らせる)
+        int navigateFrames = 0;            // > 0 の間、数えて、0 になったフレームで、全体が見えるように、画面を合わせる(ノードの大きさが、分かってから)
+        NodeId observedNode = 0;           // 光らせるノード(ゲームの敵の今の状態。0 = 光らせない)
+        bool observedPaused = false;       // ゲームが止まっている(灰色で光らせる)
+        NodeId menuNode = 0;               // 「ノードのメニュー」を開いた、対象のノード
+        ImVec2 menuPosition;               // 「ノードを足す」を開いた場所(エディタの座標)
     };
-
-    void GraphEditor::SetObservedNode(NodeId node, bool paused)
-    {
-        impl_->observedNode = node;
-        impl_->observedPaused = paused;
-    }
 
     GraphEditor::GraphEditor()
         : impl_(std::make_unique<Impl>())
     {
-        impl_->context = ImNodes::CreateContext();
+        ed::Config config;
+        config.SettingsFile = nullptr; // 位置・拡大の保存ファイル(NodeEditor.json)を、作らない(位置は、グラフが持つ)
+        // 拡大縮小の段階(ホイール 1 目盛りで、次の段へ)。値は「拡大率の逆数」:小さいほど、拡大。ライブラリの既定(0.1〜10)は、極端なので、狭める
+        for (const float level : { 0.33f, 0.4f, 0.45f, 0.5f, 0.55f, 0.6f, 0.65f, 0.7f, 0.75f, 0.8f, 0.85f, 0.9f, 0.95f, 1.0f, 1.05f, 1.1f, 1.15f, 1.2f, 1.3f, 1.4f, 1.5f, 1.65f, 1.8f, 2.0f, 2.25f, 2.5f, 3.0f, 3.5f, 4.0f, 5.0f })
+        {
+            config.CustomZoomLevels.push_back(level);
+        }
+        impl_->context = ed::CreateEditor(&config);
     }
 
     GraphEditor::~GraphEditor()
     {
-        ImNodes::DestroyContext(impl_->context);
+        ed::DestroyEditor(impl_->context);
     }
 
     void GraphEditor::Reset()
     {
         impl_->placed.clear();
         impl_->lastGraph = nullptr;
+        impl_->navigateFrames = 3;
+    }
+
+    // 他の担当が足した機能(ツールの、動いている敵の今の状態を光らせる = Observe)
+    void GraphEditor::SetObservedNode(NodeId node, bool paused)
+    {
+        impl_->observedNode = node;
+        impl_->observedPaused = paused;
     }
 
     bool GraphEditor::Draw(Graph& graph)
     {
-        ImNodes::SetCurrentContext(impl_->context);
+        ed::SetCurrentEditor(impl_->context);
+        ed::EnableShortcuts(!ImGui::GetIO().WantTextInput); // 文字欄に入力中の Delete などで、ノード・線を消さない
         if (impl_->lastGraph != &graph)
         {
             impl_->placed.clear(); // 別のグラフ
             impl_->lastGraph = &graph;
+            impl_->navigateFrames = 3;
         }
 
         bool changed = false;
-        ImNodes::BeginNodeEditor();
+        ed::Begin("グラフのエディタ");
 
-        // 右クリックのメニュー:登録された種類の一覧から、ノードを足す(押した場所に置く)
-        // ノードの上で右クリックしたときは、そのノードのメニュー(ここから始める・消す)。何もない所なら、足すメニュー
-        const bool rightClicked = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImNodes::IsEditorHovered()
-            && ImGui::IsMouseReleased(ImGuiMouseButton_Right);
-        if (rightClicked && impl_->hoveredNode != 0)
+        const ed::Style& style = ed::GetStyle();
+        const auto nameOf = [&](NodeId id) -> std::string
         {
-            impl_->menuNode = impl_->hoveredNode;
+            const Node* node = graph.FindNode(id);
+            if (node == nullptr)
+            {
+                return "?";
+            }
+            const NodeTypeInfo* info = FindNodeType(node->type);
+            return info ? info->displayName : node->type;
+        };
+
+        // どの条件・状態が、つながっているか(ピンを、塗るか)
+        std::set<NodeId> conditionsInUse;
+        std::set<NodeId> statesTargeted;
+        for (const Node& node : graph.nodes)
+        {
+            for (const Transition& row : node.transitions)
+            {
+                if (row.condition != 0)
+                {
+                    conditionsInUse.insert(row.condition);
+                }
+                if (row.to != 0)
+                {
+                    statesTargeted.insert(row.to);
+                }
+            }
+            for (const NodeId input : node.inputs)
+            {
+                if (input != 0)
+                {
+                    conditionsInUse.insert(input);
+                }
+            }
+        }
+
+        // ノードの形を変える操作(行の入れ替え・行の追加 / 削除・入力の追加 / 削除)。描画の途中で、行・ピンの数が変わらないように、フレームの最後に、まとめて行う
+        struct PendingOp
+        {
+            enum class Kind { MoveRow, RemoveRow, AddRow, RemoveInput, AddInput };
+            Kind kind;
+            NodeId node;
+            int index;
+            int direction;
+        };
+        std::vector<PendingOp> pending;
+
+        // ---- ノード ----
+        for (size_t nodeIndex = 0; nodeIndex < graph.nodes.size(); ++nodeIndex)
+        {
+            Node& node = graph.nodes[nodeIndex];
+            const ed::NodeId key(static_cast<std::uintptr_t>(node.id));
+            const NodeTypeInfo* info = FindNodeType(node.type);
+            const bool isState = node.kind == NodeKind::State;
+            const bool isLogic = info != nullptr && info->IsLogic();
+            const bool isStart = isState && node.id == graph.startNode;
+            const bool isObserved = impl_->observedNode != 0 && node.id == impl_->observedNode;
+            const ImU32 observedColor = impl_->observedPaused ? ObservedPausedColor : ObservedColor;
+
+            // 位置は、最初の 1 回だけ、グラフから渡す。そのあとは、ドラッグで動くので、imgui-node-editor が持つ
+            if (impl_->placed.insert(node.id).second)
+            {
+                ed::SetNodePosition(key, ImVec2(node.posX, node.posY));
+            }
+
+            // 開始ノード = 橙の太い枠 / 光らせるノード = 橙(止まっていれば、灰色)の太い枠
+            const bool outlined = isStart || isObserved;
+            if (outlined)
+            {
+                ed::PushStyleColor(ed::StyleColor_NodeBorder, ToVec4(isObserved ? observedColor : StartOutlineColor));
+                ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, isObserved ? 3.5f : 2.5f);
+            }
+
+            ed::BeginNode(key);
+            ImGui::PushID(node.id);
+            ImGui::BeginGroup(); // ノード全体
+
+            // 題の行:状態 = [流れの入口の丸] 名前 / 条件 = 名前 ....... 成立 [真偽の出口の丸]
+            ImGui::BeginGroup();
+            const std::string title = (isStart ? "[開始] " : "") + nameOf(node.id);
+            if (isState)
+            {
+                BeginPinAt(MakePinId(node.id, PinType::FlowIn), true);
+                DrawPinIcon(statesTargeted.contains(node.id), FlowPinColor);
+                ed::EndPin();
+                ImGui::SameLine();
+                ImGui::TextUnformatted(title.c_str());
+            }
+            else
+            {
+                ImGui::TextUnformatted(title.c_str());
+                const float titleWidth = ImGui::CalcTextSize(title.c_str()).x;
+                const float labelWidth = ImGui::CalcTextSize("成立").x;
+                ImGui::SameLine();
+                ImGui::Dummy(ImVec2(std::max(RowWidth - titleWidth - labelWidth - PinIconSize - 12.0f, 8.0f), 1.0f));
+                ImGui::SameLine();
+                BeginPinAt(MakePinId(node.id, PinType::ConditionOut), false);
+                ImGui::TextColored(ToVec4(DimTextColor), "成立");
+                ImGui::SameLine();
+                DrawPinIcon(conditionsInUse.contains(node.id), BoolPinColor);
+                ed::EndPin();
+            }
+            ImGui::EndGroup();
+            const ImVec2 headerMin = ImGui::GetItemRectMin();
+            const ImVec2 headerMax = ImGui::GetItemRectMax();
+
+            // 値の欄(登録から、自動)
+            if (info != nullptr)
+            {
+                for (const ParamSpec& spec : info->params)
+                {
+                    ParamValue& value = node.params.try_emplace(spec.name, spec.defaultValue).first->second;
+                    if (!spec.visibleWhen.empty())
+                    {
+                        const auto condition = node.params.find(spec.visibleWhen);
+                        const bool* shown = (condition != node.params.end()) ? std::get_if<bool>(&condition->second) : nullptr;
+                        if (shown == nullptr || !*shown)
+                        {
+                            continue;
+                        }
+                    }
+                    ImGui::PushID(spec.name.c_str());
+                    changed |= DrawParamField(value, spec);
+                    ImGui::PopID();
+                }
+            }
+
+            // 状態:遷移の行(左 = 条件の入口 / 右 = 次の状態の出口。行ごとに、別のピン)。中央の「▲▼×」= 調べる順を入れ替える・行を消す
+            //   ノードの形を変える操作は、このフレームの最後に、まとめて行う(今の描画の途中で、行・ピンの数が変わらないように)
+            const float buttonHeight = ImGui::GetFrameHeight();
+            if (isState)
+            {
+                if (!node.transitions.empty())
+                {
+                    ImGui::Dummy(ImVec2(1.0f, 2.0f));
+                }
+                for (size_t i = 0; i < node.transitions.size(); ++i)
+                {
+                    const Transition& row = node.transitions[i];
+                    const int index = static_cast<int>(i);
+                    ImGui::PushID(index);
+                    const std::string right = row.to != 0 ? "→ " + nameOf(row.to) : "→ 次の状態";
+                    const float rightWidth = ImGui::CalcTextSize(right.c_str()).x + PinIconSize + 4.0f;
+                    const float leftWidth = PinIconSize + 4.0f + ImGui::CalcTextSize("もし 条件").x;
+                    const float buttonsWidth = buttonHeight * 3.0f + 10.0f;
+
+                    BeginPinAt(MakePinId(node.id, PinType::RowCondition, index), true);
+                    DrawPinIcon(row.condition != 0, BoolPinColor);
+                    ImGui::SameLine(0.0f, 4.0f);
+                    ImGui::TextColored(ToVec4(row.condition != 0 ? TextColor : DimTextColor), "もし 条件");
+                    ed::EndPin();
+                    ImGui::SameLine();
+                    ImGui::Dummy(ImVec2(std::max(RowWidth - leftWidth - buttonsWidth - rightWidth - 16.0f, 8.0f), 1.0f));
+
+                    // 調べる順の入れ替え(▲ = 1 つ上・▼ = 1 つ下)・行を消す(×)
+                    ImGui::SameLine();
+                    ImGui::BeginDisabled(i == 0);
+                    if (ImGui::ArrowButton("##up", ImGuiDir_Up))
+                    {
+                        pending.push_back({ PendingOp::Kind::MoveRow, node.id, index, -1 });
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine(0.0f, 2.0f);
+                    ImGui::BeginDisabled(i + 1 == node.transitions.size());
+                    if (ImGui::ArrowButton("##down", ImGuiDir_Down))
+                    {
+                        pending.push_back({ PendingOp::Kind::MoveRow, node.id, index, 1 });
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine(0.0f, 2.0f);
+                    if (ImGui::Button("×", ImVec2(buttonHeight, buttonHeight)))
+                    {
+                        pending.push_back({ PendingOp::Kind::RemoveRow, node.id, index, 0 });
+                    }
+
+                    ImGui::SameLine();
+                    BeginPinAt(MakePinId(node.id, PinType::RowFlowOut, index), false);
+                    ImGui::TextColored(ToVec4(row.to != 0 ? TextColor : DimTextColor), "%s", right.c_str());
+                    ImGui::SameLine(0.0f, 4.0f);
+                    DrawPinIcon(row.to != 0, FlowPinColor);
+                    ed::EndPin();
+                    ImGui::PopID();
+                }
+                if (ImGui::SmallButton("＋ 遷移の行を足す"))
+                {
+                    pending.push_back({ PendingOp::Kind::AddRow, node.id, 0, 0 });
+                }
+            }
+
+            // 論理の条件:入力の行(左 = 真偽の入口)。右の「×」= その入力を消す(最小の数までしか、減らせない)/ 下の「＋」= 入力を足す(最大まで)
+            if (isLogic)
+            {
+                const bool canRemove = static_cast<int>(node.inputs.size()) > info->minInputs;
+                const bool canAdd = static_cast<int>(node.inputs.size()) < info->maxInputs;
+                for (size_t i = 0; i < node.inputs.size(); ++i)
+                {
+                    const int index = static_cast<int>(i);
+                    ImGui::PushID(index);
+                    BeginPinAt(MakePinId(node.id, PinType::LogicInput, index), true);
+                    DrawPinIcon(node.inputs[i] != 0, BoolPinColor);
+                    ImGui::SameLine(0.0f, 4.0f);
+                    ImGui::TextColored(ToVec4(node.inputs[i] != 0 ? TextColor : DimTextColor), "入力 %d", index + 1);
+                    ed::EndPin();
+                    if (info->maxInputs > info->minInputs) // 固定(でない)は、増減しない
+                    {
+                        ImGui::SameLine();
+                        ImGui::Dummy(ImVec2(std::max(RowWidth - PinIconSize - 4.0f - ImGui::CalcTextSize("入力 00").x - buttonHeight - 16.0f, 8.0f), 1.0f));
+                        ImGui::SameLine();
+                        ImGui::BeginDisabled(!canRemove);
+                        if (ImGui::Button("×", ImVec2(buttonHeight, buttonHeight)))
+                        {
+                            pending.push_back({ PendingOp::Kind::RemoveInput, node.id, index, 0 });
+                        }
+                        ImGui::EndDisabled();
+                    }
+                    ImGui::PopID();
+                }
+                if (info->maxInputs > info->minInputs)
+                {
+                    ImGui::BeginDisabled(!canAdd);
+                    if (ImGui::SmallButton("＋ 入力を足す"))
+                    {
+                        pending.push_back({ PendingOp::Kind::AddInput, node.id, 0, 0 });
+                    }
+                    ImGui::EndDisabled();
+                }
+            }
+
+            ImGui::EndGroup();
+            const ImVec2 contentMin = ImGui::GetItemRectMin();
+            const ImVec2 contentMax = ImGui::GetItemRectMax();
+            ImGui::PopID();
+            ed::EndNode();
+            if (outlined)
+            {
+                ed::PopStyleVar();
+                ed::PopStyleColor();
+            }
+
+            // 題の背景の色(状態 = 青・条件 = 緑・論理 = 紫。光らせるノードは、橙 / 灰色)。ノードの背景の上に、描く
+            if (ImDrawList* background = ed::GetNodeBackgroundDrawList(key))
+            {
+                const ImU32 headerColor = isObserved ? observedColor : (isState ? StateColor : (isLogic ? LogicColor : ConditionColor));
+                const ImVec4 padding = style.NodePadding;
+                background->AddRectFilled(ImVec2(contentMin.x - padding.x, headerMin.y - padding.y), ImVec2(contentMax.x + padding.z, headerMax.y + 3.0f),
+                    headerColor, style.NodeRounding, ImDrawFlags_RoundCornersTop);
+            }
+        }
+
+        // ---- 線 ----
+        const ImVec4 flowLinkColor = ToVec4(FlowPinColor);
+        const ImVec4 boolLinkColor = ToVec4(BoolPinColor);
+        for (const Node& node : graph.nodes)
+        {
+            const bool fromObserved = impl_->observedNode != 0 && node.id == impl_->observedNode;
+            const ImVec4 activeColor = ToVec4(impl_->observedPaused ? ObservedPausedColor : ObservedColor);
+            for (size_t i = 0; i < node.transitions.size(); ++i)
+            {
+                const Transition& row = node.transitions[i];
+                const int index = static_cast<int>(i);
+                if (row.condition != 0 && graph.FindNode(row.condition) != nullptr)
+                {
+                    const std::uintptr_t destination = MakePinId(node.id, PinType::RowCondition, index);
+                    ed::Link(ed::LinkId(BoolLinkId(destination)), ed::PinId(MakePinId(row.condition, PinType::ConditionOut)), ed::PinId(destination), boolLinkColor, 2.0f);
+                }
+                if (row.to != 0 && graph.FindNode(row.to) != nullptr)
+                {
+                    const std::uintptr_t source = MakePinId(node.id, PinType::RowFlowOut, index);
+                    ed::Link(ed::LinkId(FlowLinkId(source)), ed::PinId(source), ed::PinId(MakePinId(row.to, PinType::FlowIn)),
+                        fromObserved ? activeColor : flowLinkColor, fromObserved ? 3.0f : 2.0f);
+                }
+            }
+            for (size_t i = 0; i < node.inputs.size(); ++i)
+            {
+                if (node.inputs[i] != 0 && graph.FindNode(node.inputs[i]) != nullptr)
+                {
+                    const std::uintptr_t destination = MakePinId(node.id, PinType::LogicInput, static_cast<int>(i));
+                    ed::Link(ed::LinkId(BoolLinkId(destination)), ed::PinId(MakePinId(node.inputs[i], PinType::ConditionOut)), ed::PinId(destination), boolLinkColor, 2.0f);
+                }
+            }
+        }
+
+        // ---- 線をつなぐ(ピンから、ピンへドラッグ)。つなげるのは、規則(CanConnectPins)に合うものだけ。合わないものは、赤い線で、断る ----
+        if (ed::BeginCreate())
+        {
+            ed::PinId a;
+            ed::PinId b;
+            if (ed::QueryNewLink(&a, &b) && a && b && a != b)
+            {
+                const PinRef pinA = PinRef::Unpack(a.Get());
+                const PinRef pinB = PinRef::Unpack(b.Get());
+                if (CanConnectPins(graph, pinA, pinB))
+                {
+                    const bool isFlow = pinA.type == PinType::RowFlowOut || pinB.type == PinType::RowFlowOut;
+                    if (ed::AcceptNewItem(isFlow ? flowLinkColor : boolLinkColor, 2.5f)) // ボタンを離したとき、true
+                    {
+                        changed |= ConnectPins(graph, pinA, pinB);
+                    }
+                }
+                else
+                {
+                    ed::RejectNewItem(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), 2.0f);
+                }
+            }
+        }
+        ed::EndCreate(); // BeginCreate が false でも、必ず呼ぶ(呼ばないと、次のフレームで落ちる)
+
+        // ---- 削除(線やノードを選んで Delete / 線をピンから引き離す)。ノードを消すと、つながる線も消える ----
+        if (ed::BeginDelete())
+        {
+            constexpr std::uintptr_t LinkFlags = (std::uintptr_t(1) << 62) | (std::uintptr_t(1) << 61);
+            ed::LinkId linkId;
+            while (ed::QueryDeletedLink(&linkId))
+            {
+                if (ed::AcceptDeletedItem())
+                {
+                    // 線の番号から、外すピンを戻す:真偽の線 = 目的のピン(条件の入口・論理の入力)/ 流れの線 = 出発のピン(行の出口)
+                    changed |= DisconnectPin(graph, PinRef::Unpack(linkId.Get() & ~LinkFlags));
+                }
+            }
+            ed::NodeId nodeId;
+            while (ed::QueryDeletedNode(&nodeId))
+            {
+                if (ed::AcceptDeletedItem())
+                {
+                    const NodeId id = static_cast<NodeId>(nodeId.Get());
+                    changed |= RemoveNode(graph, id); // 他のノードの、このノードへのつながりも、外れる
+                    impl_->placed.erase(id);
+                }
+            }
+        }
+        ed::EndDelete(); // BeginDelete が false でも、必ず呼ぶ
+
+        // ---- 右クリックのメニュー(拡大していても、文字は、普通の大きさ = Suspend / Resume の間に出す)----
+        ed::Suspend();
+        ed::NodeId contextNode;
+        if (ed::ShowNodeContextMenu(&contextNode))
+        {
+            impl_->menuNode = static_cast<NodeId>(contextNode.Get());
             ImGui::OpenPopup("ノードのメニュー");
         }
-        else if (rightClicked && !ImGui::IsAnyItemHovered())
+        else if (ed::ShowBackgroundContextMenu())
         {
+            impl_->menuPosition = ed::ScreenToCanvas(ImGui::GetMousePos()); // 押した場所に、ノードを置く
             ImGui::OpenPopup("ノードを足す");
         }
 
@@ -136,6 +536,7 @@ namespace KR::Behavior
             else
             {
                 const NodeId targetId = target->id;
+                const NodeTypeInfo* targetInfo = FindNodeType(target->type);
                 if (target->kind == NodeKind::State)
                 {
                     const bool isStart = targetId == graph.startNode;
@@ -143,11 +544,20 @@ namespace KR::Behavior
                     {
                         changed |= SetStartNode(graph, targetId);
                     }
+                    if (ImGui::MenuItem("遷移の行を足す"))
+                    {
+                        changed |= AddTransition(graph, targetId) >= 0;
+                    }
                 }
-                else
+                else if (targetInfo != nullptr && targetInfo->IsLogic())
                 {
-                    ImGui::TextDisabled("(条件は、開始にできない)");
+                    const bool canAdd = static_cast<int>(target->inputs.size()) < targetInfo->maxInputs;
+                    if (ImGui::MenuItem("入力を足す", nullptr, false, canAdd))
+                    {
+                        changed |= AddInput(graph, targetId);
+                    }
                 }
+                ImGui::Separator();
                 if (ImGui::MenuItem("このノードを消す"))
                 {
                     changed |= RemoveNode(graph, targetId);
@@ -156,260 +566,88 @@ namespace KR::Behavior
             }
             ImGui::EndPopup();
         }
+
         if (ImGui::BeginPopup("ノードを足す"))
         {
-            const ImVec2 clickPos = ImGui::GetMousePosOnOpeningCurrentPopup();
-            const auto addItems = [&](NodeKind kind, const char* header)
+            const auto addItems = [&](const char* header, auto predicate)
             {
                 ImGui::TextDisabled("%s", header);
                 for (const NodeTypeInfo& type : GetNodeTypes())
                 {
-                    if (type.kind == kind && ImGui::MenuItem(type.displayName.c_str()))
+                    if (predicate(type) && ImGui::MenuItem(type.displayName.c_str()))
                     {
-                        const NodeId id = AddNode(graph, type.type, 0.0f, 0.0f);
-                        ImNodes::SetNodeScreenSpacePos(id, clickPos);
-                        impl_->placed.insert(id); // 位置は imnodes が持つ(下の書き戻しで、グラフに入る)
-                        changed = true;
+                        const NodeId id = AddNode(graph, type.type, impl_->menuPosition.x, impl_->menuPosition.y); // 位置は、次のフレームで、渡される(placed に無いため)
+                        changed |= id != 0;
                     }
                 }
             };
-            addItems(NodeKind::State, "状態");
+            addItems("状態", [](const NodeTypeInfo& t) { return t.kind == NodeKind::State; });
             ImGui::Separator();
-            addItems(NodeKind::Condition, "条件");
+            addItems("条件(状況を調べる)", [](const NodeTypeInfo& t) { return t.kind == NodeKind::Condition && !t.IsLogic(); });
+            ImGui::Separator();
+            addItems("論理(かつ・または・でない)", [](const NodeTypeInfo& t) { return t.IsLogic(); });
             ImGui::EndPopup();
         }
+        ed::Resume();
 
-        for (size_t nodeIndex = 0; nodeIndex < graph.nodes.size(); ++nodeIndex)
+        // 読み込んだ(開いた)直後は、全体が見えるように、画面を合わせる(ノードの大きさが、1 フレーム分かってから)
+        if (impl_->navigateFrames > 0 && --impl_->navigateFrames == 0)
         {
-            const Node& node = graph.nodes[nodeIndex];
-            // 位置は、最初の 1 回だけ、グラフから渡す。そのあとは、ドラッグで動くので、imnodes が持つ
-            if (impl_->placed.insert(node.id).second)
-            {
-                ImNodes::SetNodeGridSpacePos(node.id, ImVec2(node.posX, node.posY));
-            }
-
-            const bool isState = node.kind == NodeKind::State;
-            const bool isStart = isState && node.id == graph.startNode;
-            // ゲームの敵の今の状態(id で探す = 直している途中でも、そのノードが残っていれば光り続ける)
-            const bool isObserved = impl_->observedNode != 0 && node.id == impl_->observedNode;
-            const ImU32 observedColor = impl_->observedPaused ? ObservedPausedColor : ObservedColor;
-
-            const ImU32 titleColor = isObserved ? observedColor : (isState ? StateColor : ConditionColor);
-            const ImU32 titleHoverColor = isObserved ? observedColor : (isState ? StateColorHover : ConditionColorHover);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleColor);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, titleHoverColor);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, titleHoverColor);
-            const bool thickOutline = isStart || isObserved;
-            if (thickOutline)
-            {
-                ImNodes::PushColorStyle(ImNodesCol_NodeOutline, isObserved ? observedColor : StartOutlineColor);
-                ImNodes::PushStyleVar(ImNodesStyleVar_NodeBorderThickness, isObserved ? 3.5f : 2.5f);
-            }
-
-            ImNodes::BeginNode(node.id);
-
-            const NodeTypeInfo* info = FindNodeType(node.type);
-            const std::string name = info ? info->displayName : node.type + "(未登録)";
-            const std::string title = isStart ? "[開始] " + name : name;
-            ImNodes::BeginNodeTitleBar();
-            ImGui::TextUnformatted(title.c_str());
-            ImNodes::EndNodeTitleBar();
-
-            ImNodes::BeginInputAttribute(InputPinId(node.id));
-            ImGui::TextUnformatted("入力");
-            ImNodes::EndInputAttribute();
-
-            // 登録された値の欄(型ごと)。ノードごとに、ImGui の id を分ける(同じ名前の欄が、複数のノードにあるため)
-            ImGui::PushID(node.id);
-            if (info != nullptr)
-            {
-                Node& editable = graph.nodes[nodeIndex];
-                for (const ParamSpec& spec : info->params)
-                {
-                    ParamValue& value = editable.params.try_emplace(spec.name, spec.defaultValue).first->second;
-                    if (!spec.visibleWhen.empty())
-                    {
-                        const auto condition = editable.params.find(spec.visibleWhen);
-                        const bool* shown = (condition != editable.params.end()) ? std::get_if<bool>(&condition->second) : nullptr;
-                        if (shown == nullptr || !*shown)
-                        {
-                            continue;
-                        }
-                    }
-                    ImGui::PushID(spec.name.c_str());
-                    changed |= DrawParamField(value, spec);
-                    ImGui::PopID();
-                }
-            }
-            ImGui::PopID();
-
-            // 分岐の順番:状態から出る線が 2 本以上のとき、調べる順(priority の小さい順)を、↑↓で入れ替える
-            if (isState)
-            {
-                const std::vector<Link> outgoing = graph.OutgoingLinks(node.id);
-                if (outgoing.size() >= 2)
-                {
-                    ImGui::PushID(node.id);
-                    ImGui::TextDisabled("分岐の順番(上から調べる)");
-                    for (size_t i = 0; i < outgoing.size(); ++i)
-                    {
-                        const Node* target = graph.FindNode(outgoing[i].to);
-                        const NodeTypeInfo* targetInfo = target ? FindNodeType(target->type) : nullptr;
-                        ImGui::PushID(static_cast<int>(i));
-                        if (ImGui::ArrowButton("##up", ImGuiDir_Up) && i > 0)
-                        {
-                            changed |= MoveLinkPriority(graph, node.id, outgoing[i].to, -1);
-                        }
-                        ImGui::SameLine();
-                        if (ImGui::ArrowButton("##down", ImGuiDir_Down) && i + 1 < outgoing.size())
-                        {
-                            changed |= MoveLinkPriority(graph, node.id, outgoing[i].to, 1);
-                        }
-                        ImGui::SameLine();
-                        ImGui::Text("%d. #%d %s", static_cast<int>(i) + 1, outgoing[i].to, targetInfo ? targetInfo->displayName.c_str() : "?");
-                        ImGui::PopID();
-                    }
-                    ImGui::PopID();
-                }
-            }
-
-            ImNodes::BeginOutputAttribute(OutputPinId(node.id));
-            ImGui::TextUnformatted("出力");
-            ImNodes::EndOutputAttribute();
-
-            ImNodes::EndNode();
-
-            if (thickOutline)
-            {
-                ImNodes::PopStyleVar();
-                ImNodes::PopColorStyle();
-            }
-            ImNodes::PopColorStyle();
-            ImNodes::PopColorStyle();
-            ImNodes::PopColorStyle();
+            ed::NavigateToContent(); // 既定の時間(短い動き)で、画面を合わせる
         }
 
-        // 線:from の出力ピン → to の入力ピン。線の id は、並びの番号(線の追加・削除は B4-3 で、作り直す)
-        for (size_t i = 0; i < graph.links.size(); ++i)
-        {
-            const Link& link = graph.links[i];
-            // 今の状態から出る線(次に移るかもしれない道)は、橙(DrawGraphDebug と同じ)
-            const bool fromObserved = impl_->observedNode != 0 && link.from == impl_->observedNode;
-            if (fromObserved)
-            {
-                const ImU32 color = impl_->observedPaused ? ObservedPausedColor : ObservedColor;
-                ImNodes::PushColorStyle(ImNodesCol_Link, color);
-                ImNodes::PushColorStyle(ImNodesCol_LinkHovered, color);
-                ImNodes::PushColorStyle(ImNodesCol_LinkSelected, color);
-            }
-            ImNodes::Link(static_cast<int>(i) + 1, OutputPinId(link.from), InputPinId(link.to));
-            if (fromObserved)
-            {
-                ImNodes::PopColorStyle();
-                ImNodes::PopColorStyle();
-                ImNodes::PopColorStyle();
-            }
-        }
-
-        ImNodes::EndNodeEditor();
-
-        int hovered = 0;
-        impl_->hoveredNode = ImNodes::IsNodeHovered(&hovered) ? hovered : 0;
-
-        // 線の追加:ピンからピンへドラッグして離すと来る。出力ピン → 入力ピンの向きに直して、ルール(CanAddLink)に合うときだけ足す
-        int startPin = 0;
-        int endPin = 0;
-        if (ImNodes::IsLinkCreated(&startPin, &endPin))
-        {
-            const bool startIsOutput = startPin % 4 == 2;
-            const bool endIsOutput = endPin % 4 == 2;
-            if (startIsOutput != endIsOutput) // 出力どうし・入力どうしは、つなげない
-            {
-                const int outputPin = startIsOutput ? startPin : endPin;
-                const int inputPin = startIsOutput ? endPin : startPin;
-                changed |= AddLink(graph, outputPin / 4, inputPin / 4);
-            }
-        }
-
-        // 線の削除:線をピンから引き離した(IsLinkDestroyed)・選んで Delete キー。文字欄に入力中の Delete は、除く
-        std::set<int> removeIndices;
-        std::vector<int> selectedNodeIds;
-        int destroyedLink = 0;
-        if (ImNodes::IsLinkDestroyed(&destroyedLink))
-        {
-            removeIndices.insert(destroyedLink - 1);
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_Delete) && !ImGui::GetIO().WantTextInput)
-        {
-            const int selectedNodeCount = ImNodes::NumSelectedNodes();
-            if (selectedNodeCount > 0)
-            {
-                selectedNodeIds.resize(static_cast<size_t>(selectedNodeCount));
-                ImNodes::GetSelectedNodes(selectedNodeIds.data());
-            }
-
-            const int selectedCount = ImNodes::NumSelectedLinks();
-            if (selectedCount > 0)
-            {
-                std::vector<int> selected(static_cast<size_t>(selectedCount));
-                ImNodes::GetSelectedLinks(selected.data());
-                for (const int id : selected)
-                {
-                    removeIndices.insert(id - 1);
-                }
-                ImNodes::ClearLinkSelection();
-            }
-        }
-        for (auto it = removeIndices.rbegin(); it != removeIndices.rend(); ++it) // 後ろから消す(番号がずれない)
-        {
-            if (*it >= 0 && static_cast<size_t>(*it) < graph.links.size())
-            {
-                graph.links.erase(graph.links.begin() + *it);
-                changed = true;
-            }
-        }
-
-        // ノードの削除:選んで Delete キー(つながる線も消える)。線の削除のあとに行う(線の番号が、ずれるため)
-        if (!selectedNodeIds.empty())
-        {
-            for (const int id : selectedNodeIds)
-            {
-                changed |= RemoveNode(graph, id);
-                impl_->placed.erase(id);
-            }
-            ImNodes::ClearNodeSelection();
-        }
-
-        // ドラッグで動いた位置を、グラフに書き戻す(保存したとき、位置が残る)
+        // ドラッグで動いた位置を、グラフに書き戻す(保存したとき、位置が残る)。同じ位置の不定値(NaN)は、書き戻さない
         for (Node& node : graph.nodes)
         {
-            const ImVec2 pos = ImNodes::GetNodeGridSpacePos(node.id);
-            if (std::fabs(pos.x - node.posX) > 0.01f || std::fabs(pos.y - node.posY) > 0.01f)
+            if (!impl_->placed.contains(node.id))
             {
-                node.posX = pos.x;
-                node.posY = pos.y;
+                continue; // このフレームで足したノード:まだ、位置を渡していない(描かれていない = 位置が、不定)。次のフレームで、位置が、渡される
+            }
+            const ImVec2 position = ed::GetNodePosition(ed::NodeId(static_cast<std::uintptr_t>(node.id)));
+            if (std::fabs(position.x - node.posX) > 0.01f || std::fabs(position.y - node.posY) > 0.01f)
+            {
+                node.posX = position.x;
+                node.posY = position.y;
                 changed = true;
+            }
+        }
+
+        ed::End();
+        ed::SetCurrentEditor(nullptr);
+
+        for (const PendingOp& op : pending)
+        {
+            switch (op.kind)
+            {
+            case PendingOp::Kind::MoveRow: changed |= MoveTransition(graph, op.node, op.index, op.direction); break;
+            case PendingOp::Kind::RemoveRow: changed |= RemoveTransition(graph, op.node, op.index); break;
+            case PendingOp::Kind::AddRow: changed |= AddTransition(graph, op.node) >= 0; break;
+            case PendingOp::Kind::RemoveInput: changed |= RemoveInput(graph, op.node, op.index); break;
+            case PendingOp::Kind::AddInput: changed |= AddInput(graph, op.node); break;
             }
         }
         return changed;
     }
-}
 
-namespace KR::Behavior
-{
     void GraphEditor::DrawWarnings(const Graph& graph)
     {
+        // 固定の高さの枠に入れる(警告が、増えたり減ったりしても、下のエディタの位置・見え方が、動かない。多いときは、枠の中で、スクロール)
+        const float height = ImGui::GetTextLineHeightWithSpacing() * 4.0f + ImGui::GetStyle().WindowPadding.y * 2.0f;
+        ImGui::BeginChild("##graph_warnings", ImVec2(0.0f, height), ImGuiChildFlags_Borders);
         const std::vector<GraphWarning> warnings = ValidateGraph(graph);
         if (warnings.empty())
         {
             ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.55f, 1.0f), "警告なし");
-            return;
         }
-        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.25f, 1.0f), "警告 %d 件", static_cast<int>(warnings.size()));
-        for (const GraphWarning& warning : warnings)
+        else
         {
-            ImGui::Bullet();
-            ImGui::TextWrapped("%s", warning.message.c_str());
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.25f, 1.0f), "警告 %d 件", static_cast<int>(warnings.size()));
+            for (const GraphWarning& warning : warnings)
+            {
+                ImGui::Bullet();
+                ImGui::TextWrapped("%s", warning.message.c_str());
+            }
         }
+        ImGui::EndChild();
     }
 }

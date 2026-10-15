@@ -4,9 +4,17 @@
 #include "KR/Behavior/Graph.h"
 
 #include <string>
+#include <vector>
 
 namespace KR::Behavior
 {
+    // 条件のノード 1 つの、直前の Update での、結果(デバッグの表示用。DrawGraphDebug が、真は緑・偽は赤で出す)
+    struct ConditionResult
+    {
+        NodeId node = 0;
+        bool value = false;
+    };
+
     // 今の状態を、ゲームが読むための窓口(読むだけ)
     // Runner の中のグラフを指している。Runner を変更(Update・SetGraph など)すると、取り直す
     class StateView
@@ -43,8 +51,8 @@ namespace KR::Behavior
         // 状態が 1 つも無い(または null の)グラフなら、待機 1 つの既定のグラフを使う
         explicit Runner(GraphPtr graph);
 
-        // 1 フレーム進める。時間を dt だけ進め、今の状態から出る線を priority の小さい順に調べて、
-        // 最初に成り立った条件の先の状態へ移る。**移るのは、1 回の Update で 1 回まで**(線が輪になっていても、止まらなくなることがない)
+        // 1 フレーム進める。時間を dt だけ進め、今の状態の遷移の行を、上から調べて、
+        // 最初に成り立った行の、次の状態へ移る(行の入口は、葉の条件でも、かつ・または・でない でもよい)。**移るのは、1 回の Update で 1 回まで**(輪になっていても、止まらなくなることがない)
         // 移ったら、入ってからの時間は 0 に戻り、EnteredThisFrame() が true になる(次の Update で false)
         void Update(float deltaTime, const Context& context);
 
@@ -58,9 +66,14 @@ namespace KR::Behavior
         StateView GetCurrentState() const;
         const GraphPtr& GetGraph() const { return graph_; }
 
+        // 直前の Update で、実際に評価した条件のノード(葉・かつ・または・でない)と、その結果(デバッグの表示用)。
+        // 最初に成り立った行で、そこから先の行は、評価しない(短絡評価で、評価しなかった入力も、載らない)
+        const std::vector<ConditionResult>& GetLastConditionResults() const { return lastResults_; }
+
     private:
         void SetGraphAndStart(GraphPtr graph); // 差し替えて、開始の状態に入る
 
+        std::vector<ConditionResult> lastResults_;
         GraphPtr graph_;
         NodeId currentNode_ = 0;
         float timeInState_ = 0.0f;
