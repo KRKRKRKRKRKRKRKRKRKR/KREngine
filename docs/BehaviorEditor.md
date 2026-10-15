@@ -46,13 +46,13 @@ replaces:
 - 確認:`日本語のフォルダー\ゲームの Assets\Enemies\` に、日本語の名前のファイル(`歩く敵.json`・`壊れた.json`)と、英語の名前のファイルを置いて、`--assets` で開く → 3 つとも、一覧に出た。正常なファイルは開き、壊れたファイルは、理由が出て、今のグラフのままだった。
 
 ## つくり
-- 窓の中身は、`GraphEditor`(エンジンの中。imnodes を使う)に、任せる。ツールは、`KREngine` にリンクするだけ(imnodes の型は見えない)。
+- 窓の中身は、`GraphEditor`(エンジンの中。imgui-node-editor を使う)に、任せる。ツールは、`KREngine` にリンクするだけ(imnodes の型は見えない)。
 - 画面いっぱいの 1 枚の窓(タイトルバー・移動・大きさ変更なし)。左 = フォルダー・一覧(幅 280)/ 右 = 警告 + グラフ。
 - ビルド:`KR_BUILD_TOOLS` が ON のとき(エンジン単体のビルドでは、既定で ON)。Visual Studio の既定のスタートアップは、変えていない(`KRAnimationEditor` のまま)。
 
 ## まだ、ないこと
 
-- 元に戻す・コピー・ズーム(imnodes に、ズームの機能がない = `docs/Behavior.md` の相性の記録)
+- 元に戻す・コピー(ズームは、ホイールでできる = imgui-node-editor。`docs/Behavior.md` の 15 節。詳しい書き直しは C7)
 
 ## 最初の 1 回(使い方)
 1. ビルド:`cmake --preset vs2026` → `cmake --build build --config Debug`(`KRBehaviorEditor` は、一緒にビルドされる)。実行ファイルは、`build/tools/BehaviorEditor/Debug/KRBehaviorEditor.exe`。

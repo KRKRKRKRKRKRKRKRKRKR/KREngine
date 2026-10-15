@@ -116,20 +116,6 @@ FetchContent_MakeAvailable(ufbx)
 set(UFBX_SOURCE_DIR ${ufbx_SOURCE_DIR})
 add_subdirectory(third_party/ufbx)
 
-# imnodes(ノードエディタの部品。MIT。ImGui の上に、ノードと線を描く)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
-# コミット eb36902(2026 年 10 月時点の master の先頭)を固定。ハッシュで改ざんを検出
-# imnodes 自身の CMakeLists.txt は使わない(imgui を探しに行くため)。SOURCE_SUBDIR に無い場所を指して、add_subdirectory を飛ばし、下で、自分で static ライブラリにする
-FetchContent_Declare(imnodes
-    URL      https://github.com/Nelarius/imnodes/archive/eb36902c892548ef94f88f51ad7e7c9c7058a71c.zip
-    URL_HASH SHA256=45c5e408b13d5702cead6f506db50105d7d082db80199b17870e730cabea18ca
-    SOURCE_SUBDIR do_not_add_subdirectory
-)
-FetchContent_MakeAvailable(imnodes)
-add_library(imnodes STATIC ${imnodes_SOURCE_DIR}/imnodes.cpp)
-target_include_directories(imnodes PUBLIC ${imnodes_SOURCE_DIR})
-target_link_libraries(imnodes PUBLIC imgui)
-target_compile_options(imnodes PRIVATE /utf-8 /W0)
-
 # imgui-node-editor(ノードエディタの部品。MIT。ズーム・スクロールがあり、見た目が UE のブループリント風)。敵の行動のエディタ(Behavior の GraphEditor)に使う。エンジンの中だけ(PRIVATE)
 # imnodes に、ズームの機能が無いため、替える(docs/Behavior.md)。コミット 1e0e494(2026-10-14 の master の先頭)を固定。ハッシュで改ざんを検出
 # 自身の CMakeLists.txt は無い。取得だけして(SOURCE_SUBDIR を、存在しない場所にして)、ライブラリは、下で、自分で定義する
@@ -308,7 +294,7 @@ target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
 # ufbx も、エンジンの中だけ(PRIVATE)。公開ヘッダーには、ufbx の型を出さない
 target_link_libraries(KREngine PRIVATE ufbx)
 
-# imgui-node-editor も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい(imnodes は、C5d で外す。今は、確認用 exe だけが使う)
+# imgui-node-editor も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい(imnodes は、外した = docs/Behavior.md の 15 節)
 target_link_libraries(KREngine PRIVATE imgui_node_editor)
 
 # C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
@@ -331,7 +317,7 @@ target_link_libraries(KREngine PRIVATE
 # Visual Studio のソリューションエクスプローラーでフォルダ構成どおりに表示する
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ENGINE_FILES})
 source_group(Shaders FILES ${SHADER_FILES})
-set_target_properties(DirectX-Headers DirectX-Guids imgui imnodes imgui_node_editor PROPERTIES FOLDER ThirdParty)
+set_target_properties(DirectX-Headers DirectX-Guids imgui imgui_node_editor PROPERTIES FOLDER ThirdParty)
 
 # 実行時に必要なファイル: DXC 本体(dxcompiler.dll)とシェーダー署名用(dxil.dll)は Windows SDK のものを使う
 set(PROGRAM_FILES_X86 "ProgramFiles(x86)")

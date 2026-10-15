@@ -151,7 +151,7 @@ protected:
 
         ImGui::SameLine();
         ImGui::BeginGroup();
-        ImGui::TextDisabled("右クリック = ノードを足す / ノードの上で右クリック = 開始・消す / ピンからピンへドラッグ = 線 / 選んで Delete = 消す");
+        ImGui::TextDisabled("ホイール = 拡大縮小 / 右ドラッグ = 移動 / 右クリック = ノードを足す・ノードのメニュー / ピンからピンへドラッグ = 線 / 選んで Delete = 消す");
         m_Editor->DrawWarnings(m_Graph);
         DrawObservationLine(); // ゲームの敵の今の状態(光らせるノードも、ここで決める)
         if (m_Editor->Draw(m_Graph))
