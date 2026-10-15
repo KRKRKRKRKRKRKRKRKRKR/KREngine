@@ -112,32 +112,32 @@ namespace KR::Behavior
         enteredThisFrame_ = false;
         timeInState_ += deltaTime;
 
-        // 状態 → 条件 → 状態。状態から出る線(priority 順)のうち、最初に成り立つ条件の先へ移る
-        for (const Link& toCondition : graph_->OutgoingLinks(currentNode_))
+        // 状態の遷移の行を、上から(並びの順 = 調べる順)。最初に成り立った行の、次の状態へ移る
+        //   行の入口(条件)が 0(つながっていない)・出口(次の状態)が 0 の行は、使わない(次の行を調べる)
+        //   入口の条件は、葉でも、かつ・または・でない(ネスト)でもよい
+        const Node* state = graph_->FindNode(currentNode_);
+        if (state == nullptr)
         {
-            const Node* condition = graph_->FindNode(toCondition.to);
-            if (condition == nullptr || condition->kind != NodeKind::Condition)
-            {
-                continue; // 状態へ直接つなぐ線は、使わない(条件のない移動は、作らない)
-            }
-            if (!EvaluateCondition(*condition, context, timeInState_))
+            return;
+        }
+        for (const Transition& row : state->transitions)
+        {
+            if (row.condition == 0 || row.to == 0)
             {
                 continue;
             }
-
-            // 条件の出力(1 本のはず。複数あれば、priority の小さい順で最初の状態)
-            for (const Link& toState : graph_->OutgoingLinks(condition->id))
+            const Node* next = graph_->FindNode(row.to);
+            if (next == nullptr || next->kind != NodeKind::State)
             {
-                const Node* next = graph_->FindNode(toState.to);
-                if (next != nullptr && next->kind == NodeKind::State)
-                {
-                    currentNode_ = next->id;
-                    timeInState_ = 0.0f;
-                    enteredThisFrame_ = true;
-                    return; // 1 回の Update で移るのは、1 回まで
-                }
+                continue;
             }
-            // 出力がつながっていない条件は、成り立っても、移れない → 次の線を調べる
+            if (EvaluateConditionTree(*graph_, row.condition, context, timeInState_))
+            {
+                currentNode_ = next->id;
+                timeInState_ = 0.0f;
+                enteredThisFrame_ = true;
+                return; // 1 回の Update で移るのは、1 回まで
+            }
         }
     }
 
