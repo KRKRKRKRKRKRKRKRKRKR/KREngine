@@ -320,10 +320,13 @@ Action2D の依頼:① ノードエディタを、**拡大縮小**できるよ�
   - **imnodes を外した**:`CMakeLists.txt` の取得・ライブラリ・`FOLDER` の指定、確認用 exe `KRBehaviorProbe`(`ProbeApp.cpp`)・`KRNodeEditorProbe`(`NodeEditorProbe.cpp`。C0 のゲート用)を削除。エンジンの外から見える部分(ゲームの CMake)は、変わらない。
   - **ツール `KRBehaviorEditor`**:コードは操作説明の 1 行だけ直した(`GraphEditor` の窓口は、同じ形のため)。全体ビルドが通り、`--assets <フォルダー> --graph <名前>` で起動して、窓のタイトルが取れる(エラーのダイアログなし)。サンプル `KRBehavior` と同じ時に起動しても、どちらも生きている。
   - **Action2D の 3 ファイル + サンプルの Walker(コピー)を、ツールで開いて、Ctrl+S で保存**(`"version": 2` で書き出された)→ `KRRecordTrace` で、**4 つとも、`golden/*.trace` と一致**(版 1 のまま読んだ場合も一致 = 版 1 → 版 2 の変換と、版 2 の保存・読み込みが、どちらも動きを変えない)。
+- **C6:サンプル `samples/Assets/Enemies/Walker.json` を版 2 で作り直した**(かつ・または の例入り)
+  - 巡回 → [半径 5 以内] → 追う → **[(半径 1.2 以内)かつ(0.3 秒たった)]** → 攻撃 / 追う → **[(半径 8 の外)または(10 秒たった)]** → 巡回 / 攻撃 → [攻撃が終わった] → 巡回。ノード 11・遷移の行 4。警告なし。
+  - 確認:`KRRecordTrace` で、全部の状態を通る(巡回 → 追う → 攻撃 → 巡回、追う → 巡回)/ サンプル `KRBehavior` が起動(タイトル `KR Engine - Behavior`)/ `KRGraphEditorProbe` の画面で、ノードが重ならずに、線がつながっている。
 - **GraphEditor の、いまの状態(C4 の終わり)**:`links` を使う前の `GraphEditor`(imnodes)は、いったん、**最小の中身に差し替えた**(グラフを描かない・編集できない。警告の一覧 `DrawWarnings` と `SetObservedNode` の窓口だけ残した)。**これで、エンジンの全体のビルドが戻った**(C1〜C3 の間は通らなかった)。ツール `KRBehaviorEditor` は、起動して、警告の一覧と「作り直し中」の説明だけが出る。**C5a の書き直しで、他の担当が足した `SetObservedNode`(ゲームの敵の今の状態を、エディタ上で光らせる = 題と枠を橙・ゲームが止まっているなら灰色・そのノードの行から出る流れの線を橙)を、必ず引き継ぐ**。`KRRecordTrace`(`probe/BehaviorProbe/golden/RecordTrace.cpp`)を、確認用 exe に登録した(正解データとの照合を、いつでも)。
 ## 16. 進み具合(B1〜B6)
 済:B1-1〜B1-8(データ・登録・保存・読み込み)・B2-1(Context)・B2-2〜B2-3(条件の評価)・B2-4(Runner を作る・今の状態を読む)・B2-5〜B2-8(Update・分岐・SetGraph・Reset・共有)。= B2 は全部済。B3-1〜B3-3(imnodes の取り込み・相性の確認・ズームなしで進める判断)。
 済(続き):B4-1〜B4-6(GraphEditor:骨組み・値の欄・線・ノードの追加 / 削除・開始ノード・分岐の順番・検証の警告)・B4-7〜B4-11(ツール KRBehaviorEditor:骨組み・フォルダーを開く・一覧・開く・保存・新規・読み直し・保存していない印・確認の窓・設定の記憶・引数・参照 / 最近 = `docs/BehaviorEditor.md`)。= B4 は全部済。B5-1〜B5-2(DrawGraphDebug・GraphAsset)。= B5 は全部済。B6-1〜B6-4(サンプル KRBehavior・再起動なしの反映の確認・docs・最後の確認)。
 これから:**版 0.4.0・タグ `v0.4.0`・main への merge は、仲介担当**(私の担当のタスクは、全部済)。ゲームから使う手順は、`Usage.md` の 8。タスクの表は `Shared/handoff/KREngine-B-ノード担当.md`。
 使い方(`Usage.md` の 8)は、ゲームが呼べる形(Runner)ができてから書く(B6-3)。
-**追加の依頼(C シリーズ。2026-10-15〜)**:C0(imgui-node-editor の取り込みと、動作確認 = ゲート)・C1(データの形 版 2・モデル操作)・C2(JSON 版 2・版 1 からの変換)・C3(Runner)・C4(検証の警告・DrawGraphDebug)・C5a(GraphEditor の表示・ズーム)・C5b(つなぐ・消す・右クリックのメニュー)・C5c(遷移の行の「▲▼×」・論理の入力の「＋」「×」)・C5d(ツールの確認・imnodes を外す・Action2D のコピーで照合 = 4 つとも正解データと一致)済。次は C6(サンプルの Walker.json を版 2 で)。詳しくは 15 節。
+**追加の依頼(C シリーズ。2026-10-15〜)**:C0(imgui-node-editor の取り込みと、動作確認 = ゲート)・C1(データの形 版 2・モデル操作)・C2(JSON 版 2・版 1 からの変換)・C3(Runner)・C4(検証の警告・DrawGraphDebug)・C5a(GraphEditor の表示・ズーム)・C5b(つなぐ・消す・右クリックのメニュー)・C5c(遷移の行の「▲▼×」・論理の入力の「＋」「×」)・C5d(ツールの確認・imnodes を外す・Action2D のコピーで照合 = 4 つとも正解データと一致)済。C6(サンプルの Walker.json を版 2 で)済。次は C7(docs・CHANGELOG・最後の確認)。詳しくは 15 節。
