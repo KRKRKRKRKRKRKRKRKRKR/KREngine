@@ -20,6 +20,20 @@ protected:
     {
         m_Editor = std::make_unique<GraphEditor>();
         m_Graph = MakeStarterGraph();
+        // 使い方:KRGraphEditorProbe.exe [--graph <グラフの JSON>](無ければ、見本のグラフ)
+        const std::vector<std::filesystem::path> args = KR::GetCommandLineArguments();
+        for (size_t i = 1; i + 1 < args.size(); ++i)
+        {
+            Graph loaded;
+            if (args[i] == L"--observe")
+            {
+                m_Observed = std::stoi(args[i + 1].string()); // 光らせるノードの id(SetObservedNode の確認)。負の数 = 止まっている(灰色)
+            }
+            if (args[i] == L"--graph" && LoadGraphFile(args[i + 1], loaded) == GraphLoadResult::Loaded)
+            {
+                m_Graph = std::move(loaded);
+            }
+        }
     }
 
     void OnImGui() override
@@ -29,6 +43,7 @@ protected:
         ImGui::Begin("GraphEditor");
         ImGui::Text("edits=%d  nodes=%d  nextId=%d", m_Edits, static_cast<int>(m_Graph.nodes.size()), m_Graph.nextNodeId);
         m_Editor->DrawWarnings(m_Graph);
+        m_Editor->SetObservedNode(m_Observed < 0 ? -m_Observed : m_Observed, m_Observed < 0);
         if (m_Editor->Draw(m_Graph))
         {
             ++m_Edits;
@@ -42,6 +57,7 @@ private:
     std::unique_ptr<GraphEditor> m_Editor;
     Graph m_Graph;
     int m_Edits = 0;
+    int m_Observed = 0;
 };
 
 std::unique_ptr<KR::Application> KR::CreateApplication()

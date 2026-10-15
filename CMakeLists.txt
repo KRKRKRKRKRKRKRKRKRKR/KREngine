@@ -308,8 +308,8 @@ target_link_libraries(KREngine PRIVATE nlohmann_json::nlohmann_json)
 # ufbx も、エンジンの中だけ(PRIVATE)。公開ヘッダーには、ufbx の型を出さない
 target_link_libraries(KREngine PRIVATE ufbx)
 
-# imnodes も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい
-target_link_libraries(KREngine PRIVATE imnodes)
+# imgui-node-editor も、エンジンの中だけ(PRIVATE)。ゲームの CMake は、変えなくてよい(imnodes は、C5d で外す。今は、確認用 exe だけが使う)
+target_link_libraries(KREngine PRIVATE imgui_node_editor)
 
 # C++23 と UTF-8(日本語のコメント)は、エンジンのヘッダーを使う側にも必要。PUBLIC にして、ゲームに頼らない
 target_compile_features(KREngine PUBLIC cxx_std_23)
