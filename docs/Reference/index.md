@@ -18,6 +18,7 @@ KR エンジンのリファレンスです。以下の機能ごとに分かれ�
 | [Application](Application.md) | ゲームの本体・メインループ(`OnInit` / `OnUpdate` / `OnRender`) |
 | [Renderer](Renderer.md) | 描画の窓口(形を描く・線を引く・カメラや光を渡す) |
 | [Input](Input.md) | キーボード・マウスを読むクラス |
+| [ImGui](ImGui.md) | デバッグの窓(スライダー・ボタン・文字・色・見本の窓) |
 | [Log](Log.md) | ログを出すマクロ |
 | [Assets](Assets.md) | アセット(モデル・音など)のフォルダーの場所 |
 | [Utility](Utility.md) | エンジンの版・起動の引数 |

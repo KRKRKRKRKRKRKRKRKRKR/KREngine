@@ -57,6 +57,7 @@ main { min-width: 0; max-width: 880px; }
 #doc h3 .fn { font-family: var(--font-mono); font-size: .98rem; color: var(--accent); overflow-wrap: anywhere; }
 #doc h3 .fd { font-weight: 500; color: var(--fg); }
 #doc p { margin: .8em 0; }
+#doc img { display: block; max-width: 100%; height: auto; margin: 1em 0; border: 1px solid var(--line); border-radius: 10px; }
 #doc ul, #doc ol { padding-left: 1.4em; }
 #doc li { margin: .25em 0; }
 #doc strong { font-weight: 700; }
@@ -169,7 +170,7 @@ main { min-width: 0; max-width: 880px; }
       var h = line.match(/^##\s+(.+)$/);
       if (h) {
         if (open) { html += '</ul>'; }
-        if (/ほかの資料/.test(h[1])) { open = false; return; }
+        if (/ほかの資料|Web ページ/.test(h[1])) { open = false; return; }
         html += '<h4>' + h[1] + '</h4><ul>'; open = true; return;
       }
       var r = line.match(/^\|\s*\[([A-Za-z]+)\]\(([A-Za-z]+)\.md\)\s*\|/);

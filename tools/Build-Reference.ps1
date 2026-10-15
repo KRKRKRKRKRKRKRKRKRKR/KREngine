@@ -29,6 +29,15 @@ if ($files.Count -eq 0) { throw 'no .md files in docs\Reference' }
 $sb = New-Object Text.StringBuilder
 foreach ($f in $files) {
     $text = [IO.File]::ReadAllText($f.FullName, $utf8).Replace("`r`n", "`n")
+    # images: ![alt](images/x.png) -> a data: URI (the generated html stays ONE file). The .md keeps the relative path (GitHub shows it as is)
+    $text = [regex]::Replace($text, '!\[([^\]]*)\]\((images/[^)\s]+)\)', {
+        param($mm)
+        $imgPath = Join-Path $refDir ($mm.Groups[2].Value.Replace('/', '\'))
+        if (-not (Test-Path -LiteralPath $imgPath)) { throw ('image not found: ' + $mm.Groups[2].Value) }
+        $ext = [IO.Path]::GetExtension($imgPath).TrimStart('.').ToLower()
+        $mime = if ($ext -eq 'jpg') { 'jpeg' } else { $ext }
+        '![' + $mm.Groups[1].Value + '](data:image/' + $mime + ';base64,' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($imgPath)) + ')'
+    })
     if ($text -match '</script') { throw ('a markdown file contains "</script": ' + $f.Name) }
     [void]$sb.Append('<script type="text/markdown" data-page="' + $f.BaseName + '">' + "`n" + $text.TrimEnd() + "`n" + '</script>' + "`n")
 }
