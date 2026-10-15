@@ -48,34 +48,55 @@ git submodule add https://github.com/<アカウント>/KREngine.git External/KRE
 ```
 別の PC では、`git clone --recurse-submodules <ゲームの URL>`(すでに clone したなら `git submodule update --init`)。
 
-### 2-2. ゲームの `CMakeLists.txt`(`samples/Minimal/CMakeLists.txt` を、見本に)
+### 2-2. ゲームの `CMakeLists.txt`(`kr_add_game` を使う。0.14.0 から)
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 project(MyGame LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# ゲームのアセット(モデル・コース・設定など)の場所を、エンジンに教える(エンジンを取り込む前に決める)
-set(KR_GAME_ASSETS_DIR ${CMAKE_SOURCE_DIR}/Assets)
-
-# エンジンを取り込む。KR_ENGINE_PATH を指定すると、サブモジュールの代わりに、手元のエンジンのフォルダーを使える(エンジンを、同時に開発するとき)
+# エンジンを取り込む(サブモジュール)。KR_ENGINE_PATH を指定すると、手元のエンジンのフォルダーを使える(エンジンを同時に開発するとき)
 if(KR_ENGINE_PATH)
     add_subdirectory(${KR_ENGINE_PATH} ${CMAKE_BINARY_DIR}/KREngine)
 else()
     add_subdirectory(External/KREngine)
 endif()
 
-add_executable(MyGame src/MyGame.cpp)
+kr_add_game(MyGame)        # src/ の下の .cpp・.h を自動で集めて、exe を作る
+```
+**これだけ**。`kr_add_game` が、次のことを、まとめて行う。
+
+| `kr_add_game` がすること | 説明 |
+|---|---|
+| ソースを集める | `src/` の下の `.cpp`・`.h`・`.hpp` を、**フォルダーごと、自動で**集める。**ファイルを足しても、`CMakeLists.txt` を直さなくてよい**(次のビルドで、自動で入る) |
+| `#include` の基点 | `src/` が基点。`#include "Gameplay/Coin.h"` と書ける |
+| リンク | `KREngine` にリンクする(C++23 も、エンジンから引き継ぐ) |
+| コピー | DLL・エンジンのシェーダー・ゲームのアセット(`Assets/` の下の全部のフォルダー)を、exe の横へコピーする(Debug でツールも) |
+| Release の設定 | Debug はコンソールあり(ログが見える)・Release はコンソールなし |
+| Visual Studio | このゲームを、最初から、起動する対象にする(`KREngine.lib` を選んで、「開始できません」になるのを防ぐ) |
+
+**書き方**:`kr_add_game(<名前> [SOURCES <フォルダー>...] [LIBRARIES <ライブラリ>...])`
+
+| 引数 | 説明 |
+|---|---|
+| `SOURCES` | ソースのフォルダー(ゲームのフォルダーからの場所)。省略すると `src`。複数書ける(`SOURCES src libs`)。それぞれが `#include` の基点になる |
+| `LIBRARIES` | エンジンのほかに、リンクする物(例 `LIBRARIES nlohmann_json::nlohmann_json`) |
+
+ゲームのアセットの場所は、**省略すると、ゲームのフォルダーの `Assets/`**。別の場所にするときは、エンジンを取り込む**前に** `set(KR_GAME_ASSETS_DIR <場所>)` と書く。
+
+**`kr_add_game` を使わない、詳しい書き方**(`kr_add_game` が、中でしていること。ファイルを 1 つずつ書きたいときなど。0.13.0 までは、こちらだけだった):
+```cmake
+set(KR_GAME_ASSETS_DIR ${CMAKE_SOURCE_DIR}/Assets)       # エンジンを取り込む前に決める
+add_subdirectory(External/KREngine)
+
+add_executable(MyGame src/MyGame.cpp)                     # ファイルを、1 つずつ書く(足したら、ここにも書く)
+target_include_directories(MyGame PRIVATE src)
 target_link_libraries(MyGame PRIVATE KREngine)
+kr_copy_runtime_files(MyGame)                             # DLL・シェーダー・アセットのコピー
 
-# exe の横に、DLL・エンジンのシェーダー・ゲームのアセット(KR_GAME_ASSETS_DIR の下の全部のフォルダー)を、コピーする
-kr_copy_runtime_files(MyGame)
-
-# Debug: コンソールあり(ログが見える) / Release: コンソールなし。どちらも main() から起動させる(main は、エンジンが持っている)
 set_target_properties(MyGame PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
 target_link_options(MyGame PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT MyGame)
 ```
+`kr_add_game` は、後から、使い始められる(古い書き方の `add_executable` と置き換えるだけ)。
 
 ## 3. ゲームのコード(最小)
 ```cpp

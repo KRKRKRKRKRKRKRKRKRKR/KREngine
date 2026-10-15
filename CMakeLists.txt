@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 # エンジンの版:メジャー.マイナー.パッチ(決まりは docs/Versioning.md。更新の記録は CHANGELOG.md)。ここが、版の、唯一の置き場所
-project(KREngine VERSION 0.13.0 LANGUAGES CXX)
+project(KREngine VERSION 0.14.0 LANGUAGES CXX)
 
 # このフォルダーが、最上位(エンジン単体でビルドしている)か、ゲームの一部(ゲームが、add_subdirectory している)か
 # 単体のときは、C++ の規格・Visual Studio のフォルダー表示・サンプルを、ここで決める(ゲームの一部のときは、ゲーム側が決める)
@@ -31,6 +31,9 @@ if(NOT DEFINED KR_GAME_ASSETS_DIR)
         set(KR_GAME_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/samples/Assets")
     else()
         set(KR_GAME_ASSETS_DIR "${CMAKE_SOURCE_DIR}/Assets")
+        # 決めた既定値を、ゲーム側の CMake にも見せる(kr_add_game・kr_copy_runtime_files が、ゲーム側から呼ばれて、この値を読むため。
+        # add_subdirectory の中で決めた変数は、PARENT_SCOPE を付けないと、呼び出し元には戻らない)
+        set(KR_GAME_ASSETS_DIR "${KR_GAME_ASSETS_DIR}" PARENT_SCOPE)
     endif()
 endif()
 
@@ -338,7 +341,8 @@ function(kr_copy_runtime_files target)
     )
 
     if(EXISTS "${KR_GAME_ASSETS_DIR}")
-        file(GLOB asset_entries LIST_DIRECTORIES true "${KR_GAME_ASSETS_DIR}/*")
+        # CONFIGURE_DEPENDS:フォルダー(Enemies など)を足したら、次のビルドで、自動で configure し直して、コピーの対象に入る
+        file(GLOB asset_entries LIST_DIRECTORIES true CONFIGURE_DEPENDS "${KR_GAME_ASSETS_DIR}/*")
         foreach(entry IN LISTS asset_entries)
             if(IS_DIRECTORY "${entry}")
                 get_filename_component(folder_name "${entry}" NAME)
@@ -361,6 +365,48 @@ function(kr_copy_runtime_files target)
             VERBATIM
         )
     endif()
+endfunction()
+
+# ゲームの exe を、1 行で作る(ゲームの CMakeLists.txt から呼ぶ)。add_executable・include の場所・リンク・DLL とアセットのコピー・
+# Release の設定・Visual Studio のスタートアップを、まとめて行う。**ソースは、フォルダーの下を、自動で集める**
+# (.cpp・.h・.hpp。ファイルを足したら、次のビルドで、自動で入る = CMakeLists.txt を、直さなくてよい)
+#   kr_add_game(<名前> [SOURCES <フォルダー>...] [LIBRARIES <ライブラリ>...])
+#     SOURCES  : ソースのフォルダー(ゲームのフォルダーからの場所。省略すると src)。#include の基点にもなる
+#     LIBRARIES: エンジンのほかに、リンクする物(例 nlohmann_json::nlohmann_json)
+#   例:kr_add_game(MyGame SOURCES src)
+function(kr_add_game name)
+    cmake_parse_arguments(PARSE_ARGV 1 KR "" "" "SOURCES;LIBRARIES")
+    if(NOT KR_SOURCES)
+        set(KR_SOURCES src)
+    endif()
+
+    set(game_files "")
+    set(game_include_dirs "")
+    foreach(dir IN LISTS KR_SOURCES)
+        cmake_path(ABSOLUTE_PATH dir BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE OUTPUT_VARIABLE abs_dir)
+        file(GLOB_RECURSE files CONFIGURE_DEPENDS "${abs_dir}/*.cpp" "${abs_dir}/*.h" "${abs_dir}/*.hpp")
+        list(APPEND game_files ${files})
+        list(APPEND game_include_dirs "${abs_dir}")
+        source_group(TREE "${abs_dir}" FILES ${files})   # Visual Studio で、フォルダーの形のまま見せる
+    endforeach()
+    if(NOT game_files)
+        message(FATAL_ERROR "kr_add_game(${name}): ソースが見つかりません(SOURCES: ${KR_SOURCES})。.cpp を置いたフォルダーを、SOURCES に書いてください")
+    endif()
+
+    add_executable(${name} ${game_files})
+    set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+    # C++23 は、KREngine が PUBLIC で要求しているので、ここで書かなくても、引き継がれる。警告は、このゲームだけ
+    target_compile_options(${name} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive- /MP>)
+    target_include_directories(${name} PRIVATE ${game_include_dirs})
+    target_link_libraries(${name} PRIVATE KREngine ${KR_LIBRARIES})
+    kr_copy_runtime_files(${name})
+
+    # Debug: コンソールあり(ログが見える) / Release: コンソールなし。どちらも main()(エンジンが持っている)から起動させる
+    set_target_properties(${name} PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
+    target_link_options(${name} PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
+
+    # Visual Studio で、最初から、このゲームを起動する対象にする(KREngine.lib を選んで「開始できません」になるのを防ぐ)
+    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT ${name})
 endfunction()
 
 # ツールの共通の部品(フォルダーを選ぶ窓。調整ツールどうしで、共有)。KR_BUILD_TOOLS が ON のときだけ。下のツールより、先に
