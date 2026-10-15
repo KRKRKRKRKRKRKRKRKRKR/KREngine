@@ -2,6 +2,7 @@
 
 #include "KR/Core/Log.h"
 
+#include <algorithm>
 #include <cmath>
 #include <set>
 #include <utility>
@@ -230,10 +231,32 @@ namespace KR::Behavior
         }
     }
 
-    bool EvaluateConditionTree(const Graph& graph, NodeId conditionId, const Context& context, float timeInState)
+    bool EvaluateConditionTree(const Graph& graph, NodeId conditionId, const Context& context, float timeInState,
+        std::vector<ConditionResult>* results)
     {
         TreeEvaluation evaluation{ graph, context, timeInState };
         const bool result = EvaluateTree(evaluation, conditionId, 0);
-        return evaluation.failed ? false : result; // 循環・深すぎるときは、途中の結果が、どうであっても、偽
+        const bool finalResult = evaluation.failed ? false : result; // 循環・深すぎるときは、途中の結果が、どうであっても、偽
+
+        if (results != nullptr && !evaluation.failed)
+        {
+            for (const auto& [id, value] : evaluation.memo)
+            {
+                if (value < 0)
+                {
+                    continue; // 評価の途中(ここには、来ないはず)
+                }
+                const auto existing = std::find_if(results->begin(), results->end(), [id = id](const ConditionResult& r) { return r.node == id; });
+                if (existing != results->end())
+                {
+                    existing->value = value == 1;
+                }
+                else
+                {
+                    results->push_back({ id, value == 1 });
+                }
+            }
+        }
+        return finalResult;
     }
 }

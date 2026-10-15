@@ -111,6 +111,7 @@ namespace KR::Behavior
     {
         enteredThisFrame_ = false;
         timeInState_ += deltaTime;
+        lastResults_.clear(); // 直前の Update の、条件の結果(デバッグの表示用)
 
         // 状態の遷移の行を、上から(並びの順 = 調べる順)。最初に成り立った行の、次の状態へ移る
         //   行の入口(条件)が 0(つながっていない)・出口(次の状態)が 0 の行は、使わない(次の行を調べる)
@@ -131,7 +132,7 @@ namespace KR::Behavior
             {
                 continue;
             }
-            if (EvaluateConditionTree(*graph_, row.condition, context, timeInState_))
+            if (EvaluateConditionTree(*graph_, row.condition, context, timeInState_, &lastResults_))
             {
                 currentNode_ = next->id;
                 timeInState_ = 0.0f;
