@@ -77,7 +77,7 @@ bool Intersects(const OBB& box, const Sphere& sphere);
 std::optional<float> Raycast(const Ray& ray, const Sphere& sphere);
 std::optional<float> Raycast(const Ray& ray, const OBB& box);
 ```
-光線が当たるか。当たれば、**始点から当たった点までの距離 `t`**(0 以上。`direction` の長さが 1 ならメートル)を返す。外れれば `std::nullopt`。後ろ向き(形が始点の後ろ)は、外れ。始点が形の中なら、`t = 0`。
+光線が当たるか。当たれば、**始点から当たった点までの距離 t**(0 以上。`direction` の長さが 1 ならメートル)を返す。外れれば `std::nullopt`。後ろ向き(形が始点の後ろ)は、外れ。始点が形の中なら、`t = 0`。
 
 ### KR::RayToSegmentDistance()　光線と線分の距離
 ```cpp

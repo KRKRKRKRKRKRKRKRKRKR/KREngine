@@ -16,6 +16,7 @@ KR エンジンのリファレンスです。以下の機能ごとに分かれ�
 | ページ | 内容 |
 |---|---|
 | [Application](Application.md) | ゲームの本体・メインループ(`OnInit` / `OnUpdate` / `OnRender`) |
+| [MyClass](MyClass.md) | 自分のクラス(自機・敵・コイン)の作り方:ファイル・CMake・動きと描画の分け方 |
 | [Renderer](Renderer.md) | 描画の窓口(形を描く・線を引く・カメラや光を渡す) |
 | [Input](Input.md) | キーボード・マウスを読むクラス |
 | [ImGui](ImGui.md) | デバッグの窓(スライダー・ボタン・文字・色・見本の窓) |
@@ -66,7 +67,7 @@ KR エンジンのリファレンスです。以下の機能ごとに分かれ�
 - [全体の目次(Structure)](../Structure.md)
 
 ## Web ページとして見る
-この `docs/Reference/*.md` が元の資料です。**1 つの Web ページ(目次・機能ごとのページ・関数の検索つき)**にするには、次を実行します。`docs/Reference/reference.html` ができるので、ダブルクリックで、ブラウザで開けます(インターネットにつながっていると、色つきのコードと、フォントが使えます)。
+この `docs/Reference/*.md` が元の資料です。**1 つの Web ページ**(目次・機能ごとのページ・関数の検索つき)にするには、次を実行します。`docs/Reference/reference.html` ができるので、ダブルクリックで、ブラウザで開けます(インターネットにつながっていると、色つきのコードと、フォントが使えます)。
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-Reference.ps1
 ```

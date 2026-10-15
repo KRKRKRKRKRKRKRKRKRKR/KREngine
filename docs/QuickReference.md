@@ -90,7 +90,7 @@ OnInit  →  ループ{ OnUpdate(dt) → OnRender() → OnImGui() }  →  OnShut
 
 ## 3. 最初に知っておく、5 つの考え方
 1. **番号札**:形(`MeshHandle`)・画像(`TextureHandle`)・音(`SoundHandle` / `VoiceHandle`)は、GPU や OS の実体ではなく、**番号札**で持つ。`札.IsValid()` が false なら、失敗(エラーは、ログに出る)。
-2. **描くのは、積むだけ**:`DrawMesh` はその場では描かない。描画リストに積んで、フレームの最後に、まとめて描く。**`OnRender` で呼ぶ**。
+2. **描くのは、積むだけ**:`DrawMesh` はその場では描かない。描画リストに積んで、フレームの最後に、まとめて描く。**OnRender で呼ぶ**。
 3. **座標系**:**左手系**(+X が右・+Y が上・+Z が奥)。長さの単位は**メートル**。行列は DirectXMath で、`拡大 × 回転 × 移動` の順に掛ける。
 4. **アセットの場所**:ゲームの `Assets/` の下。コードでは `KR::GetAssetDirectory("Models")` のように取る(Debug は元のフォルダー・Release は exe の横)。モデルは `Assets/Models/`・音は `Assets/Sounds/`・敵のグラフは `Assets/Enemies/`。
 5. **Debug と Release**:Debug は、ログが全部見える・F1(ツールを開く)・F10(シェーダーの再読み込み)が効く。Release は、`KR_LOG_TRACE` / `KR_LOG_INFO` が消える。
@@ -162,7 +162,7 @@ OnInit  →  ループ{ OnUpdate(dt) → OnRender() → OnImGui() }  →  OnShut
 | `KR::GetAssetDirectory("Models")` | ゲームのアセットの `Models/` の場所(`std::filesystem::path`) |
 | `KR::GetEngineShaderDirectory()` | エンジンのシェーダーの場所(普通は、使わない) |
 
-**`KR::SetAssetRoot` は、ツール用**。ゲームは、呼ばない。
+**KR::SetAssetRoot は、ツール用**。ゲームは、呼ばない。
 
 ### 4-7. 動くモデル(`KR::AnimatedModel`。glTF / FBX。ゲームは、これだけ使う)
 ```cpp

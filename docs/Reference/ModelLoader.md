@@ -13,8 +13,8 @@ replaces:
 モデルのファイル(glTF・FBX)を読んで、形・骨・動きの**データ**(`ModelData`)にする部品。**普通は、`AnimatedModel::Load()` が使うので、ゲームは、直接呼ばない**。モデルの読み込みを、自分で細かく扱いたいとき(骨や動きのデータを、直接見たいときなど)に使う。
 
 - `LoadModel()` は、拡張子で、`.glb` / `.gltf` → `LoadGltf()`、`.fbx` → `LoadFbx()` を選ぶ。拡張子の大文字・小文字は、区別しない。
-- どちらも、**このエンジンの座標系(左手系・Y が上・メートル)**に直して返す。
-- 失敗したら、ログにエラーを出して、**空の `ModelData`** を返す(落ちない)。`IsEmpty()` で調べる。
+- どちらも、**このエンジンの座標系**(左手系・Y が上・メートル)に直して返す。
+- 失敗したら、ログにエラーを出して、**空の ModelData** を返す(落ちない)。`IsEmpty()` で調べる。
 - 読むライブラリ(cgltf・ufbx)の型は、公開ヘッダーに出さない。
 
 ヘッダー:`KR/Animation/LoadModel.h`・`GltfLoader.h`・`FbxLoader.h`・`Skeleton.h`・`AnimationClip.h`

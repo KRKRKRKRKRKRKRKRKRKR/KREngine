@@ -71,7 +71,7 @@ MeshData CreateCheckerPlaneMeshData(uint32_t tilesX, uint32_t tilesZ, float tile
 ```cpp
 MeshData LoadObj(const std::filesystem::path& relativePath);
 ```
-OBJ ファイルを読んで、形のデータにする。失敗したら、ログにエラーを出して、**空の `MeshData`** を返す(`CreateMesh` が、無効な番号札を返す)。`.mtl` に画像(`map_Kd`)があれば、`diffuseTexturePath` に入る。
+OBJ ファイルを読んで、形のデータにする。失敗したら、ログにエラーを出して、**空の MeshData** を返す(`CreateMesh` が、無効な番号札を返す)。`.mtl` に画像(`map_Kd`)があれば、`diffuseTexturePath` に入る。
 
 | 引数 | 説明 |
 |---|---|

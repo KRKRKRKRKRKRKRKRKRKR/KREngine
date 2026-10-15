@@ -157,7 +157,7 @@ main { min-width: 0; max-width: 880px; }
       if (!m) { return; }
       var key = 's' + i; i++;
       if (m[1] === '##') { section = m[2].trim(); return; }
-      if (n !== 'index') { var h = splitHead(m[2]); allFns.push({ page: n, section: section, name: h.name, desc: h.desc, key: key }); }
+      if (n !== 'index' && (section === '関数' || section === '列挙型・構造体')) { var h = splitHead(m[2]); allFns.push({ page: n, section: section, name: h.name, desc: h.desc, key: key }); }
     });
   });
 
@@ -251,14 +251,17 @@ main { min-width: 0; max-width: 880px; }
   function insertContents(name, heads) {
     var first = heads.filter(function (h) { return h.tagName === 'H2' && h.textContent.trim() !== '概要'; })[0];
     if (!first) { return; }
-    var html = '<h2>このページの内容</h2><ul>', section = '';
+    var html = '<h2>このページの内容</h2><ul>', section = '', pendingGroup = '';
     heads.forEach(function (h) {
       if (h.tagName === 'H2') {
         section = h.textContent.trim();
+        pendingGroup = '';
         if (section === '概要') { return; }
-        if (section === '関数' || section === '列挙型・構造体') { html += '<li class="grp">' + esc(section) + '</li>'; }
+        // 「関数」「列挙型・構造体」は、見出しだけ。中の項目が出るときに、見出しも出す(中身が無ければ、出さない)
+        if (section === '関数' || section === '列挙型・構造体') { pendingGroup = section; }
         else { html += '<li><a href="#/' + name + '~' + h.id + '">' + esc(section) + '</a></li>'; }
       } else if (h.tagName === 'H3') {
+        if (pendingGroup) { html += '<li class="grp">' + esc(pendingGroup) + '</li>'; pendingGroup = ''; }
         var fn = h.getAttribute('data-fn'), fd = h.getAttribute('data-fd');
         html += '<li><a class="fn" href="#/' + name + '~' + h.id + '">' + esc(fn) + '</a>' + (fd ? '<span>' + esc(fd) + '</span>' : '') + '</li>';
       }
