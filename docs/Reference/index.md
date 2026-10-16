@@ -24,6 +24,13 @@ KR エンジンのリファレンスです。以下の機能ごとに分かれ�
 | [Assets](Assets.md) | アセット(モデル・音など)のフォルダーの場所 |
 | [Utility](Utility.md) | エンジンの版・起動の引数 |
 
+## エディター(ツールの使い方)
+
+| ページ | 内容 |
+|---|---|
+| [AnimationEditorGuide](AnimationEditorGuide.md) | 動くモデルの**判定の形**を、画面を見ながら調整するツール `KRAnimationEditor`:起動・操作・通しのチュートリアル(ゲームで当たりを確かめる) |
+| [BehaviorEditorGuide](BehaviorEditorGuide.md) | 敵の**行動**を、ノードと線で作るツール `KRBehaviorEditor`:起動・操作・F1 で開く・通しのチュートリアル(敵を動かして、直すとすぐ反映) |
+
 ## 見た目
 
 | ページ | 内容 |
