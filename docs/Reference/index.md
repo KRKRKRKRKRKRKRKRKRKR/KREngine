@@ -79,3 +79,15 @@ KR エンジンのリファレンスです。以下の機能ごとに分かれ�
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-Reference.ps1
 ```
 `.md` を直したら、もう一度実行します。`reference.html` は、Git には入れません(`.gitignore`)。
+
+## Zip で配る(インターネットが無くても見られる)
+ほかの人に渡すときは、`-Zip` を付けて実行します。
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-Reference.ps1 -Zip
+```
+- できる物:`dist\KREngine-Reference-v<版>.zip`(版は `CMakeLists.txt` から自動で取る。例 `v0.14.0`。約 1.2 MB)。中身は `reference.html`・`README.txt`(開き方)・`THIRD_PARTY_LICENSES.txt`(部品のライセンス)。`dist\` は Git には入れない。
+- **インターネットが無くても見られる**:ふだんの `reference.html` は、表示に使う 3 つの部品(marked = Markdown の表示・highlight.js = コードの色・Mermaid = 図)をインターネットから読む。`-Zip` では、この 3 つを `reference.html` の中に入れる(HTML は約 3.7 MB になる)。フォントだけは入れない(日本語のフォントは数 MB〜数十 MB と大きいため)ので、インターネットが無いときは、パソコンにあるフォント(游ゴシック・メイリオ・Consolas)で表示される。
+- 部品は、**版を固定**して、最初の 1 回だけダウンロードし(`build\reference-libs\`)、**SHA256(ファイルの指紋)で、決めた物と同じかを毎回確かめる**(違えば止まる。CMake の外部ライブラリと同じ考え方)。`_template.html` の部品の版を変えたら、`Build-Reference.ps1` の一覧(URL と SHA256)も直す。
+- Zip に入れる説明の元は `docs/Reference/_zip/`(`README.txt`・`THIRD_PARTY_LICENSES.txt`)。
+- **決めたこと(2026-10-16。Ryusei の判断)**:部品は HTML の中に入れる(選ばなかった案:Zip の中の別のフォルダー `lib\` に置く = ファイルがばらばらになると見られない/今のまま = インターネットが要る)・中身は HTML と説明だけ(選ばなかった案:元の Markdown と画像も入れる)・置き場所は `dist\`(Publish-Tools.ps1 と同じ)・作り方は `Build-Reference.ps1 -Zip`(選ばなかった案:Publish-Tools.ps1 に入れる)。
+- **確かめたこと**:Zip を日本語の名前のフォルダーに展開して、Edge で開いた(画面を撮って見た)→ 目次・コードの色・図(Mermaid)が出た。**ネットワークを止めた Edge** でも、同じに出た。2 回目は、ダウンロードせずに、手元の部品を使った。
