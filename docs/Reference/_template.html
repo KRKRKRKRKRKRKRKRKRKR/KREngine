@@ -64,6 +64,9 @@ main { min-width: 0; max-width: 880px; }
 #doc code { font-family: var(--font-mono); font-size: .86em; background: var(--surface-2); border-radius: 5px; padding: .12em .4em; overflow-wrap: anywhere; }
 #doc pre { position: relative; margin: 1em 0; background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px 18px; overflow-x: auto; line-height: 1.6; }
 #doc pre code { background: none; padding: 0; font-size: .82rem; color: inherit; overflow-wrap: normal; white-space: pre; }
+.krmermaid { margin: 1em 0; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; text-align: center; white-space: pre; font-family: var(--font-mono); font-size: .8rem; color: var(--muted); }
+.krmermaid[data-processed="true"] { white-space: normal; font-family: inherit; }
+.krmermaid svg { max-width: 100%; height: auto; }
 .copy { position: absolute; top: 8px; right: 8px; font: inherit; font-size: .74rem; color: var(--code-fg); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; padding: 2px 9px; cursor: pointer; }
 .copy:hover { background: rgba(255,255,255,.16); }
 .hljs-keyword, .hljs-built_in, .hljs-literal { color: var(--t-kw); }
@@ -124,6 +127,7 @@ main { min-width: 0; max-width: 880px; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
 <script>
 (function () {
   var BASE = 'https://github.com/KRKRKRKRKRKRKRKRKRKR/KREngine/blob/main/docs/';
@@ -198,10 +202,40 @@ main { min-width: 0; max-width: 880px; }
     });
   }
 
+  // 図(```mermaid の中身)。mermaid.min.js が、あれば、SVG の図にする。無ければ(オフライン)、元の文字を、コードとして残す
+  function renderMermaid() {
+    var nodes = Array.prototype.slice.call(doc.querySelectorAll('.krmermaid'));
+    if (!nodes.length || typeof mermaid === 'undefined') { return; }
+    // 図の中の文字の幅は、作るときの、フォントで測られる。日本語のフォントが、まだ読み込まれていないと、幅が足りず、文字が切れる
+    // → 図の文字を、先にフォントへ読み込ませてから、作る
+    var texts = nodes.map(function (n) { return n.getAttribute('data-src'); }).join('');
+    var ready = (document.fonts && document.fonts.load) ? document.fonts.load('16px "Noto Sans JP"', texts).catch(function () {}) : Promise.resolve();
+    ready.then(function () {
+      var cs = getComputedStyle(document.documentElement);
+      function v(n) { return cs.getPropertyValue(n).trim(); }
+      try {
+        mermaid.initialize({
+          startOnLoad: false, theme: 'base', securityLevel: 'strict', fontFamily: v('--font-body'),
+          flowchart: { padding: 14, nodeSpacing: 40, rankSpacing: 46, htmlLabels: true, useMaxWidth: true },
+          themeVariables: { background: v('--surface'), primaryColor: v('--surface-2'), primaryTextColor: v('--fg'), primaryBorderColor: v('--accent'),
+            lineColor: v('--muted'), secondaryColor: v('--surface'), tertiaryColor: v('--surface'), edgeLabelBackground: v('--surface'), textColor: v('--fg') }
+        });
+        nodes.forEach(function (el) { el.removeAttribute('data-processed'); el.textContent = el.getAttribute('data-src'); });
+        var p = mermaid.run({ nodes: nodes });
+        if (p && p.catch) { p.catch(function () {}); }
+      } catch (e) {}
+    });
+  }
+
   function decorate(root) {
     Array.prototype.forEach.call(root.querySelectorAll('table'), function (t) {
       var w = document.createElement('div'); w.className = 'tablewrap';
       t.parentNode.insertBefore(w, t); w.appendChild(t);
+    });
+    Array.prototype.forEach.call(root.querySelectorAll('pre > code.language-mermaid'), function (code) {
+      var pre = code.parentNode, d = document.createElement('div');
+      d.className = 'krmermaid'; d.setAttribute('data-src', code.textContent); d.textContent = code.textContent;
+      pre.parentNode.replaceChild(d, pre);
     });
     Array.prototype.forEach.call(root.querySelectorAll('pre'), function (pre) {
       var code = pre.querySelector('code');
@@ -241,6 +275,7 @@ main { min-width: 0; max-width: 880px; }
       }
     });
     decorate(doc);
+    renderMermaid();
     if (name !== 'index') { insertContents(name, heads); }
     setActive(name);
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -309,7 +344,7 @@ main { min-width: 0; max-width: 880px; }
     themeBtn.textContent = labels[mode];
   }
   themeBtn.addEventListener('click', function () {
-    mode = modes[(modes.indexOf(mode) + 1) % modes.length]; applyTheme();
+    mode = modes[(modes.indexOf(mode) + 1) % modes.length]; applyTheme(); renderMermaid();
     try { localStorage.setItem('kr-ref-theme', mode); } catch (e) {}
   });
   applyTheme();
