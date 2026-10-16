@@ -76,14 +76,15 @@ KR エンジンのリファレンスです。以下の機能ごとに分かれ�
 ## Web ページとして見る
 この `docs/Reference/*.md` が元の資料です。**1 つの Web ページ**(目次・機能ごとのページ・関数の検索つき)にするには、次を実行します。`docs/Reference/reference.html` ができるので、ダブルクリックで、ブラウザで開けます(インターネットにつながっていると、色つきのコードと、フォントが使えます)。
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-Reference.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\SchoolProgram\Game\KREngine\tools\Build-Reference.ps1
 ```
+(フルパスで書いてあるので、どのフォルダーの PowerShell から動かしてもよい。`tools\Build-Reference.ps1` だけだと、KREngine のフォルダーにいないときに「存在しません」になる)
 `.md` を直したら、もう一度実行します。`reference.html` は、Git には入れません(`.gitignore`)。
 
 ## Zip で配る(インターネットが無くても見られる)
 ほかの人に渡すときは、`-Zip` を付けて実行します。
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-Reference.ps1 -Zip
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\SchoolProgram\Game\KREngine\tools\Build-Reference.ps1 -Zip
 ```
 - できる物:`dist\KREngine-Reference-v<版>.zip`(版は `CMakeLists.txt` から自動で取る。例 `v0.14.0`。約 1.2 MB)。中身は `reference.html`・`README.txt`(開き方)・`THIRD_PARTY_LICENSES.txt`(部品のライセンス)。`dist\` は Git には入れない。
 - **インターネットが無くても見られる**:ふだんの `reference.html` は、表示に使う 3 つの部品(marked = Markdown の表示・highlight.js = コードの色・Mermaid = 図)をインターネットから読む。`-Zip` では、この 3 つを `reference.html` の中に入れる(HTML は約 3.7 MB になる)。フォントだけは入れない(日本語のフォントは数 MB〜数十 MB と大きいため)ので、インターネットが無いときは、パソコンにあるフォント(游ゴシック・メイリオ・Consolas)で表示される。
