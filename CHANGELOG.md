@@ -3,7 +3,7 @@ title: 更新の記録(CHANGELOG)
 project: KREngine
 kind: 記録
 status: 最新
-updated: 2026-10-14
+updated: 2026-10-19
 replaces:
 ---
 
@@ -16,8 +16,12 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 
 ## [未リリース]
 (次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
+
+## [0.15.0] — 2026-10-19
+ゲームから、ゲームを終わらせる(機能の追加)。
+- 追加:**`Application::RequestQuit()`**(派生クラスの中で呼ぶ)。窓の × を押したときと同じ道筋で終わる(このフレームは最後まで進み、次のフレームの前にループが終わって、`OnShutdown` が呼ばれる)。タイトルの「終了」などに使う。中身は、非公開の `Window::RequestClose()`(`WM_CLOSE` を送るだけ)
 - 追加:**リファレンスを Zip で配る** `tools\Build-Reference.ps1 -Zip` → `dist\KREngine-Reference-v<版>.zip`(`reference.html`・`README.txt`・`THIRD_PARTY_LICENSES.txt`)。表示の部品(marked 4.3.0・highlight.js 11.9.0・Mermaid 10.9.1)を HTML の中に入れるので、**インターネットが無くても見られる**。部品は版を固定し、SHA256 で確かめる(`build\reference-libs\` にためる)。説明の元は `docs/Reference/_zip/`
-- ゲーム側で必要な変更:なし(エンジンのコードは変えていない)
+- ゲーム側で必要な変更:**なし**(終わらせたいときだけ、`RequestQuit()` を呼ぶ)
 
 ## [0.14.0] — 2026-10-15
 ゲームの CMake を、短くする(機能の追加)。ゲームの `CMakeLists.txt` を、**3 行ほど**にできる。

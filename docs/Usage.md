@@ -3,7 +3,7 @@ title: KR エンジンの使い方(最短の入門)
 project: KREngine
 kind: 使い方
 status: 最新
-updated: 2026-10-14
+updated: 2026-10-19
 replaces:
 ---
 
@@ -123,6 +123,8 @@ std::unique_ptr<KR::Application> KR::CreateApplication() { return std::make_uniq
 ```
 
 `OnInit` → ループ(`OnUpdate` → `OnRender` → `OnImGui`)→ `OnShutdown`、という順番で、呼ばれる。
+
+ゲームの中から終わらせるとき(タイトルの「終了」など)は、`RequestQuit()` を呼ぶ(0.15.0。窓の × を押したときと同じ。そのフレームは最後まで進み、次のフレームの前にループが終わって、`OnShutdown` が呼ばれる)。
 
 ## 4. よく使う、呼び出し
 

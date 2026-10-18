@@ -3,7 +3,7 @@ title: エンジンの版(バージョン)の付け方
 project: KREngine
 kind: ルール
 status: 最新
-updated: 2026-10-14
+updated: 2026-10-19
 replaces:
 ---
 
@@ -71,5 +71,6 @@ KR エンジンの版は、**メジャー.マイナー.パッチ**(例 `0.2.1`)�
 | v0.12.0 | ツールのグラフの上で、動いている敵の今の状態を光らせる(`ObserveRunner`・`Observe.h`・`GraphEditor::SetObservedNode`) |
 | v0.13.0 | ノードエディタの拡大縮小・複数条件(かつ・または・でない)・遷移の行ごとのピン(グラフの JSON 版 2。imnodes を imgui-node-editor に替えた) |
 | v0.14.0 | `kr_add_game`(ゲームの CMake を 3 行に・ソースを自動で集める)・アセットのフォルダーを自動で検出・リファレンス(docs/Reference/) |
+| v0.15.0 | `Application::RequestQuit()`(ゲームから終わらせる。タイトルの「終了」用)・リファレンスを Zip で配る(`Build-Reference.ps1 -Zip`) |
 
 (版の番号は、あとから付けた。**v0.1.0・v0.2.0 は、後付けのタグなので、その版のコードには、`KR::GetVersion` も、起動のログの版も、無い**。v0.2.1 から。0.1.0 より前は、版が無い。ゲーム「すれすれ飛行」が、2026-10-08 に取り込んだ版 `4f5420d` は、0.2.0 の途中)

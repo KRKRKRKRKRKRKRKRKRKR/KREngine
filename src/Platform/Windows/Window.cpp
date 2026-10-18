@@ -103,6 +103,14 @@ namespace KR
         return true;
     }
 
+    void Window::RequestClose()
+    {
+        if (m_Handle)
+        {
+            PostMessageW(m_Handle, WM_CLOSE, 0, 0); // 送るだけ(フレームの途中で、窓を壊さない)
+        }
+    }
+
     LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         if (message == WM_NCCREATE)
