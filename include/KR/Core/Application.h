@@ -51,6 +51,10 @@ namespace KR
         // 音を鳴らす窓口(使い方は KR/Audio/Audio.h)
         Audio& GetAudio() { return *m_Audio; }
 
+        // ゲームを終わらせる依頼(タイトルの「終了」など)。窓の × を押したときと同じ道筋で終わる:
+        // このフレームは最後まで進み(OnUpdate → OnRender → OnImGui)、次のフレームの前にループが終わって、OnShutdown が呼ばれる
+        void RequestQuit();
+
     private:
         void OnWindowResize(uint32_t width, uint32_t height);
         void OnKeyDown(uint32_t virtualKey);

@@ -40,6 +40,10 @@ namespace KR
         // たまっているメッセージをすべて処理する。終了要求(WM_QUIT)が来たら false を返す
         bool ProcessMessages();
 
+        // 窓を閉じる依頼(WM_CLOSE を送る。× を押したときと同じ)。すぐには閉じない:次の ProcessMessages で、
+        // WM_CLOSE → 窓を壊す → WM_DESTROY → WM_QUIT と進み、ProcessMessages が false を返して、ループが終わる
+        void RequestClose();
+
         void SetResizeCallback(ResizeCallback callback) { m_ResizeCallback = std::move(callback); }
         void SetKeyDownCallback(KeyDownCallback callback) { m_KeyDownCallback = std::move(callback); }
         void SetKeyUpCallback(KeyUpCallback callback) { m_KeyUpCallback = std::move(callback); }

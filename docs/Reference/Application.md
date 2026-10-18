@@ -3,7 +3,7 @@ title: Application(ゲームの本体)
 project: KREngine
 kind: 使い方
 status: 最新
-updated: 2026-10-15
+updated: 2026-10-19
 replaces:
 ---
 
@@ -116,6 +116,22 @@ Audio& GetAudio();
 ```
 音を鳴らす窓口(`Audio`)を返す。→ [Audio](Audio.md)
 
+### Application::RequestQuit()　ゲームを終わらせる
+```cpp
+void RequestQuit();
+```
+ゲームを終わらせる依頼(0.15.0)。派生クラスの中で呼ぶ(タイトルの「終了」など)。窓の × を押したときと**同じ道筋**で終わる:**このフレームは最後まで進み**(`OnUpdate` → `OnRender` → `OnImGui`)、次のフレームの前にループが終わって、`OnShutdown` が呼ばれる。ImGui のボタンの中で、そのまま呼んでよい。
+
+```cpp
+void OnImGui() override
+{
+    if (ImGui::Button("終了"))
+    {
+        RequestQuit(); // 次のフレームの前に、ループが終わる → OnShutdown
+    }
+}
+```
+
 ### Application::Run()　ループを回す
 ```cpp
 void Run();
@@ -146,3 +162,4 @@ std::unique_ptr<Application> CreateApplication();
 |---|---|
 | `GetRenderer()` | 描画の窓口を返す |
 | `GetAudio()` | 音の窓口を返す |
+| `RequestQuit()` | ゲームを終わらせる依頼(× を押したときと同じ。0.15.0) |

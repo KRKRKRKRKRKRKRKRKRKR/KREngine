@@ -75,6 +75,11 @@ namespace KR
         }
     }
 
+    void Application::RequestQuit()
+    {
+        m_Window->RequestClose(); // × を押したときと同じ(WM_CLOSE)。ループは、次の ProcessMessages で終わる
+    }
+
     //アプリケーションの更新処理
     void Application::Run()
     {
