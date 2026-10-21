@@ -106,6 +106,14 @@ namespace KR
         // 球を、3 つの円(XY・YZ・XZ の面)の線で積む(当たり判定の球の確認用。72 本)
         void DrawWireSphere(const Sphere& sphere, const DirectX::XMFLOAT4& color);
 
+        // 光の確認用の線(デバッグ表示)。光の位置と、届く範囲を、光の色の線で描く(DrawLine と同じく、EndFrame でまとめて描く)
+        // 点光源 = 届く距離の球(3 つの円)/ スポットライト = 向きの線・外側の円錐・内側の円錐。Release ビルドでは、何もしない
+        void DrawLightGizmo(const PointLight& light);
+        void DrawLightGizmo(const SpotLight& light);
+
+        // lighting の、全部の点光源・スポットライトに DrawLightGizmo を呼ぶ(太陽は、位置がないので、描かない)
+        void DrawLightGizmos(const Lighting& lighting);
+
     private:
         // フレームの開始・終了は Application だけが呼ぶ(Game からは呼べない)
         friend class Application;

@@ -790,6 +790,108 @@ namespace KR
         }
     }
 
+    namespace
+    {
+        // 光の色(強さ込みで 1 を超えることがある)を、線の色にする: いちばん強い成分を 1 にそろえる(真っ黒な光は白)
+        XMFLOAT4 GizmoColor(const XMFLOAT3& lightColor)
+        {
+            const float peak = std::max({ lightColor.x, lightColor.y, lightColor.z });
+            if (!(peak > 0.0f) || !std::isfinite(peak))
+            {
+                return { 1.0f, 1.0f, 1.0f, 1.0f };
+            }
+            return { lightColor.x / peak, lightColor.y / peak, lightColor.z / peak, 1.0f };
+        }
+
+        // 中心 center・2 本の軸 axisA / axisB が作る面の上に、半径 radius の円を、線で描く(手前に描く = 床や物に隠れない)
+        void DrawGizmoCircle(Renderer& renderer, FXMVECTOR center, FXMVECTOR axisA, FXMVECTOR axisB, float radius, const XMFLOAT4& color)
+        {
+            constexpr int Segments = 32;
+            constexpr float Step = 2.0f * 3.14159265358979f / Segments;
+            XMFLOAT3 previous = {};
+            for (int i = 0; i <= Segments; ++i)
+            {
+                XMFLOAT3 point;
+                XMStoreFloat3(&point, center + axisA * (radius * std::cos(Step * i)) + axisB * (radius * std::sin(Step * i)));
+                if (i > 0)
+                {
+                    renderer.DrawLine(previous, point, color, true);
+                }
+                previous = point;
+            }
+        }
+    }
+
+    void Renderer::DrawLightGizmo(const PointLight& light)
+    {
+#ifndef NDEBUG
+        if (!IsFinite(light.position) || !(light.range > 0.0f) || !std::isfinite(light.range))
+        {
+            return;
+        }
+        // 届く距離の球を、3 つの円(XY・YZ・XZ の面)で。床や物に隠れないよう、手前に描く(光の確認用なので)
+        const XMFLOAT4 color = GizmoColor(light.color);
+        const XMVECTOR center = XMLoadFloat3(&light.position);
+        DrawGizmoCircle(*this, center, XMVectorSet(1, 0, 0, 0), XMVectorSet(0, 1, 0, 0), light.range, color);
+        DrawGizmoCircle(*this, center, XMVectorSet(0, 1, 0, 0), XMVectorSet(0, 0, 1, 0), light.range, color);
+        DrawGizmoCircle(*this, center, XMVectorSet(1, 0, 0, 0), XMVectorSet(0, 0, 1, 0), light.range, color);
+#else
+        (void)light;
+#endif
+    }
+
+    void Renderer::DrawLightGizmo(const SpotLight& light)
+    {
+#ifndef NDEBUG
+        const XMVECTOR rawDirection = XMLoadFloat3(&light.direction);
+        if (!IsFinite(light.position) || !IsFinite(light.direction) || !(light.range > 0.0f) || !std::isfinite(light.range) ||
+            XMVectorGetX(XMVector3LengthSq(rawDirection)) < 1e-12f)
+        {
+            return;
+        }
+        const XMFLOAT4 color = GizmoColor(light.color);
+        const XMVECTOR position = XMLoadFloat3(&light.position);
+        const XMVECTOR direction = XMVector3Normalize(rawDirection);
+
+        // 向きの線(届く距離の長さ)
+        XMFLOAT3 tip;
+        XMStoreFloat3(&tip, position + direction * light.range);
+        DrawLine(light.position, tip, color, true);
+
+        // 向きに垂直な 2 本の軸(円を描くための物差し)。向きが真上・真下に近いときは、別の軸を基準にする
+        const XMVECTOR helper = std::fabs(XMVectorGetY(direction)) < 0.99f ? XMVectorSet(0, 1, 0, 0) : XMVectorSet(1, 0, 0, 0);
+        const XMVECTOR axisA = XMVector3Normalize(XMVector3Cross(helper, direction));
+        const XMVECTOR axisB = XMVector3Cross(direction, axisA);
+
+        // 外側の円錐(届く距離のところの円 + 光の位置から縁への 4 本の線)と、内側の円錐の円(線の種類は 1 つなので、距離を半分にして見分ける)
+        const float outer = XMConvertToRadians(std::clamp(light.outerAngleDegrees, 0.0f, 89.0f));
+        const float inner = XMConvertToRadians(std::clamp(light.innerAngleDegrees, 0.0f, 89.0f));
+        DrawGizmoCircle(*this, position + direction * light.range, axisA, axisB, light.range * std::tan(outer), color);
+        DrawGizmoCircle(*this, position + direction * (light.range * 0.5f), axisA, axisB, light.range * 0.5f * std::tan(inner), color);
+        const float outerRadius = light.range * std::tan(outer);
+        for (int k = 0; k < 4; ++k)
+        {
+            const float angle = 0.5f * 3.14159265358979f * static_cast<float>(k);
+            XMFLOAT3 edge;
+            XMStoreFloat3(&edge, position + direction * light.range + axisA * (outerRadius * std::cos(angle)) + axisB * (outerRadius * std::sin(angle)));
+            DrawLine(light.position, edge, color, true);
+        }
+#else
+        (void)light;
+#endif
+    }
+    void Renderer::DrawLightGizmos(const Lighting& lighting)
+    {
+        for (const PointLight& light : lighting.pointLights)
+        {
+            DrawLightGizmo(light);
+        }
+        for (const SpotLight& light : lighting.spotLights)
+        {
+            DrawLightGizmo(light);
+        }
+    }
+
     // 2-7 処理5: 描画リストの依頼を1つずつ GPU への命令にする
     void Renderer::ExecuteDrawList()
     {
