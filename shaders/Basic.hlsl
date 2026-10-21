@@ -116,6 +116,11 @@ float4 PSMain(PSInput input) : SV_Target
     // 頂点の色 × 画像の色 × 光
     float3 litColor = input.color.rgb * albedo.rgb * materialDiffuse.rgb * lighting;
 
+    // ハイライト(太陽の光の反射): 物の色には掛けず、光の色 × 鏡面の色 を、足す(強さ 0 なら、何も足さない = 今までの見た目)
+    float3 viewDirection = normalize(cameraPosition.xyz - input.worldPosition);
+    float highlight = BlinnPhong(normal, toLight.xyz, viewDirection, materialParams.x);
+    litColor += lightColor.rgb * materialSpecular.rgb * (materialSpecular.w * highlight);
+
     // フォグ: 遠い物ほど、霧の色に近づく。見える割合 = exp(-濃さ × 距離)(1 = くっきり、0 = 完全に霧の色)
     float distanceToCamera = length(input.worldPosition - cameraPosition.xyz);
     float visibility = exp(-fogParams.x * distanceToCamera);

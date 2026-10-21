@@ -150,7 +150,7 @@ namespace KR
                 const uint32_t b = a + 1;          // 上の段・次の列
                 const uint32_t c = a + stride;     // 下の段・この列
                 const uint32_t d = c + 1;          // 下の段・次の列
-                const uint32_t quad[] = { a, c, b, b, c, d };
+                const uint32_t quad[] = { a, b, c, b, d, c };
                 data.indices.insert(data.indices.end(), std::begin(quad), std::end(quad));
             }
         }

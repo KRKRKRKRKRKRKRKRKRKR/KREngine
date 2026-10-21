@@ -19,3 +19,13 @@ cbuffer FrameConstants : register(b1)
     float4 skyZenith;                  // rgb = 天頂の色 / w = 地平線の光の幅
     float4 skyNadir;                   // rgb = 下の色(視線が地平線より下のとき)
 };
+
+// ハイライト(Blinn-Phong): 光と視線の「真ん中の向き」(ハーフベクトル)が、面の向きに近いほど強い
+// N = 面の向き / L = 物から光へ向かう向き / V = 物からカメラへ向かう向き(どれも長さ 1)/ shininess = 鋭さ(大きいほど小さく鋭い点)
+// 光が当たらない面(N・L が 0 以下)には出さない(面の裏側に、点が出るのを防ぐ)
+float BlinnPhong(float3 N, float3 L, float3 V, float shininess)
+{
+    float3 H = normalize(L + V);
+    float highlight = pow(saturate(dot(N, H)), max(shininess, 1.0));
+    return dot(N, L) > 0.0 ? highlight : 0.0;
+}
