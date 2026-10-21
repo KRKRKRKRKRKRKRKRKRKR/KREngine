@@ -208,6 +208,8 @@ namespace KR
         // 骨つきの物のパレット(DrawSkinnedMesh で、ここに積み、ExecuteDrawList で、GPU の箱に、まとめて書く。毎フレーム空にする)
         std::vector<DirectX::XMFLOAT4X4> m_PaletteStaging;
         std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_PaletteBuffers; // パレットを GPU に渡す箱。フレームの数だけ持つ(GPU が読んでいる途中で書き換えないため)
+        bool m_ReportedLightLimit = false;                               // 光の数の上限を超えた警告を出済みか(1 回だけ出すため)
+        bool m_ReportedBadLight = false;                                 // 使えない光(負の色・距離 0 など)の警告を出済みか
         bool m_ReportedPaletteOverflow = false;                          // 骨つきの物の上限を超えた警告を出済みか(1 回だけ出すため)
 
         // デバッグの線(DrawLine で積み、EndFrame で、まとめて描く)
