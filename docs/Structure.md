@@ -17,6 +17,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | **はじめての人はここから(最短の流れ・関数の早見表・逆引き)** | [QuickReference.md](QuickReference.md) |
 | **リファレンス(機能ごとのページ。サンプルコード・関数・引数・戻り値)** | [Reference/index.md](Reference/index.md) |
 | **エディター(ツール)の使い方:判定の調整・敵の行動(通しのチュートリアルつき)** | [Reference/AnimationEditorGuide.md](Reference/AnimationEditorGuide.md)・[Reference/BehaviorEditorGuide.md](Reference/BehaviorEditorGuide.md) |
+| **ライティング・シェーダーの計画書(点光源・スポット・ハイライト・トゥーン。0.16.0)** | [LightingPlan.md](LightingPlan.md) |
 | **使い方(CMake・Debug と Release・モデル・敵の行動・音の詳しい手順)** | [Usage.md](Usage.md) |
 | 起動から終了までの流れ・初期化・メインループ | [Lifecycle.md](Lifecycle.md) |
 | ウィンドウ・OS メッセージ・ログ | [Platform.md](Platform.md) |
