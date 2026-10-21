@@ -151,11 +151,13 @@ camera.SetFieldOfView(60.0f);       // 視野(度)
 camera.SetRollDegrees(0.0f);        // 傾き(度)
 GetRenderer().SetCamera(camera);
 
-GetRenderer().SetLighting(KR::Lighting{});  // 光(toLight・color・ambient)
+GetRenderer().SetLighting(KR::Lighting{});  // 光(toLight・color・ambient。pointLights・spotLights = 点光源・スポットライト)
 GetRenderer().SetSky(KR::Sky{});            // 空(地平線・天頂・下の色)
 GetRenderer().SetFog(KR::Fog{});            // フォグ(enabled・density)
 ```
 渡さなければ、初期値で描く。座標系:**左手系**(+X が右・+Y が上・+Z が奥)。
+
+**点光源・スポットライト・ハイライト(0.16.0 から)**:`Lighting` の `pointLights`(最大 16)・`spotLights`(最大 8)に、`KR::PointLight`・`KR::SpotLight` を足す。物ごとのハイライトは、`KR::Material`(`specularStrength` を 0 より大きくする)を `DrawMesh(mesh, world, material)` に渡す。光の範囲は `DrawLightGizmos(light)` で見える(Debug だけ)。詳しくは [Reference/Lighting.md](Reference/Lighting.md)・[Reference/Material.md](Reference/Material.md)。
 
 ### 4-3. 入力(`KR::Input`)
 ```cpp

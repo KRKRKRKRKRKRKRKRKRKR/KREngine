@@ -130,7 +130,9 @@ OnInit  →  ループ{ OnUpdate(dt) → OnRender() → OnImGui() }  →  OnShut
 | `KR::Camera`:`SetPosition({x,y,z})`・`LookAt({x,y,z})`・`SetFieldOfView(度)`・`SetRollDegrees(度)`・`SetClipPlanes(近, 遠)` | どこから・どこを・どれくらいの範囲で見るか |
 | `Camera::ScreenPointToRay(x, y, 幅, 高さ)` | 画面の点(マウスの位置)から、世界へ伸びる `Ray` |
 | `Renderer::SetCamera(camera)` | このフレームのカメラ(渡さなければ、初期値) |
-| `KR::Lighting`(`toLight`・`color`・`ambient`)→ `SetLighting` | 太陽の光と環境光 |
+| `KR::Lighting`(`toLight`・`color`・`ambient`・`pointLights`・`spotLights`)→ `SetLighting` | 太陽の光・環境光・点光源(16)・スポットライト(8) |
+| `KR::Material`(`specularStrength` など)→ `DrawMesh(mesh, world, material)` | 物ごとのハイライト(つや)・色の掛け色 |
+| `KR::CreateSphereMeshData(16, 32, 色)` | 球(直径 1 メートル) |
 | `KR::Sky`(`horizonColor`・`zenithColor`・`nadirColor`・`horizonWidth`)→ `SetSky` | 空のグラデーション |
 | `KR::Fog`(`enabled`・`density`)→ `SetFog` | 遠くが霞む霧(色は、空の地平線に合う) |
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 # エンジンの版:メジャー.マイナー.パッチ(決まりは docs/Versioning.md。更新の記録は CHANGELOG.md)。ここが、版の、唯一の置き場所
-project(KREngine VERSION 0.15.0 LANGUAGES CXX)
+project(KREngine VERSION 0.16.0 LANGUAGES CXX)
 
 # このフォルダーが、最上位(エンジン単体でビルドしている)か、ゲームの一部(ゲームが、add_subdirectory している)か
 # 単体のときは、C++ の規格・Visual Studio のフォルダー表示・サンプルを、ここで決める(ゲームの一部のときは、ゲーム側が決める)
