@@ -2,6 +2,7 @@
 
 #include "KR/Renderer/Camera.h"
 #include "KR/Renderer/Lighting.h"
+#include "KR/Renderer/Material.h"
 #include "KR/Renderer/Mesh.h"
 #include "KR/Renderer/Texture.h"
 #include "KR/Physics/Collision.h"
@@ -75,11 +76,17 @@ namespace KR
         // overlay: true なら、深度テストなしで、ほかの物の「手前」に描く(Blender の「In Front」。物の中にある骨を、見せるときなど)。骨つきの形(DrawSkinnedMesh)には使えない
         void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, TextureHandle texture = {}, bool overlay = false);
 
+        // 材質(Material)つき。ハイライトの強さ・鋭さ・色や、物の色への掛け色を、物ごとに決める。材質を渡さない形は、既定の材質(今までと同じ見た目)
+        void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, const Material& material, TextureHandle texture = {}, bool overlay = false);
+
         // 骨つきの形(MeshData::skin を持つ形)を、骨の行列の表(パレット)で動かして描く依頼を、描画リストに積む(OnRender で呼ぶ)
         // palette: 骨ごとの「逆バインド行列 × 骨の今の世界の行列」(ComputeSkinMatrices で作る)。最大 MaxSkinJoints 本
         // 骨なしの形を渡したり、骨つきの形を DrawMesh で描いたりすると、エラー(1 回)を出して、描かない
         // 1 フレームに描ける、骨つきの物は MaxSkinnedDrawsPerFrame 個まで(超えた分は、警告を出して描かない)
         void DrawSkinnedMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, std::span<const DirectX::XMFLOAT4X4> palette, TextureHandle texture = {});
+
+        // 材質つき(DrawMesh の材質つきと同じ)
+        void DrawSkinnedMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, std::span<const DirectX::XMFLOAT4X4> palette, const Material& material, TextureHandle texture = {});
 
         // 骨の本数の上限(パレットの大きさ。シェーダーの MaxJoints と同じ)・1 フレームに描ける骨つきの物の数
         // 512 本(HumanModel は 212 本で、128 では描けなかった)。上限は、DX12 の定数バッファの大きさ(64 KB = 行列 1024 個)。
@@ -98,6 +105,14 @@ namespace KR
 
         // 球を、3 つの円(XY・YZ・XZ の面)の線で積む(当たり判定の球の確認用。72 本)
         void DrawWireSphere(const Sphere& sphere, const DirectX::XMFLOAT4& color);
+
+        // 光の確認用の線(デバッグ表示)。光の位置と、届く範囲を、光の色の線で描く(DrawLine と同じく、EndFrame でまとめて描く)
+        // 点光源 = 届く距離の球(3 つの円)/ スポットライト = 向きの線・外側の円錐・内側の円錐。Release ビルドでは、何もしない
+        void DrawLightGizmo(const PointLight& light);
+        void DrawLightGizmo(const SpotLight& light);
+
+        // lighting の、全部の点光源・スポットライトに DrawLightGizmo を呼ぶ(太陽は、位置がないので、描かない)
+        void DrawLightGizmos(const Lighting& lighting);
 
     private:
         // フレームの開始・終了は Application だけが呼ぶ(Game からは呼べない)
@@ -165,6 +180,7 @@ namespace KR
             MeshHandle mesh;
             DirectX::XMFLOAT4X4 world;
             TextureHandle texture; // 無効なら、白の 1×1
+            Material material;     // 質感(既定 = 今までの見た目)
             bool skinned = false;          // 骨つきか(パレットを使う)
             uint32_t paletteByteOffset = 0; // 骨つきのとき:パレットの表(m_PaletteStaging)の中での、この物のパレットの位置(バイト。256 の倍数)
             bool overlay = false;           // 深度テストなしで、ほかの物の手前に描くか
@@ -200,6 +216,8 @@ namespace KR
         // 骨つきの物のパレット(DrawSkinnedMesh で、ここに積み、ExecuteDrawList で、GPU の箱に、まとめて書く。毎フレーム空にする)
         std::vector<DirectX::XMFLOAT4X4> m_PaletteStaging;
         std::array<std::unique_ptr<DX12UploadBuffer>, FramesInFlight> m_PaletteBuffers; // パレットを GPU に渡す箱。フレームの数だけ持つ(GPU が読んでいる途中で書き換えないため)
+        bool m_ReportedLightLimit = false;                               // 光の数の上限を超えた警告を出済みか(1 回だけ出すため)
+        bool m_ReportedBadLight = false;                                 // 使えない光(負の色・距離 0 など)の警告を出済みか
         bool m_ReportedPaletteOverflow = false;                          // 骨つきの物の上限を超えた警告を出済みか(1 回だけ出すため)
 
         // デバッグの線(DrawLine で積み、EndFrame で、まとめて描く)

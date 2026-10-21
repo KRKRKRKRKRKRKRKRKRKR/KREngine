@@ -3,7 +3,7 @@ title: Renderer(描画)
 project: KREngine
 kind: 使い方
 status: 最新
-updated: 2026-10-15
+updated: 2026-10-21
 replaces:
 ---
 
@@ -148,12 +148,19 @@ void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world,
 | `texture` | 貼る画像。省略すると、白(頂点の色のまま) |
 | `overlay` | `true` で、深度テストなしで、ほかの物の**手前**に描く(物の中にある骨を見せるときなど) |
 
+**材質つき**(0.16.0 から):
+```cpp
+void DrawMesh(MeshHandle mesh, const DirectX::XMMATRIX& world, const Material& material,
+              TextureHandle texture = {}, bool overlay = false);
+```
+`material` で、ハイライトの強さ・鋭さ・色と、物の色への掛け色を決める。材質を渡さない形は、既定の材質(今までと同じ見た目)。→ [Material](Material.md)
+
 ### Renderer::DrawSkinnedMesh()　骨つきの形を描く
 ```cpp
 void DrawSkinnedMesh(MeshHandle mesh, const DirectX::XMMATRIX& world,
                      std::span<const DirectX::XMFLOAT4X4> palette, TextureHandle texture = {});
 ```
-骨つきの形(`MeshData::skin` を持つ形)を、骨の行列の表(パレット)で動かして描く。普通は、`AnimatedModel::Draw()` が呼ぶので、**ゲームは、直接呼ばない**。骨は 512 本まで・1 フレームに 32 個まで。`overlay` は使えない。→ [AnimatedModel](AnimatedModel.md)
+骨つきの形(`MeshData::skin` を持つ形)を、骨の行列の表(パレット)で動かして描く。普通は、`AnimatedModel::Draw()` が呼ぶので、**ゲームは、直接呼ばない**。材質を渡す形(`palette` の次に `const Material& material`)も、ある。骨は 512 本まで・1 フレームに 32 個まで。`overlay` は使えない。→ [AnimatedModel](AnimatedModel.md)
 
 ### Renderer::DrawLine()　線を引く
 ```cpp
@@ -167,6 +174,9 @@ void DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end,
 void DrawWireBox(const OBB& box, const DirectX::XMFLOAT4& color);
 ```
 `OBB` の 12 本の辺を、線で積む。当たり判定の箱の確認用。
+
+### Renderer::DrawLightGizmo() / DrawLightGizmos()　光の範囲を線で描く
+光の位置と届く範囲を、光の色の線で描く(Debug だけ)。→ [Lighting](Lighting.md)
 
 ### Renderer::DrawWireSphere()　球を線で描く
 ```cpp

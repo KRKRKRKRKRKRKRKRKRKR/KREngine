@@ -60,3 +60,9 @@ DirectX 12 / C++23 / Windows の自作ゲームエンジン。ゲームからは
 - ソースは UTF-8(`/utf-8`)。**日本語を含むフォルダーに置いても動く**ように、CMake が埋め込んだ場所(`KR_*_SOURCE_DIR`)は、`char8_t` の列として `std::filesystem::path` にする(`Assets.cpp` の `Utf8Path`)。`path(const char*)` は、日本語 Windows で、CP932 として読まれて、例外になる
 - 引数・設定ファイルなどで、UTF-8 の文字列と `path` を行き来するときも、`u8string()` / `char8_t` を使う(ツールの `EditorApp.cpp` の `ToUtf8` / `FromUtf8` が見本)
 - 動作確認は、「プロセスが生きている」だけでなく、ウィンドウのタイトルが取れること(エラーのダイアログが出ていないこと)まで確かめる
+
+## ライティング(`Renderer`。2026-10-21 に、点光源・スポット・ハイライト。0.16.0)
+詳しくは `docs/Lighting.md` の「0.16.0」・`docs/LightingPlan.md`(計画・決めたこと)・`docs/Reference/Lighting.md`・`Material.md`。
+- **光**:`Lighting` の `pointLights`(最大 16)・`spotLights`(最大 8)。物ごとの質感は `Material`(`DrawMesh` などに、省略できる引数で渡す。既定 = 今までの見た目)。影・法線マップ・トゥーン・反射は、まだ無い
+- **`FrameConstants`(C++ の `Renderer.cpp`)と `cbuffer FrameConstants`(`shaders/Common.hlsli`)は、同じ並び**。変えたら、両方 + `static_assert` を直す。材質は、ルートシグネチャの `b3`(`MaterialRootIndex`・12 個の 32 ビット値。`MaterialConstants` ↔ `Basic.hlsl` の `cbuffer MaterialConstants`)
+- **ライティングの確認**:「見た目が変わらない」は、基準画像との**違う画素の数**で確かめる(固定カメラ・ImGui なし・同じウィンドウの大きさ)。球が暗いときは、光の計算より先に、**三角形の向き**を疑う

@@ -57,4 +57,8 @@ namespace KR
     MeshData CreateCheckerPlaneMeshData(uint32_t tilesX, uint32_t tilesZ, float tileSize,
                                         const DirectX::XMFLOAT3& origin,
                                         const DirectX::XMFLOAT4& colorA, const DirectX::XMFLOAT4& colorB);
+
+    // 球。直径 1 メートル(キューブと同じ大きさ)・中心が原点。rings = 縦の分割(上から下)・segments = 横の分割(ぐるっと一周)。全部の頂点が同じ色
+    // 法線は、中心から外への向き(なめらかな陰影)。UV は、横が u・縦が v(0 〜 1)。目安は 16 × 32(滑らかさが足りなければ増やす)
+    MeshData CreateSphereMeshData(uint32_t rings, uint32_t segments, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f });
 }

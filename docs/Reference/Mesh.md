@@ -3,7 +3,7 @@ title: Mesh(形のデータ)
 project: KREngine
 kind: 使い方
 status: 最新
-updated: 2026-10-15
+updated: 2026-10-21
 replaces:
 ---
 
@@ -66,6 +66,21 @@ MeshData CreateCheckerPlaneMeshData(uint32_t tilesX, uint32_t tilesZ, float tile
 | `tileSize` | タイル 1 枚の 1 辺(メートル) |
 | `origin` | 板の「X・Z が最小の角」の位置(Y が板の高さ) |
 | `colorA`, `colorB` | 交互に塗る 2 色 |
+
+### KR::CreateSphereMeshData()　球
+```cpp
+MeshData CreateSphereMeshData(uint32_t rings, uint32_t segments,
+                              const DirectX::XMFLOAT4& color = { 1, 1, 1, 1 });
+```
+直径 1 メートル(キューブと同じ大きさ)・中心が原点の球。全部の頂点が同じ色。法線は、中心から外への向き(なめらかな陰影)。光・ハイライトの確認や、ボール・球状の物に使う。
+
+| 引数 | 説明 |
+|---|---|
+| `rings` | 縦の分割(上から下)。2 以上。目安は 16 |
+| `segments` | 横の分割(ぐるっと一周)。3 以上。目安は 32 |
+| `color` | 色(r, g, b, a。0〜1)。省略すると白 |
+
+大きくするときは、`world` の拡大で(例:`XMMatrixScaling(2, 2, 2)` で直径 2 メートル)。
 
 ### KR::LoadObj()　OBJ ファイルを読む
 ```cpp

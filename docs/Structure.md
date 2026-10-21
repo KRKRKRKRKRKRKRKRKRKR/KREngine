@@ -17,6 +17,7 @@ KR エンジンの、どのフォルダに何があり、クラスがどう関�
 | **はじめての人はここから(最短の流れ・関数の早見表・逆引き)** | [QuickReference.md](QuickReference.md) |
 | **リファレンス(機能ごとのページ。サンプルコード・関数・引数・戻り値)** | [Reference/index.md](Reference/index.md) |
 | **エディター(ツール)の使い方:判定の調整・敵の行動(通しのチュートリアルつき)** | [Reference/AnimationEditorGuide.md](Reference/AnimationEditorGuide.md)・[Reference/BehaviorEditorGuide.md](Reference/BehaviorEditorGuide.md) |
+| **ライティング・シェーダーの計画書(点光源・スポット・ハイライト・トゥーン。0.16.0)** | [LightingPlan.md](LightingPlan.md) |
 | **使い方(CMake・Debug と Release・モデル・敵の行動・音の詳しい手順)** | [Usage.md](Usage.md) |
 | 起動から終了までの流れ・初期化・メインループ | [Lifecycle.md](Lifecycle.md) |
 | ウィンドウ・OS メッセージ・ログ | [Platform.md](Platform.md) |
@@ -48,7 +49,7 @@ KREngine/
 │   ├─ Physics/                    Collision(OBB・MakeOBB・Intersects・GetCorners・Raycast・RayToSegmentDistance。当たり判定)・Ray(光線)
 │   ├─ Animation/                  AnimatedModel(動くモデルの窓口)・Skeleton・AnimationClip・GltfLoader(LoadGltf。型 ModelData)・FbxLoader(LoadFbx)・LoadModel(拡張子で、glTF か FBX を選ぶ)・Hitbox(骨に追従する判定の形)・HitboxFile(判定の形の保存)・HitboxMirror(判定の形の左右反転・対の骨の名前)・SkeletonDebug(骨の表示)
 │   ├─ Audio/                      Audio(音の窓口。Load / Play / Stop / 全体の音量。札 SoundHandle・VoiceHandle。Application の GetAudio())
-│   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / Sky / Fog の設定)
+│   └─ Renderer/                   Renderer, Camera, Mesh, Texture(TextureHandle), ModelLoader(LoadObj), Lighting(Lighting / PointLight / SpotLight / Sky / Fog の設定), Material(物ごとの質感)
 ├─ src/                          【非公開】ゲームからは見えない
 │   ├─ Audio/                      Audio(XAudio2・声の管理)・SoundLoader(WAV = dr_wav / OGG = stb_vorbis / MP3 = dr_mp3 → 16 ビットの PCM)・AudioCodecs(ライブラリの本体)
 │   ├─ Core/                       Application, EntryPoint(main), Log, Input(状態表), InputState(書き込み口), Assets, EditorLauncher(Debug の F1 で、ツールの exe を起動・前に出す)

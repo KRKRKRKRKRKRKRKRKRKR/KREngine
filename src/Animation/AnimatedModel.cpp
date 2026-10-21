@@ -177,17 +177,22 @@ namespace KR
 
     void AnimatedModel::Draw(Renderer& renderer, const XMMATRIX& world, TextureHandle texture) const
     {
+        Draw(renderer, world, Material{}, texture);
+    }
+
+    void AnimatedModel::Draw(Renderer& renderer, const XMMATRIX& world, const Material& material, TextureHandle texture) const
+    {
         if (!IsLoaded())
         {
             return;
         }
         if (m_Skinned)
         {
-            renderer.DrawSkinnedMesh(m_Mesh, world, m_SkinMatrices, texture);
+            renderer.DrawSkinnedMesh(m_Mesh, world, m_SkinMatrices, material, texture);
         }
         else
         {
-            renderer.DrawMesh(m_Mesh, world, texture);
+            renderer.DrawMesh(m_Mesh, world, material, texture);
         }
     }
 

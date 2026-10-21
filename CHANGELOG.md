@@ -17,6 +17,15 @@ KR エンジンの、版ごとの変更。版の付け方・上げるときの�
 ## [未リリース]
 (次の版に入る変更を、ここに、書いていく。版を出すときに、下へ移す)
 
+## [0.16.0] — 2026-10-21(ブランチ feature/lighting。merge・タグは、まだ)
+ライティングの強化(機能の追加)。**点光源・スポットライト・ハイライト**。影・法線マップ・トゥーンは、まだ無い。
+- 追加:**点光源** `KR::PointLight`(位置・色・届く距離)・**スポットライト** `KR::SpotLight`(位置・向き・色・届く距離・内側と外側の角度)。`Lighting` の `pointLights`(最大 16)・`spotLights`(最大 8)に足す。明るさは、距離の 2 乗に反比例 × 届く距離で滑らかに 0。超えた分・使えない光は、警告を 1 回出して使わない
+- 追加:**材質** `KR::Material`(拡散の掛け色・ハイライトの色・鋭さ・強さ)。`Renderer::DrawMesh(mesh, world, material, texture, overlay)`・`DrawSkinnedMesh(..., palette, material, texture)`・`AnimatedModel::Draw(renderer, world, material, texture)` の、材質つきの形を足した。ハイライトは Blinn-Phong で、太陽・点光源・スポットライトの全部に出る(`specularStrength` の既定は 0 = 出ない)
+- 追加:**`CreateSphereMeshData(rings, segments, color)`**(球。直径 1 メートル)
+- 追加:**`Renderer::DrawLightGizmo(PointLight / SpotLight)`・`DrawLightGizmos(Lighting)`**(光の範囲を、手前に描く線で。Release では何もしない)
+- 内部:ルートシグネチャに `b3`(材質。ピクセルシェーダー専用の root constants 12 個)を足した。`FrameConstants` に光の配列を足した(`static_assert` で並びを確かめる)。`shaders/Common.hlsli` に `BlinnPhong`・`Attenuation`・`SpotFactor`
+- ゲーム側で必要な変更:**なし**。光も材質も、渡さなければ、今までと同じ見た目(基準画像との差を数えて確かめた)。ただし、**`DrawMesh(mesh, world, {})` のように、画像の位置に `{}` を書いていると、材質つきの形と区別できず、コンパイルエラーになる**(`TextureHandle{}` と書く)。すれすれ飛行・Action2D には、そのような書き方は無かった
+
 ## [0.15.0] — 2026-10-19
 ゲームから、ゲームを終わらせる(機能の追加)。
 - 追加:**`Application::RequestQuit()`**(派生クラスの中で呼ぶ)。窓の × を押したときと同じ道筋で終わる(このフレームは最後まで進み、次のフレームの前にループが終わって、`OnShutdown` が呼ばれる)。タイトルの「終了」などに使う。中身は、非公開の `Window::RequestClose()`(`WM_CLOSE` を送るだけ)

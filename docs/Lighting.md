@@ -3,7 +3,7 @@ title: 光・フォグ・地面・障害物・空(フェーズ4)
 project: KREngine
 kind: 設計
 status: 最新
-updated: 2026-10-07
+updated: 2026-10-21
 replaces:
 ---
 
@@ -673,3 +673,31 @@ flowchart TD
 | [Common.hlsli](../shaders/Common.hlsli) | `inverseViewProjection` のコメントを、「カメラの位置は含まない」に |
 
 **学んだこと**:大きな数(自機の位置)を足してから、引くと、誤差が出る。位置が要らない計算(向きだけ)は、位置を、最初から、入れない。
+
+## 0.16.0:点光源・スポットライト・ハイライト(2026-10-21。ブランチ feature/lighting)
+計画・決めたこと・タスクは [LightingPlan.md](LightingPlan.md)。ここは、**できた仕組み**。使い方は [Reference/Lighting.md](Reference/Lighting.md)・[Reference/Material.md](Reference/Material.md)。
+
+### 仕組み
+- **光の受け渡し**:`Lighting::pointLights`(最大 16)・`spotLights`(最大 8)→ `Renderer::BeginFrame` が、検査して(上限・負の色・距離 0 以下・向き 0・角度)、`FrameConstants`(b1)の配列に書く。配列は、**使う分だけ**が有効(個数 `lightCounts` を見て、ピクセルシェーダーが回す)。向きは長さ 1 に・角度は cos にして渡す(シェーダーで、毎画素、計算しない)。
+- **`FrameConstants` の並び**:`Renderer.cpp` の `struct FrameConstants` と `shaders/Common.hlsli` の `cbuffer FrameConstants` は、**完全に同じ並び**。`static_assert` で、先頭の位置(272 バイト)と全体の大きさを確かめる。光の配列は、すべて `float4`(HLSL の 16 バイトの区切りで、ずれない)。
+- **材質**:物ごとのデータは、**ルートシグネチャの `b3`(ピクセル専用・root constants 12 個)**で渡す(`MaterialRootIndex`)。1 つの物ごとに、`SetGraphicsRoot32BitConstants` で書く。`Material`(公開)→ `MaterialConstants`(`Renderer.cpp`。float4 × 3)に写す。空・線のシェーダーは `b3` を読まない。
+- **ピクセルシェーダー(`Basic.hlsl` の `PSMain`)**:拡散 = 環境光 + 太陽 + Σ 点光源 + Σ スポット。**ハイライトは、光ごとに `BlinnPhong` を求めて足す**(物の色には掛けず、`材質の specularColor × specularStrength` を掛ける)。`specularStrength` が 0 なら、足すのは 0 = **今までの見た目**(基準画像との差を数えると、0 か、丸めだけの差 3 画素・最大差 1)。
+- **距離の弱まり**:`Attenuation(d, range) = window² / (d² + 0.01)`、`window = saturate(1 − (d/range)⁴)`。距離の 2 乗に反比例(現実の光と同じ)× `range` で滑らかに 0。分母の 0.01 は、距離 0 の割り算を防ぐ。
+- **スポットの円錐**:`SpotFactor` = `cos` の差を、内側と外側の間で、`smoothstep`。内側 = 外側のときは、段差になる(0 除算は、小さい数で防ぐ)。
+
+### 決めたこと(理由)・選ばなかった案
+- **ハイライトは、物の色に掛けない**:現実の、つやのある物の反射は、光の色になる(プラスチック)。金属のように色を付けたいときは、`specularColor` で。
+- **材質は、root constants(`b3`)**:物ごとに変わる小さいデータなので、`b0`(ワールド行列)と同じ方法。選ばなかった案:定数バッファに、物の数ぶん並べる(管理が増える)/ `Vertex` に入れる(頂点の形式の変更が、ローダー・スキニングに及ぶ)。
+- **光は、`FrameConstants` の配列**:1 フレームに 1 回書けば済む。選ばなかった案:構造化バッファ(上限を、増やせる。が、16 + 8 で足りるうちは、定数バッファのほうが単純)・クラスタ化(光が数百個のとき。今は要らない)。
+- **影・法線マップ・トゥーンは、今回はしない**(`LightingPlan.md` の「次の段階」)。
+
+### 確認したこと
+- 基準画像(固定カメラの場面:板・キューブ・球 3・骨つきの人)との**違う画素の数**を数えた(`材質なし・光なし` = 0 か、最大差 1 の 3 画素)。
+- 点光源 3・16 個 / スポット 2・8 個の画面。17 個で警告 1 回・16 個では出ない。使えない光(負の色・距離 0・位置が NaN・向き 0・内側 > 外側・角度 0)で、画面が壊れない・警告は 1 回。
+- 点光源 16 + スポット 8 + ハイライトで、Debug ビルドが 59 FPS(垂直同期の上限)。
+- **見つけた不具合**:球の三角形の向きが逆で、内側が見えていた(ハイライトが出ないことで、気づいた。**球が暗いのは、光の計算ではなく、向きを疑う**)。
+
+### 既知の制限
+- 影が無い(光は、物を通り抜ける)・法線マップが無い・反射(まわりの景色が映る)が無い。
+- 光の数の上限は、点光源 16・スポット 8(シェーダーの配列の大きさ。増やすときは、`Common.hlsli`・`Renderer.cpp`・`Lighting.h` の 3 か所)。
+- ピクセルごとに、全部の光を計算する(光が多く、画面が広いと、重くなる)。

@@ -18,4 +18,38 @@ cbuffer FrameConstants : register(b1)
     float4 skyHorizon;                 // rgb = 地平線の色
     float4 skyZenith;                  // rgb = 天頂の色 / w = 地平線の光の幅
     float4 skyNadir;                   // rgb = 下の色(視線が地平線より下のとき)
+    float4 lightCounts;                // x = 点光源の数 / y = スポットライトの数
+    float4 pointPositionRange[16];     // xyz = 位置 / w = 届く距離(16 は、C++ 側の MaxPointLights)
+    float4 pointColor[16];             // rgb = 色(強さ込み)
+    float4 spotPositionRange[8];       // xyz = 位置 / w = 届く距離(8 は、C++ 側の MaxSpotLights)
+    float4 spotDirectionOuter[8];      // xyz = 向き(長さ 1。光が向かう向き) / w = cos(外側の角度)
+    float4 spotColorInner[8];          // rgb = 色(強さ込み) / w = cos(内側の角度)
 };
+
+// ハイライト(Blinn-Phong): 光と視線の「真ん中の向き」(ハーフベクトル)が、面の向きに近いほど強い
+// N = 面の向き / L = 物から光へ向かう向き / V = 物からカメラへ向かう向き(どれも長さ 1)/ shininess = 鋭さ(大きいほど小さく鋭い点)
+// 光が当たらない面(N・L が 0 以下)には出さない(面の裏側に、点が出るのを防ぐ)
+float BlinnPhong(float3 N, float3 L, float3 V, float shininess)
+{
+    float3 H = normalize(L + V);
+    float highlight = pow(saturate(dot(N, H)), max(shininess, 1.0));
+    return dot(N, L) > 0.0 ? highlight : 0.0;
+}
+
+// 光の距離による弱まり: 距離の 2 乗に反比例(現実の光と同じ)× 届く距離(range)のところで 0 になる窓(滑らかに消える)
+// 光の色は「1 メートルの距離での明るさ」。距離 0 でも割り算が壊れないよう、分母に小さい数を足す
+float Attenuation(float distanceToLight, float range)
+{
+    float ratio = distanceToLight / range;
+    float window = saturate(1.0 - ratio * ratio * ratio * ratio); // 1 - (d/range)^4
+    return window * window / (distanceToLight * distanceToLight + 0.01);
+}
+
+// スポットライトの円錐の中での強さ(0 〜 1): 内側の角度の内側は 1・外側の角度の外側は 0・その間は滑らかにつなぐ
+// directionToLight = 物から光へ向かう向き / spotDirection = 光が向かう向き(どちらも長さ 1)。cos の大きい方が、角度が小さい
+float SpotFactor(float3 directionToLight, float3 spotDirection, float cosOuter, float cosInner)
+{
+    float cosAngle = dot(-directionToLight, spotDirection);
+    float t = saturate((cosAngle - cosOuter) / max(cosInner - cosOuter, 0.0001));
+    return t * t * (3.0 - 2.0 * t);
+}

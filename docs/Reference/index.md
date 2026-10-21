@@ -3,7 +3,7 @@ title: KR エンジン リファレンス(目次)
 project: KREngine
 kind: 使い方
 status: 最新
-updated: 2026-10-15
+updated: 2026-10-21
 replaces:
 ---
 
@@ -38,7 +38,8 @@ KR エンジンのリファレンスです。以下の機能ごとに分かれ�
 | [Mesh](Mesh.md) | 形のデータ(キューブ・板・OBJ・自作) |
 | [Texture](Texture.md) | 形に貼る画像 |
 | [Camera](Camera.md) | どこから・どこを見るか。画面の点から光線を作る |
-| [Lighting](Lighting.md) | 光・空・霧の設定 |
+| [Lighting](Lighting.md) | 光(太陽・点光源・スポットライト)・空・霧の設定 |
+| [Material](Material.md) | 物ごとの質感(ハイライトの強さ・鋭さ・色) |
 
 ## 当たり判定
 

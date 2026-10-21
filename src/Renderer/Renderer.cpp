@@ -17,6 +17,7 @@
 
 #include <DirectXMath.h>
 
+#include <algorithm>
 #include <cmath>
 
 #include <filesystem>
@@ -37,7 +38,16 @@ namespace KR
 
     namespace
     {
-        // b1 の別紙(定数バッファ)の中身。シェーダーの cbuffer FrameConstants と形を合わせる
+        // b3 の箱(root constants)の中身。シェーダーの cbuffer MaterialConstants と形を合わせる(float4 × 3 = 数字 12 個)
+        struct MaterialConstants
+        {
+            XMFLOAT4 diffuse;  // rgb = 物の色に掛ける色
+            XMFLOAT4 specular; // rgb = ハイライトの色 / w = ハイライトの強さ
+            XMFLOAT4 params;   // x = ハイライトの鋭さ(残りは、予約)
+        };
+        static_assert(sizeof(MaterialConstants) == MaterialConstantsCount * sizeof(uint32_t), "b3 の数字の個数と合わせる");
+
+        // b1 の別紙(定数バッファ)の中身。シェーダーの cbuffer FrameConstants(Common.hlsli)と形を合わせる
         // float4 にそろえているのは、HLSL の定数バッファが「16 バイトの区切り」で並ぶため(float3 だと、並びがずれる)
         struct FrameConstants
         {
@@ -52,7 +62,19 @@ namespace KR
             XMFLOAT4 skyHorizon;     // rgb = 地平線の色
             XMFLOAT4 skyZenith;      // rgb = 天頂の色 / w = 地平線の光の幅
             XMFLOAT4 skyNadir;       // rgb = 下の色(視線が地平線より下のとき)
+            XMFLOAT4 lightCounts;    // x = 点光源の数 / y = スポットライトの数
+            XMFLOAT4 pointPositionRange[MaxPointLights]; // xyz = 位置 / w = 届く距離
+            XMFLOAT4 pointColor[MaxPointLights];         // rgb = 色(強さ込み)
+            XMFLOAT4 spotPositionRange[MaxSpotLights];   // xyz = 位置 / w = 届く距離
+            XMFLOAT4 spotDirectionOuter[MaxSpotLights];  // xyz = 向き(長さ 1) / w = cos(外側の角度)
+            XMFLOAT4 spotColorInner[MaxSpotLights];      // rgb = 色(強さ込み) / w = cos(内側の角度)
         };
+        // 並びの確認:先頭から 11 個の行列・float4 の続き(行列 2 つ = 128 バイト + float4 9 個 = 144 バイト = 272)に、光の配列が続く
+        static_assert(offsetof(FrameConstants, lightCounts) == 272, "シェーダーの cbuffer FrameConstants と、並びを合わせる");
+        static_assert(sizeof(FrameConstants) == 272 + 16 * (1 + 2 * MaxPointLights + 3 * MaxSpotLights), "光の配列の大きさ");
+
+        bool IsFinite(const XMFLOAT3& v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); }
+        bool IsLightColor(const XMFLOAT3& c) { return IsFinite(c) && c.x >= 0.0f && c.y >= 0.0f && c.z >= 0.0f; }
 
         // シェーダーから見える札掛け(SRV ヒープ)の枠の数。ImGui のフォント画像など、画像の札を掛ける
         constexpr uint32_t SrvHeapSize = 64;
@@ -417,7 +439,7 @@ namespace KR
         const float aspectRatio = width / height;
 
         // 2-6 処理4: ビュー行列 × プロジェクション行列を CPU で1つにまとめ、このフレーム用の別紙に書く
-        FrameConstants frameConstants;
+        FrameConstants frameConstants = {}; // 光の配列は、使わない枠を 0 にしておく
         const XMMATRIX viewProjection = m_Camera.GetViewMatrix() * m_Camera.GetProjectionMatrix(aspectRatio);
         XMStoreFloat4x4(&frameConstants.viewProjection, viewProjection);
 
@@ -437,6 +459,63 @@ namespace KR
         XMStoreFloat4(&frameConstants.toLight, XMVector3Normalize(XMLoadFloat3(&m_Lighting.toLight)));
         frameConstants.lightColor = { m_Lighting.color.x, m_Lighting.color.y, m_Lighting.color.z, 0.0f };
         frameConstants.ambientColor = { m_Lighting.ambient.x, m_Lighting.ambient.y, m_Lighting.ambient.z, 0.0f };
+
+        // 点光源・スポットライト: 上限を超えた分と、使えない光(負の色・届く距離 0 以下・向き 0 など)は、警告を 1 回出して、使わない
+        bool skippedBadLight = false;
+        if (m_Lighting.pointLights.size() > MaxPointLights || m_Lighting.spotLights.size() > MaxSpotLights)
+        {
+            if (!m_ReportedLightLimit)
+            {
+                m_ReportedLightLimit = true;
+                KR_LOG_WARN("SetLighting: 光の数が上限を超えています(点光源 {} 個 / 上限 {}・スポットライト {} 個 / 上限 {})。超えた分は使いません",
+                            m_Lighting.pointLights.size(), MaxPointLights, m_Lighting.spotLights.size(), MaxSpotLights);
+            }
+        }
+        uint32_t pointCount = 0;
+        for (size_t i = 0; i < m_Lighting.pointLights.size() && pointCount < MaxPointLights; ++i)
+        {
+            const PointLight& light = m_Lighting.pointLights[i];
+            if (!IsFinite(light.position) || !IsLightColor(light.color) || !(light.range > 0.0f) || !std::isfinite(light.range))
+            {
+                skippedBadLight = true;
+                continue;
+            }
+            frameConstants.pointPositionRange[pointCount] = { light.position.x, light.position.y, light.position.z, light.range };
+            frameConstants.pointColor[pointCount] = { light.color.x, light.color.y, light.color.z, 0.0f };
+            ++pointCount;
+        }
+        uint32_t spotCount = 0;
+        for (size_t i = 0; i < m_Lighting.spotLights.size() && spotCount < MaxSpotLights; ++i)
+        {
+            const SpotLight& light = m_Lighting.spotLights[i];
+            const XMVECTOR direction = XMLoadFloat3(&light.direction);
+            if (!IsFinite(light.position) || !IsFinite(light.direction) || !IsLightColor(light.color) || !(light.range > 0.0f) ||
+                !std::isfinite(light.range) || !std::isfinite(light.innerAngleDegrees) || !std::isfinite(light.outerAngleDegrees) ||
+                XMVectorGetX(XMVector3LengthSq(direction)) < 1e-12f)
+            {
+                skippedBadLight = true;
+                continue;
+            }
+            // 角度は 0 〜 89 度に収める(90 度以上は、cos が 0 以下で、円錐にならない)。内側が外側より大きいときは、内側を外側に合わせる
+            const float outer = std::clamp(light.outerAngleDegrees, 0.0f, 89.0f);
+            const float inner = std::clamp(light.innerAngleDegrees, 0.0f, outer);
+            if (inner != light.innerAngleDegrees || outer != light.outerAngleDegrees)
+            {
+                skippedBadLight = true; // 直して使う(警告は、使えない光と同じ 1 回)
+            }
+            XMFLOAT3 unitDirection;
+            XMStoreFloat3(&unitDirection, XMVector3Normalize(direction));
+            frameConstants.spotPositionRange[spotCount] = { light.position.x, light.position.y, light.position.z, light.range };
+            frameConstants.spotDirectionOuter[spotCount] = { unitDirection.x, unitDirection.y, unitDirection.z, std::cos(XMConvertToRadians(outer)) };
+            frameConstants.spotColorInner[spotCount] = { light.color.x, light.color.y, light.color.z, std::cos(XMConvertToRadians(inner)) };
+            ++spotCount;
+        }
+        frameConstants.lightCounts = { static_cast<float>(pointCount), static_cast<float>(spotCount), 0.0f, 0.0f };
+        if (skippedBadLight && !m_ReportedBadLight)
+        {
+            m_ReportedBadLight = true;
+            KR_LOG_WARN("SetLighting: 使えない光があります(色が負・位置や向きが数でない・届く距離が 0 以下・向きの長さが 0)。その光は使わず、角度は範囲に直します");
+        }
 
         // 4-4: フォグも同じ別紙に書く。霧の色は、空の地平線の色と同じにする(遠くが空に溶けるように)。フォグなしは、濃さ 0(見える割合が常に 1)
         const XMFLOAT3& cameraPosition = m_Camera.GetPosition();
@@ -600,8 +679,14 @@ namespace KR
     // 2-7 処理4: その場では描かず、依頼メモを描画リストに積むだけ
     void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world, TextureHandle texture, bool overlay)
     {
+        DrawMesh(mesh, world, Material{}, texture, overlay);
+    }
+
+    void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world, const Material& material, TextureHandle texture, bool overlay)
+    {
         DrawCommand command;
         command.mesh = mesh;
+        command.material = material;
         command.texture = texture;
         command.overlay = overlay;
         XMStoreFloat4x4(&command.world, world); // 計算用の XMMATRIX を、保存用の XMFLOAT4X4 に書き出す
@@ -610,6 +695,11 @@ namespace KR
 
     // A-5: 骨つきの形。DrawMesh と同じく、依頼メモを積むだけ。パレットは、表(m_PaletteStaging)に、256 バイト区切りで積む
     void Renderer::DrawSkinnedMesh(MeshHandle mesh, const XMMATRIX& world, std::span<const XMFLOAT4X4> palette, TextureHandle texture)
+    {
+        DrawSkinnedMesh(mesh, world, palette, Material{}, texture);
+    }
+
+    void Renderer::DrawSkinnedMesh(MeshHandle mesh, const XMMATRIX& world, std::span<const XMFLOAT4X4> palette, const Material& material, TextureHandle texture)
     {
         if (palette.empty() || palette.size() > MaxSkinJoints)
         {
@@ -633,6 +723,7 @@ namespace KR
 
         DrawCommand command;
         command.mesh = mesh;
+        command.material = material;
         command.texture = texture;
         command.skinned = true;
         command.paletteByteOffset = static_cast<uint32_t>(byteOffset);
@@ -696,6 +787,108 @@ namespace KR
                 }
                 previous = point;
             }
+        }
+    }
+
+    namespace
+    {
+        // 光の色(強さ込みで 1 を超えることがある)を、線の色にする: いちばん強い成分を 1 にそろえる(真っ黒な光は白)
+        XMFLOAT4 GizmoColor(const XMFLOAT3& lightColor)
+        {
+            const float peak = std::max({ lightColor.x, lightColor.y, lightColor.z });
+            if (!(peak > 0.0f) || !std::isfinite(peak))
+            {
+                return { 1.0f, 1.0f, 1.0f, 1.0f };
+            }
+            return { lightColor.x / peak, lightColor.y / peak, lightColor.z / peak, 1.0f };
+        }
+
+        // 中心 center・2 本の軸 axisA / axisB が作る面の上に、半径 radius の円を、線で描く(手前に描く = 床や物に隠れない)
+        void DrawGizmoCircle(Renderer& renderer, FXMVECTOR center, FXMVECTOR axisA, FXMVECTOR axisB, float radius, const XMFLOAT4& color)
+        {
+            constexpr int Segments = 32;
+            constexpr float Step = 2.0f * 3.14159265358979f / Segments;
+            XMFLOAT3 previous = {};
+            for (int i = 0; i <= Segments; ++i)
+            {
+                XMFLOAT3 point;
+                XMStoreFloat3(&point, center + axisA * (radius * std::cos(Step * i)) + axisB * (radius * std::sin(Step * i)));
+                if (i > 0)
+                {
+                    renderer.DrawLine(previous, point, color, true);
+                }
+                previous = point;
+            }
+        }
+    }
+
+    void Renderer::DrawLightGizmo(const PointLight& light)
+    {
+#ifndef NDEBUG
+        if (!IsFinite(light.position) || !(light.range > 0.0f) || !std::isfinite(light.range))
+        {
+            return;
+        }
+        // 届く距離の球を、3 つの円(XY・YZ・XZ の面)で。床や物に隠れないよう、手前に描く(光の確認用なので)
+        const XMFLOAT4 color = GizmoColor(light.color);
+        const XMVECTOR center = XMLoadFloat3(&light.position);
+        DrawGizmoCircle(*this, center, XMVectorSet(1, 0, 0, 0), XMVectorSet(0, 1, 0, 0), light.range, color);
+        DrawGizmoCircle(*this, center, XMVectorSet(0, 1, 0, 0), XMVectorSet(0, 0, 1, 0), light.range, color);
+        DrawGizmoCircle(*this, center, XMVectorSet(1, 0, 0, 0), XMVectorSet(0, 0, 1, 0), light.range, color);
+#else
+        (void)light;
+#endif
+    }
+
+    void Renderer::DrawLightGizmo(const SpotLight& light)
+    {
+#ifndef NDEBUG
+        const XMVECTOR rawDirection = XMLoadFloat3(&light.direction);
+        if (!IsFinite(light.position) || !IsFinite(light.direction) || !(light.range > 0.0f) || !std::isfinite(light.range) ||
+            XMVectorGetX(XMVector3LengthSq(rawDirection)) < 1e-12f)
+        {
+            return;
+        }
+        const XMFLOAT4 color = GizmoColor(light.color);
+        const XMVECTOR position = XMLoadFloat3(&light.position);
+        const XMVECTOR direction = XMVector3Normalize(rawDirection);
+
+        // 向きの線(届く距離の長さ)
+        XMFLOAT3 tip;
+        XMStoreFloat3(&tip, position + direction * light.range);
+        DrawLine(light.position, tip, color, true);
+
+        // 向きに垂直な 2 本の軸(円を描くための物差し)。向きが真上・真下に近いときは、別の軸を基準にする
+        const XMVECTOR helper = std::fabs(XMVectorGetY(direction)) < 0.99f ? XMVectorSet(0, 1, 0, 0) : XMVectorSet(1, 0, 0, 0);
+        const XMVECTOR axisA = XMVector3Normalize(XMVector3Cross(helper, direction));
+        const XMVECTOR axisB = XMVector3Cross(direction, axisA);
+
+        // 外側の円錐(届く距離のところの円 + 光の位置から縁への 4 本の線)と、内側の円錐の円(線の種類は 1 つなので、距離を半分にして見分ける)
+        const float outer = XMConvertToRadians(std::clamp(light.outerAngleDegrees, 0.0f, 89.0f));
+        const float inner = XMConvertToRadians(std::clamp(light.innerAngleDegrees, 0.0f, 89.0f));
+        DrawGizmoCircle(*this, position + direction * light.range, axisA, axisB, light.range * std::tan(outer), color);
+        DrawGizmoCircle(*this, position + direction * (light.range * 0.5f), axisA, axisB, light.range * 0.5f * std::tan(inner), color);
+        const float outerRadius = light.range * std::tan(outer);
+        for (int k = 0; k < 4; ++k)
+        {
+            const float angle = 0.5f * 3.14159265358979f * static_cast<float>(k);
+            XMFLOAT3 edge;
+            XMStoreFloat3(&edge, position + direction * light.range + axisA * (outerRadius * std::cos(angle)) + axisB * (outerRadius * std::sin(angle)));
+            DrawLine(light.position, edge, color, true);
+        }
+#else
+        (void)light;
+#endif
+    }
+    void Renderer::DrawLightGizmos(const Lighting& lighting)
+    {
+        for (const PointLight& light : lighting.pointLights)
+        {
+            DrawLightGizmo(light);
+        }
+        for (const SpotLight& light : lighting.spotLights)
+        {
+            DrawLightGizmo(light);
         }
     }
 
@@ -806,6 +999,14 @@ namespace KR
             {
                 commandList->SetGraphicsRootConstantBufferView(PaletteRootIndex, paletteBuffer.GetGpuAddress() + command.paletteByteOffset);
             }
+
+            // 材質(数字12個)を b3 の箱に入れる
+            const Material& material = command.material;
+            MaterialConstants materialConstants;
+            materialConstants.diffuse = { material.diffuseColor.x, material.diffuseColor.y, material.diffuseColor.z, 1.0f };
+            materialConstants.specular = { material.specularColor.x, material.specularColor.y, material.specularColor.z, material.specularStrength };
+            materialConstants.params = { material.shininess, 0.0f, 0.0f, 0.0f };
+            commandList->SetGraphicsRoot32BitConstants(MaterialRootIndex, MaterialConstantsCount, &materialConstants, 0);
 
             // ワールド行列(数字16個)を b0 の箱に入れて、描く
             commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &command.world, 0);
