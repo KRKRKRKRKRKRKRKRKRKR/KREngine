@@ -11,6 +11,8 @@ namespace KR
     constexpr UINT ObjectConstantsRootIndex = 0; // b0: 物体ごとのデータ(ワールド行列)を直接入れる
     constexpr UINT FrameConstantsRootIndex = 1;  // b1: フレームごとのデータ(定数バッファ)の住所を入れる
     constexpr UINT TextureRootIndex = 2;         // t0: 画像の札(SRV)を指す口(descriptor table)。ピクセルシェーダーだけが使う
+    constexpr UINT MaterialRootIndex = 4;        // b3: 物ごとの材質(root constants。ピクセルシェーダーだけが読む)。MaterialConstantsCount 個の 32 ビット値
+    constexpr UINT MaterialConstantsCount = 12;  // シェーダーの cbuffer MaterialConstants(float4 × 3)と、同じ大きさ
     constexpr UINT PaletteRootIndex = 3;         // b2: 骨の行列の表(パレット)の住所。スキニングの頂点シェーダーだけが使う(骨なしの物は、設定しない)
 
     struct DX12PipelineDesc

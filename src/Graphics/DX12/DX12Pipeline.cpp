@@ -18,11 +18,12 @@ namespace KR
             CD3DX12_DESCRIPTOR_RANGE textureRange;
             textureRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); // t0 から 1 個(SRV)
 
-            CD3DX12_ROOT_PARAMETER rootParameters[4];
+            CD3DX12_ROOT_PARAMETER rootParameters[5];
             rootParameters[ObjectConstantsRootIndex].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
             rootParameters[FrameConstantsRootIndex].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
             rootParameters[TextureRootIndex].InitAsDescriptorTable(1, &textureRange, D3D12_SHADER_VISIBILITY_PIXEL);
             rootParameters[PaletteRootIndex].InitAsConstantBufferView(2, 0, D3D12_SHADER_VISIBILITY_VERTEX);
+            rootParameters[MaterialRootIndex].InitAsConstants(MaterialConstantsCount, 3, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 
             const CD3DX12_STATIC_SAMPLER_DESC linearSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR,
                                                             D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP,

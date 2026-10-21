@@ -8,6 +8,14 @@ cbuffer ObjectConstants : register(b0)
 // b1 の別紙(フレームごとのデータ。カメラ・光・フォグ)の宣言は、Sky.hlsl と共有するので、共通のファイルにある
 #include "Common.hlsli"
 
+// b3 の箱から受け取る、物ごとの材質(C++ 側は Renderer.cpp の MaterialConstants。ピクセルシェーダーだけが読む)
+cbuffer MaterialConstants : register(b3)
+{
+    float4 materialDiffuse;  // rgb = 物の色に掛ける色
+    float4 materialSpecular; // rgb = ハイライトの色 / w = ハイライトの強さ
+    float4 materialParams;   // x = ハイライトの鋭さ(残りは、予約)
+};
+
 // 貼る画像と、その読み方(C++ 側は Root Signature の t0 の口と、静的サンプラー s0)
 // 画像を貼らない物には、白の 1×1 が入っている(色 × 白 = 色 なので、今までと同じ色になる)
 Texture2D albedoTexture : register(t0);
@@ -106,7 +114,7 @@ float4 PSMain(PSInput input) : SV_Target
     float4 albedo = albedoTexture.Sample(linearSampler, input.uv);
 
     // 頂点の色 × 画像の色 × 光
-    float3 litColor = input.color.rgb * albedo.rgb * lighting;
+    float3 litColor = input.color.rgb * albedo.rgb * materialDiffuse.rgb * lighting;
 
     // フォグ: 遠い物ほど、霧の色に近づく。見える割合 = exp(-濃さ × 距離)(1 = くっきり、0 = 完全に霧の色)
     float distanceToCamera = length(input.worldPosition - cameraPosition.xyz);

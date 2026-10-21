@@ -90,6 +90,9 @@ namespace KR
         // 今の姿勢で、メッシュを描く(骨つきは DrawSkinnedMesh・骨なしは DrawMesh を、自動で選ぶ)。world は、モデル全体の置き方
         void Draw(Renderer& renderer, const DirectX::XMMATRIX& world, TextureHandle texture = {}) const;
 
+        // 材質つき(Renderer::DrawMesh の材質つきと同じ)
+        void Draw(Renderer& renderer, const DirectX::XMMATRIX& world, const Material& material, TextureHandle texture = {}) const;
+
         // ---- 骨・姿勢(骨の表示・判定の編集などに使う)----
 
         const Skeleton& GetSkeleton() const { return m_Skeleton; }

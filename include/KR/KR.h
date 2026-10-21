@@ -9,6 +9,7 @@
 #include "KR/Renderer/Renderer.h"
 #include "KR/Renderer/Camera.h"
 #include "KR/Renderer/Lighting.h"
+#include "KR/Renderer/Material.h"
 #include "KR/Renderer/Mesh.h"
 #include "KR/Renderer/ModelLoader.h"
 #include "KR/Physics/Collision.h"

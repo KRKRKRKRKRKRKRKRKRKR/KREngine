@@ -39,6 +39,15 @@ namespace KR
     {
         // b1 の別紙(定数バッファ)の中身。シェーダーの cbuffer FrameConstants と形を合わせる
         // float4 にそろえているのは、HLSL の定数バッファが「16 バイトの区切り」で並ぶため(float3 だと、並びがずれる)
+        // b3 の箱(root constants)の中身。シェーダーの cbuffer MaterialConstants と形を合わせる(float4 × 3 = 数字 12 個)
+        struct MaterialConstants
+        {
+            XMFLOAT4 diffuse;  // rgb = 物の色に掛ける色
+            XMFLOAT4 specular; // rgb = ハイライトの色 / w = ハイライトの強さ
+            XMFLOAT4 params;   // x = ハイライトの鋭さ(残りは、予約)
+        };
+        static_assert(sizeof(MaterialConstants) == MaterialConstantsCount * sizeof(uint32_t), "b3 の数字の個数と合わせる");
+
         struct FrameConstants
         {
             XMFLOAT4X4 viewProjection;
@@ -600,8 +609,14 @@ namespace KR
     // 2-7 処理4: その場では描かず、依頼メモを描画リストに積むだけ
     void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world, TextureHandle texture, bool overlay)
     {
+        DrawMesh(mesh, world, Material{}, texture, overlay);
+    }
+
+    void Renderer::DrawMesh(MeshHandle mesh, const XMMATRIX& world, const Material& material, TextureHandle texture, bool overlay)
+    {
         DrawCommand command;
         command.mesh = mesh;
+        command.material = material;
         command.texture = texture;
         command.overlay = overlay;
         XMStoreFloat4x4(&command.world, world); // 計算用の XMMATRIX を、保存用の XMFLOAT4X4 に書き出す
@@ -610,6 +625,11 @@ namespace KR
 
     // A-5: 骨つきの形。DrawMesh と同じく、依頼メモを積むだけ。パレットは、表(m_PaletteStaging)に、256 バイト区切りで積む
     void Renderer::DrawSkinnedMesh(MeshHandle mesh, const XMMATRIX& world, std::span<const XMFLOAT4X4> palette, TextureHandle texture)
+    {
+        DrawSkinnedMesh(mesh, world, palette, Material{}, texture);
+    }
+
+    void Renderer::DrawSkinnedMesh(MeshHandle mesh, const XMMATRIX& world, std::span<const XMFLOAT4X4> palette, const Material& material, TextureHandle texture)
     {
         if (palette.empty() || palette.size() > MaxSkinJoints)
         {
@@ -633,6 +653,7 @@ namespace KR
 
         DrawCommand command;
         command.mesh = mesh;
+        command.material = material;
         command.texture = texture;
         command.skinned = true;
         command.paletteByteOffset = static_cast<uint32_t>(byteOffset);
@@ -806,6 +827,14 @@ namespace KR
             {
                 commandList->SetGraphicsRootConstantBufferView(PaletteRootIndex, paletteBuffer.GetGpuAddress() + command.paletteByteOffset);
             }
+
+            // 材質(数字12個)を b3 の箱に入れる
+            const Material& material = command.material;
+            MaterialConstants materialConstants;
+            materialConstants.diffuse = { material.diffuseColor.x, material.diffuseColor.y, material.diffuseColor.z, 1.0f };
+            materialConstants.specular = { material.specularColor.x, material.specularColor.y, material.specularColor.z, material.specularStrength };
+            materialConstants.params = { material.shininess, 0.0f, 0.0f, 0.0f };
+            commandList->SetGraphicsRoot32BitConstants(MaterialRootIndex, MaterialConstantsCount, &materialConstants, 0);
 
             // ワールド行列(数字16個)を b0 の箱に入れて、描く
             commandList->SetGraphicsRoot32BitConstants(ObjectConstantsRootIndex, 16, &command.world, 0);
