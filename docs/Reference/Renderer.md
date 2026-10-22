@@ -3,7 +3,7 @@ title: Renderer(描画)
 project: KREngine
 kind: 使い方
 status: 最新
-updated: 2026-10-21
+updated: 2026-10-22
 replaces:
 ---
 
@@ -174,6 +174,19 @@ void DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end,
 void DrawWireBox(const OBB& box, const DirectX::XMFLOAT4& color);
 ```
 `OBB` の 12 本の辺を、線で積む。当たり判定の箱の確認用。
+
+### Renderer::GetViewExtent()　カメラの前の面の大きさ
+```cpp
+ViewExtent GetViewExtent(float distance) const; // struct ViewExtent { float halfWidth; float halfHeight; }
+```
+カメラの前 `distance` メートルの面が、画面いっぱいに見える大きさ(半分の幅・半分の高さ。メートル)。今のカメラの視野・ウィンドウの縦横比から求める。**画面に貼り付ける物**(`Material::cameraSpace`)の位置を決めるのに使う。右端 = `(halfWidth, 0, distance)`・上端 = `(0, halfHeight, distance)`。→ [Material](Material.md)
+
+```cpp
+KR::Material material;
+material.cameraSpace = true;                        // 渡す行列は、カメラの座標
+const auto extent = GetRenderer().GetViewExtent(10.0f);
+GetRenderer().DrawMesh(mesh, XMMatrixTranslation(extent.halfWidth * 0.9f, 0.0f, 10.0f), material, {}, true); // 画面の右端(の少し内側)・カメラの前 10 m
+```
 
 ### Renderer::DrawLightGizmo() / DrawLightGizmos()　光の範囲を線で描く
 光の位置と届く範囲を、光の色の線で描く(Debug だけ)。→ [Lighting](Lighting.md)

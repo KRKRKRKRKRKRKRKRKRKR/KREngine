@@ -24,6 +24,7 @@ cbuffer FrameConstants : register(b1)
     float4 spotPositionRange[8];       // xyz = 位置 / w = 届く距離(8 は、C++ 側の MaxSpotLights)
     float4 spotDirectionOuter[8];      // xyz = 向き(長さ 1。光が向かう向き) / w = cos(外側の角度)
     float4 spotColorInner[8];          // rgb = 色(強さ込み) / w = cos(内側の角度)
+    row_major float4x4 projection;     // プロジェクション(遠近)だけ。カメラ固定の材質(cameraSpace)が、ビューを掛けずに使う
 };
 
 // ハイライト(Blinn-Phong): 光と視線の「真ん中の向き」(ハーフベクトル)が、面の向きに近いほど強い

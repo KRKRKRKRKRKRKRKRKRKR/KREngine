@@ -23,7 +23,7 @@ namespace KR
             rootParameters[FrameConstantsRootIndex].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
             rootParameters[TextureRootIndex].InitAsDescriptorTable(1, &textureRange, D3D12_SHADER_VISIBILITY_PIXEL);
             rootParameters[PaletteRootIndex].InitAsConstantBufferView(2, 0, D3D12_SHADER_VISIBILITY_VERTEX);
-            rootParameters[MaterialRootIndex].InitAsConstants(MaterialConstantsCount, 3, 0, D3D12_SHADER_VISIBILITY_PIXEL);
+            rootParameters[MaterialRootIndex].InitAsConstants(MaterialConstantsCount, 3, 0, D3D12_SHADER_VISIBILITY_ALL); // 頂点シェーダーも読む(カメラ固定の材質 = cameraSpace を、見分けるため)
 
             const CD3DX12_STATIC_SAMPLER_DESC linearSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR,
                                                             D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP,
