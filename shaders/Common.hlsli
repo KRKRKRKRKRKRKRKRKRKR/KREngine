@@ -53,3 +53,28 @@ float SpotFactor(float3 directionToLight, float3 spotDirection, float cosOuter, 
     float t = saturate((cosAngle - cosOuter) / max(cosInner - cosOuter, 0.0001));
     return t * t * (3.0 - 2.0 * t);
 }
+
+// トゥーン: 0 〜 1 の明るさ x を、steps 段階(等間隔の steps 個の値)に切る。steps が 2 未満なら、x をそのまま返す(なめらか)
+// softness = 帯の境目のなめらかさ(0 〜 0.5。帯 1 つの幅に対する割合)。0 に近いほど、くっきり
+float Toon(float x, float steps, float softness)
+{
+    if (steps < 2.0)
+    {
+        return x;
+    }
+    float y = saturate(x) * steps;
+    float band = floor(y);
+    float edge = smoothstep(0.0, max(softness, 0.0001), y - band);   // 帯の下の縁で、1 つ下の帯から、この帯へ、つなぐ
+    return saturate((band - 1.0 + edge) / (steps - 1.0));              // 最低の帯 = 0・最高の帯 = 1(x = 1 のとき)
+}
+
+// トゥーンのハイライト: なめらかな ハイライトの強さ h(0 〜 1)を、しきい値 0.5 で、はっきりした点にする(steps が 2 未満なら h のまま)
+float ToonSpecular(float h, float steps, float softness)
+{
+    if (steps < 2.0)
+    {
+        return h;
+    }
+    float width = max(softness * 0.5, 0.0001);
+    return smoothstep(0.5 - width, 0.5 + width, h);
+}

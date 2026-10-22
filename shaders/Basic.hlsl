@@ -13,7 +13,7 @@ cbuffer MaterialConstants : register(b3)
 {
     float4 materialDiffuse;  // rgb = 物の色に掛ける色
     float4 materialSpecular; // rgb = ハイライトの色 / w = ハイライトの強さ
-    float4 materialParams;   // x = ハイライトの鋭さ(残りは、予約)
+    float4 materialParams;   // x = ハイライトの鋭さ / y = トゥーンの段階の数(0 = なめらか) / z = 帯の境目のなめらかさ
 };
 
 // 貼る画像と、その読み方(C++ 側は Root Signature の t0 の口と、静的サンプラー s0)
@@ -105,7 +105,10 @@ float4 PSMain(PSInput input) : SV_Target
     float3 normal = normalize(input.worldNormal);
 
     // 陰影(Lambert): 面が光のほうを向くほど明るい。反対向き(内積がマイナス)は 0 = 光が当たらない
-    float diffuse = saturate(dot(normal, toLight.xyz));
+    // トゥーン(材質の段階の数が 2 以上のとき): 当たり具合を、段階の帯に切る。0 のときは、Toon は、そのまま返す
+    float toonSteps = materialParams.y;
+    float toonSoftness = materialParams.z;
+    float diffuse = Toon(saturate(dot(normal, toLight.xyz)), toonSteps, toonSoftness);
 
     // 明るさ = 環境光 + 光の色 × 当たり具合
     float3 lighting = ambientColor.rgb + lightColor.rgb * diffuse;
@@ -113,7 +116,7 @@ float4 PSMain(PSInput input) : SV_Target
     // ハイライトに使う光の合計(太陽 + 点光源 + スポットライト。強さ・色は、あとで、材質を掛ける)
     float3 viewDirection = normalize(cameraPosition.xyz - input.worldPosition);
     float shininess = materialParams.x;
-    float3 specularLight = lightColor.rgb * BlinnPhong(normal, toLight.xyz, viewDirection, shininess);
+    float3 specularLight = lightColor.rgb * ToonSpecular(BlinnPhong(normal, toLight.xyz, viewDirection, shininess), toonSteps, toonSoftness);
 
     // 点光源: 光ごとに、「距離による弱まり × 当たり具合」を足す
     for (uint i = 0; i < (uint)lightCounts.x; ++i)
@@ -122,8 +125,8 @@ float4 PSMain(PSInput input) : SV_Target
         float distanceToLight = length(toPoint);
         float3 direction = toPoint / max(distanceToLight, 0.0001);
         float3 lightRgb = pointColor[i].rgb * Attenuation(distanceToLight, pointPositionRange[i].w);
-        lighting += lightRgb * saturate(dot(normal, direction));
-        specularLight += lightRgb * BlinnPhong(normal, direction, viewDirection, shininess);
+        lighting += lightRgb * Toon(saturate(dot(normal, direction)), toonSteps, toonSoftness);
+        specularLight += lightRgb * ToonSpecular(BlinnPhong(normal, direction, viewDirection, shininess), toonSteps, toonSoftness);
     }
 
     // スポットライト: 点光源と同じ + 円錐の中での強さ
@@ -134,8 +137,8 @@ float4 PSMain(PSInput input) : SV_Target
         float3 direction = toSpot / max(distanceToLight, 0.0001);
         float cone = SpotFactor(direction, spotDirectionOuter[j].xyz, spotDirectionOuter[j].w, spotColorInner[j].w);
         float3 lightRgb = spotColorInner[j].rgb * (Attenuation(distanceToLight, spotPositionRange[j].w) * cone);
-        lighting += lightRgb * saturate(dot(normal, direction));
-        specularLight += lightRgb * BlinnPhong(normal, direction, viewDirection, shininess);
+        lighting += lightRgb * Toon(saturate(dot(normal, direction)), toonSteps, toonSoftness);
+        specularLight += lightRgb * ToonSpecular(BlinnPhong(normal, direction, viewDirection, shininess), toonSteps, toonSoftness);
     }
 
     // 画像から、この画素の uv の位置の色を取る(画像は sRGB 形式なので、GPU が、読むときに、光の計算用の値に直す)
