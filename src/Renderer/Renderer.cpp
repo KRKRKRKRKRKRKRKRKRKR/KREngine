@@ -68,10 +68,12 @@ namespace KR
             XMFLOAT4 spotPositionRange[MaxSpotLights];   // xyz = 位置 / w = 届く距離
             XMFLOAT4 spotDirectionOuter[MaxSpotLights];  // xyz = 向き(長さ 1) / w = cos(外側の角度)
             XMFLOAT4 spotColorInner[MaxSpotLights];      // rgb = 色(強さ込み) / w = cos(内側の角度)
+            XMFLOAT4X4 projection;                       // プロジェクション(遠近)だけ。カメラ固定の材質(cameraSpace)が、ビューを掛けずに使う
         };
         // 並びの確認:先頭から 11 個の行列・float4 の続き(行列 2 つ = 128 バイト + float4 9 個 = 144 バイト = 272)に、光の配列が続く
         static_assert(offsetof(FrameConstants, lightCounts) == 272, "シェーダーの cbuffer FrameConstants と、並びを合わせる");
-        static_assert(sizeof(FrameConstants) == 272 + 16 * (1 + 2 * MaxPointLights + 3 * MaxSpotLights), "光の配列の大きさ");
+        static_assert(sizeof(FrameConstants) == 272 + 16 * (1 + 2 * MaxPointLights + 3 * MaxSpotLights) + 64, "光の配列 + プロジェクションの大きさ");
+        static_assert(offsetof(FrameConstants, projection) == 272 + 16 * (1 + 2 * MaxPointLights + 3 * MaxSpotLights), "シェーダーの cbuffer FrameConstants と、並びを合わせる(projection は、いちばん最後)");
 
         bool IsFinite(const XMFLOAT3& v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); }
         bool IsLightColor(const XMFLOAT3& c) { return IsFinite(c) && c.x >= 0.0f && c.y >= 0.0f && c.z >= 0.0f; }
@@ -442,6 +444,7 @@ namespace KR
         FrameConstants frameConstants = {}; // 光の配列は、使わない枠を 0 にしておく
         const XMMATRIX viewProjection = m_Camera.GetViewMatrix() * m_Camera.GetProjectionMatrix(aspectRatio);
         XMStoreFloat4x4(&frameConstants.viewProjection, viewProjection);
+        XMStoreFloat4x4(&frameConstants.projection, m_Camera.GetProjectionMatrix(aspectRatio)); // カメラ固定の材質(cameraSpace)用
 
         // 4-7b: 空は、画面の座標から視線の向きを求めるので、逆行列も渡す
         // 4-7c: 逆行列は、ビュー行列の「移動」の成分を 0 にして(カメラの向きだけにして)作る。カメラの位置が入っていると、
@@ -545,6 +548,16 @@ namespace KR
 
         // ImGui I-5: このフレームの ImGui を始める。この後 OnImGui() で、Game が窓を書く
         m_ImGui->BeginFrame();
+    }
+
+    Renderer::ViewExtent Renderer::GetViewExtent(float distance) const
+    {
+        // プロジェクション行列の (0,0) = 1 / (tan(視野 / 2) × 縦横比)・(1,1) = 1 / tan(視野 / 2)。距離 × tan = 半分の大きさ
+        const auto width = static_cast<float>(m_SwapChain->GetWidth());
+        const auto height = static_cast<float>(m_SwapChain->GetHeight());
+        XMFLOAT4X4 projection;
+        XMStoreFloat4x4(&projection, m_Camera.GetProjectionMatrix(width / height));
+        return { distance / projection._11, distance / projection._22 };
     }
 
     // 2-7 処理2: 形のデータを GPU のバッファに入れて一覧表に登録し、番号札を返す
@@ -1008,7 +1021,7 @@ namespace KR
             // トゥーン: 段階の数は 0 か 2 以上(1 は 0 と同じ)・16 まで。なめらかさは 0 〜 0.5 に収める。数でない値は、トゥーンなし
             const int steps = std::clamp(material.toonSteps, 0, 16);
             const float softness = std::isfinite(material.toonSoftness) ? std::clamp(material.toonSoftness, 0.0f, 0.5f) : 0.05f;
-            materialConstants.params = { material.shininess, steps >= 2 ? static_cast<float>(steps) : 0.0f, softness, material.unlit ? 1.0f : 0.0f };
+            materialConstants.params = { material.shininess, steps >= 2 ? static_cast<float>(steps) : 0.0f, softness, (material.unlit || material.cameraSpace ? 1.0f : 0.0f) + (material.cameraSpace ? 2.0f : 0.0f) }; // w = 旗(1 = 光を受けない・2 = カメラ固定。足し算)
             commandList->SetGraphicsRoot32BitConstants(MaterialRootIndex, MaterialConstantsCount, &materialConstants, 0);
 
             // ワールド行列(数字16個)を b0 の箱に入れて、描く

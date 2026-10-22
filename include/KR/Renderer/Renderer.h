@@ -48,6 +48,15 @@ namespace KR
         // このフレームで使うカメラ(コピーして保持する)。呼ばなければ Camera の初期値で描く
         void SetCamera(const Camera& camera) { m_Camera = camera; }
 
+        // カメラの前 distance メートルの面が、画面いっぱいに見える大きさ(半分の幅・半分の高さ。メートル)。今のカメラの視野・ウィンドウの縦横比から求める
+        // 画面に貼り付ける物(Material::cameraSpace)の位置を決めるのに使う:右端 = (halfWidth, ・, distance)・上端 = (・, halfHeight, distance)
+        struct ViewExtent
+        {
+            float halfWidth = 1.0f;
+            float halfHeight = 1.0f;
+        };
+        ViewExtent GetViewExtent(float distance) const;
+
         // このフレームで使う光(コピーして保持する)。呼ばなければ Lighting の初期値で描く
         void SetLighting(const Lighting& lighting) { m_Lighting = lighting; }
 

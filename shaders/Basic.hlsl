@@ -13,7 +13,7 @@ cbuffer MaterialConstants : register(b3)
 {
     float4 materialDiffuse;  // rgb = 物の色に掛ける色
     float4 materialSpecular; // rgb = ハイライトの色 / w = ハイライトの強さ
-    float4 materialParams;   // x = ハイライトの鋭さ / y = トゥーンの段階の数(0 = なめらか) / z = 帯の境目のなめらかさ / w = 光を受けない(unlit)なら 1
+    float4 materialParams;   // x = ハイライトの鋭さ / y = トゥーンの段階の数(0 = なめらか) / z = 帯の境目のなめらかさ / w = 旗(1 = 光を受けない(unlit)・2 = カメラ固定(cameraSpace)。足し算)
 };
 
 // 貼る画像と、その読み方(C++ 側は Root Signature の t0 の口と、静的サンプラー s0)
@@ -54,7 +54,11 @@ PSInput TransformVertex(float3 localPosition, float3 localNormal, float4 color, 
     PSInput output;
     // w = 1(位置)にしてから行列を掛ける → 拡大・回転・移動がすべて効く
     float4 worldPosition = mul(float4(localPosition, 1.0), world); // ① ローカル → ワールド
-    output.position = mul(worldPosition, viewProjection);          // ② ワールド → カメラ → 画面
+    // カメラ固定の材質(cameraSpace。旗の 2):渡された行列は、ワールドではなく、カメラの座標。ビューを掛けずに、プロジェクションだけを掛ける
+    //   (ワールドを経由しない = 世界の座標が大きくても、ぶれない。光・フォグは、受けない材質なので、worldPosition の値は、使われない)
+    const bool cameraSpace = ((uint)(materialParams.w + 0.5)) & 2;
+    output.position = cameraSpace ? mul(worldPosition, projection)    // ② カメラの座標 → 画面
+                                  : mul(worldPosition, viewProjection); // ② ワールド → カメラ → 画面
     // この後 GPU が自動で x, y を w(奥行き)で割る → 遠い物ほど小さく映る
     output.worldPosition = worldPosition.xyz;
 
@@ -105,7 +109,7 @@ float4 PSMain(PSInput input) : SV_Target
     float4 albedo = albedoTexture.Sample(linearSampler, input.uv);
 
     // 光を受けない材質(unlit。画面に固定して出す UI の物): 光・ハイライト・フォグを飛ばして、色をそのまま出す
-    if (materialParams.w > 0.5)
+    if (((uint)(materialParams.w + 0.5)) & 1) // 旗の 1 = 光を受けない
     {
         return float4(input.color.rgb * albedo.rgb * materialDiffuse.rgb, input.color.a * albedo.a);
     }
