@@ -13,7 +13,7 @@ cbuffer MaterialConstants : register(b3)
 {
     float4 materialDiffuse;  // rgb = 物の色に掛ける色
     float4 materialSpecular; // rgb = ハイライトの色 / w = ハイライトの強さ
-    float4 materialParams;   // x = ハイライトの鋭さ / y = トゥーンの段階の数(0 = なめらか) / z = 帯の境目のなめらかさ
+    float4 materialParams;   // x = ハイライトの鋭さ / y = トゥーンの段階の数(0 = なめらか) / z = 帯の境目のなめらかさ / w = 光を受けない(unlit)なら 1
 };
 
 // 貼る画像と、その読み方(C++ 側は Root Signature の t0 の口と、静的サンプラー s0)
@@ -101,6 +101,14 @@ PSInput VSSkinned(VSSkinnedInput input)
 // ピクセルシェーダー: 画素1つにつき1回呼ばれ、「何色に塗るか」を決める
 float4 PSMain(PSInput input) : SV_Target
 {
+    // 画像から、この画素の uv の位置の色を取る(画像は sRGB 形式なので、GPU が、読むときに、光の計算用の値に直す)
+    float4 albedo = albedoTexture.Sample(linearSampler, input.uv);
+
+    // 光を受けない材質(unlit。画面に固定して出す UI の物): 光・ハイライト・フォグを飛ばして、色をそのまま出す
+    if (materialParams.w > 0.5)
+    {
+        return float4(input.color.rgb * albedo.rgb * materialDiffuse.rgb, input.color.a * albedo.a);
+    }
     // 補間で長さが変わるので、法線を長さ 1 にそろえ直す
     float3 normal = normalize(input.worldNormal);
 
@@ -141,8 +149,6 @@ float4 PSMain(PSInput input) : SV_Target
         specularLight += lightRgb * ToonSpecular(BlinnPhong(normal, direction, viewDirection, shininess), toonSteps, toonSoftness);
     }
 
-    // 画像から、この画素の uv の位置の色を取る(画像は sRGB 形式なので、GPU が、読むときに、光の計算用の値に直す)
-    float4 albedo = albedoTexture.Sample(linearSampler, input.uv);
 
     // 頂点の色 × 画像の色 × 光
     float3 litColor = input.color.rgb * albedo.rgb * materialDiffuse.rgb * lighting;

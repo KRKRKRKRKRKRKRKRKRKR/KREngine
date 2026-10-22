@@ -43,7 +43,7 @@ namespace KR
         {
             XMFLOAT4 diffuse;  // rgb = 物の色に掛ける色
             XMFLOAT4 specular; // rgb = ハイライトの色 / w = ハイライトの強さ
-            XMFLOAT4 params;   // x = ハイライトの鋭さ / y = トゥーンの段階の数(0 = なめらか) / z = 帯の境目のなめらかさ
+            XMFLOAT4 params;   // x = ハイライトの鋭さ / y = トゥーンの段階の数(0 = なめらか) / z = 帯の境目のなめらかさ / w = 光を受けない(unlit)なら 1
         };
         static_assert(sizeof(MaterialConstants) == MaterialConstantsCount * sizeof(uint32_t), "b3 の数字の個数と合わせる");
 
@@ -1008,7 +1008,7 @@ namespace KR
             // トゥーン: 段階の数は 0 か 2 以上(1 は 0 と同じ)・16 まで。なめらかさは 0 〜 0.5 に収める。数でない値は、トゥーンなし
             const int steps = std::clamp(material.toonSteps, 0, 16);
             const float softness = std::isfinite(material.toonSoftness) ? std::clamp(material.toonSoftness, 0.0f, 0.5f) : 0.05f;
-            materialConstants.params = { material.shininess, steps >= 2 ? static_cast<float>(steps) : 0.0f, softness, 0.0f };
+            materialConstants.params = { material.shininess, steps >= 2 ? static_cast<float>(steps) : 0.0f, softness, material.unlit ? 1.0f : 0.0f };
             commandList->SetGraphicsRoot32BitConstants(MaterialRootIndex, MaterialConstantsCount, &materialConstants, 0);
 
             // ワールド行列(数字16個)を b0 の箱に入れて、描く
